@@ -403,4 +403,283 @@ describe "CURVE encryption" do
       end
     end
   end
+
+  describe "Edge cases" do
+    it "ciphertext has high Shannon entropy" do
+      server_pub, server_sec = generate_keypair
+      client_pub, client_sec = generate_keypair
+
+      Async do
+        client_io, server_io = make_socketpair
+
+        server_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          public_key: server_pub, secret_key: server_sec, as_server: true,
+        )
+        client_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          server_key: server_pub, public_key: client_pub, secret_key: client_sec,
+        )
+
+        server = OMQ::ZMTP::Connection.new(server_io, socket_type: "PAIR", as_server: true, mechanism: server_mech)
+        client = OMQ::ZMTP::Connection.new(client_io, socket_type: "PAIR", as_server: false, mechanism: client_mech)
+
+        [Async { server.handshake! }, Async { client.handshake! }].each(&:wait)
+
+        # Send a highly repetitive message
+        plaintext = "A" * 1024
+
+        # Capture raw wire bytes
+        captured = "".b
+        original_write = client_io.method(:write)
+        client_io.define_singleton_method(:write) do |data|
+          captured << data
+          original_write.call(data)
+        end
+
+        Async { client.send_message([plaintext]) }
+        Async { server.receive_message }.wait
+
+        # Shannon entropy of captured ciphertext (skip ZMTP frame header)
+        bytes = captured.bytes
+        freq  = bytes.tally
+        total = bytes.size.to_f
+        entropy = -freq.values.sum { |c| p = c / total; p * Math.log2(p) }
+
+        # Random data has ~8 bits/byte entropy. Encrypted data should be > 7.
+        # The plaintext "AAAA..." has ~0 bits/byte entropy.
+        assert entropy > 7.0, "expected high entropy (got #{entropy.round(2)} bits/byte)"
+      ensure
+        client_io&.close
+        server_io&.close
+      end
+    end
+
+    it "rejects replayed nonce" do
+      server_pub, server_sec = generate_keypair
+      client_pub, client_sec = generate_keypair
+
+      Async do
+        client_io, server_io = make_socketpair
+
+        server_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          public_key: server_pub, secret_key: server_sec, as_server: true,
+        )
+        client_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          server_key: server_pub, public_key: client_pub, secret_key: client_sec,
+        )
+
+        server = OMQ::ZMTP::Connection.new(server_io, socket_type: "PAIR", as_server: true, mechanism: server_mech)
+        client = OMQ::ZMTP::Connection.new(client_io, socket_type: "PAIR", as_server: false, mechanism: client_mech)
+
+        [Async { server.handshake! }, Async { client.handshake! }].each(&:wait)
+
+        # Send a legitimate message and capture the wire bytes
+        captured = "".b
+        original_write = client_io.method(:write)
+        client_io.define_singleton_method(:write) do |data|
+          captured << data
+          original_write.call(data)
+        end
+
+        Async { client.send_message(["legit"]) }
+        Async { server.receive_message }.wait
+
+        # Replay the same wire bytes (same nonce)
+        original_write.call(captured)
+
+        # Server should reject the replayed frame
+        assert_raises(OMQ::ZMTP::ProtocolError) do
+          Async { server.receive_message }.wait
+        end
+      ensure
+        client_io&.close
+        server_io&.close
+      end
+    end
+
+    it "handles multipart messages under CURVE" do
+      server_pub, server_sec = generate_keypair
+      client_pub, client_sec = generate_keypair
+
+      Async do
+        client_io, server_io = make_socketpair
+
+        server_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          public_key: server_pub, secret_key: server_sec, as_server: true,
+        )
+        client_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          server_key: server_pub, public_key: client_pub, secret_key: client_sec,
+        )
+
+        server = OMQ::ZMTP::Connection.new(server_io, socket_type: "PAIR", as_server: true, mechanism: server_mech)
+        client = OMQ::ZMTP::Connection.new(client_io, socket_type: "PAIR", as_server: false, mechanism: client_mech)
+
+        [Async { server.handshake! }, Async { client.handshake! }].each(&:wait)
+
+        parts = ["routing-key", "header", "payload-body"]
+        Async { client.send_message(parts) }
+        msg = nil
+        Async { msg = server.receive_message }.wait
+
+        assert_equal parts, msg
+      ensure
+        client_io&.close
+        server_io&.close
+      end
+    end
+
+    it "handles large messages (64 KB)" do
+      server_pub, server_sec = generate_keypair
+      client_pub, client_sec = generate_keypair
+
+      Async do
+        client_io, server_io = make_socketpair
+
+        server_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          public_key: server_pub, secret_key: server_sec, as_server: true,
+        )
+        client_mech = OMQ::ZMTP::Mechanism::Curve.new(
+          server_key: server_pub, public_key: client_pub, secret_key: client_sec,
+        )
+
+        server = OMQ::ZMTP::Connection.new(server_io, socket_type: "PAIR", as_server: true, mechanism: server_mech)
+        client = OMQ::ZMTP::Connection.new(client_io, socket_type: "PAIR", as_server: false, mechanism: client_mech)
+
+        [Async { server.handshake! }, Async { client.handshake! }].each(&:wait)
+
+        large = RbNaCl::Random.random_bytes(65_536)
+        Async { client.send_message([large]) }
+        msg = nil
+        Async { msg = server.receive_message }.wait
+
+        assert_equal [large], msg
+      ensure
+        client_io&.close
+        server_io&.close
+      end
+    end
+
+    it "supports multiple clients to one server" do
+      server_pub, server_sec = generate_keypair
+      client1_pub, client1_sec = generate_keypair
+      client2_pub, client2_sec = generate_keypair
+
+      Async do |task|
+        rep = OMQ::REP.new
+        rep.mechanism        = :curve
+        rep.curve_server     = true
+        rep.curve_public_key = server_pub
+        rep.curve_secret_key = server_sec
+        rep.bind("tcp://127.0.0.1:0")
+        port = rep.last_tcp_port
+
+        task.async do
+          2.times do
+            msg = rep.receive
+            rep << msg.map(&:upcase)
+          end
+        end
+
+        req1 = OMQ::REQ.new
+        req1.mechanism        = :curve
+        req1.curve_public_key = client1_pub
+        req1.curve_secret_key = client1_sec
+        req1.curve_server_key = server_pub
+        req1.connect("tcp://127.0.0.1:#{port}")
+
+        req2 = OMQ::REQ.new
+        req2.mechanism        = :curve
+        req2.curve_public_key = client2_pub
+        req2.curve_secret_key = client2_sec
+        req2.curve_server_key = server_pub
+        req2.connect("tcp://127.0.0.1:#{port}")
+
+        req1 << "from client 1"
+        assert_equal ["FROM CLIENT 1"], req1.receive
+
+        req2 << "from client 2"
+        assert_equal ["FROM CLIENT 2"], req2.receive
+      ensure
+        req1&.close
+        req2&.close
+        rep&.close
+      end
+    end
+
+    it "reconnects after server restart" do
+      server_pub, server_sec = generate_keypair
+      client_pub, client_sec = generate_keypair
+
+      Async do |task|
+        rep = OMQ::REP.new
+        rep.mechanism        = :curve
+        rep.curve_server     = true
+        rep.curve_public_key = server_pub
+        rep.curve_secret_key = server_sec
+        rep.bind("tcp://127.0.0.1:0")
+        port = rep.last_tcp_port
+
+        task.async do
+          msg = rep.receive
+          rep << msg.map(&:upcase)
+        end
+
+        req = OMQ::REQ.new
+        req.mechanism           = :curve
+        req.curve_public_key    = client_pub
+        req.curve_secret_key    = client_sec
+        req.curve_server_key    = server_pub
+        req.reconnect_interval  = 0.1
+        req.connect("tcp://127.0.0.1:#{port}")
+
+        req << "first"
+        assert_equal ["FIRST"], req.receive
+
+        # Kill server
+        rep.close
+
+        # Restart server on same port
+        rep2 = OMQ::REP.new
+        rep2.mechanism        = :curve
+        rep2.curve_server     = true
+        rep2.curve_public_key = server_pub
+        rep2.curve_secret_key = server_sec
+        rep2.bind("tcp://127.0.0.1:#{port}")
+
+        task.async do
+          msg = rep2.receive
+          rep2 << msg.map(&:upcase)
+        end
+
+        # Client should reconnect and complete a new handshake
+        sleep 0.3
+        req << "second"
+        reply = req.receive
+        assert_equal ["SECOND"], reply
+      ensure
+        req&.close
+        rep&.close rescue nil
+        rep2&.close rescue nil
+      end
+    end
+
+    it "raises on invalid key length" do
+      assert_raises(ArgumentError) do
+        OMQ::ZMTP::Mechanism::Curve.new(
+          server_key: "too short",
+          public_key: "too short",
+          secret_key: "too short",
+        )
+      end
+    end
+
+    it "raises on nil keys" do
+      assert_raises(ArgumentError) do
+        OMQ::ZMTP::Mechanism::Curve.new(
+          server_key: nil,
+          public_key: nil,
+          secret_key: nil,
+        )
+      end
+    end
+  end
 end

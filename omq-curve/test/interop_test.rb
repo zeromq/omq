@@ -168,4 +168,48 @@ describe "CURVE interop with CZTop/libzmq" do
       assert_equal "HELLO FROM CZTOP DEALER", reply&.last
     end
   end
+
+  describe "Authentication interop" do
+    it "OMQ server rejects unauthorized CZTop client" do
+      server_pub, server_sec = generate_keypair
+      client_pub, client_sec = generate_keypair
+      allowed_pub, _         = generate_keypair
+
+      rejected = false
+
+      Async do |task|
+        rep = OMQ::REP.new
+        rep.mechanism           = :curve
+        rep.curve_server        = true
+        rep.curve_public_key    = server_pub
+        rep.curve_secret_key    = server_sec
+        rep.curve_authenticator = Set[allowed_pub]  # client_pub NOT in set
+        rep.bind("tcp://127.0.0.1:0")
+        port = rep.last_tcp_port
+
+        client_thread = Thread.new do
+          req = CZTop::Socket::REQ.new
+          CZTop::CURVE.setup_client!(req, client_sec, server_pub)
+          req.linger       = 0
+          req.send_timeout = 2
+          req.recv_timeout = 2
+          req.connect("tcp://127.0.0.1:#{port}")
+
+          begin
+            req << "should be rejected"
+            req.receive
+          rescue IO::TimeoutError
+            rejected = true
+          end
+          req.close
+        end
+
+        client_thread.join(5)
+      ensure
+        rep&.close
+      end
+
+      assert rejected, "expected CZTop client to be rejected by authenticator"
+    end
+  end
 end
