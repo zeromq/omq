@@ -29,6 +29,7 @@ module OMQ
         @tcp_keepalive_count   = nil   # probes before dead, nil = OS default
         @tcp_keepalive_interval = nil  # seconds between probes, nil = OS default
         @max_message_size       = nil  # bytes, nil = unlimited
+        @connect_timeout        = 60   # seconds, nil = OS default
         @mechanism              = :null # :null or :curve
         @curve_server           = false
         @curve_server_key       = nil  # 32-byte binary (server's permanent public key)
@@ -46,6 +47,7 @@ module OMQ
                     :tcp_keepalive,         :tcp_keepalive_idle,
                     :tcp_keepalive_count,   :tcp_keepalive_interval,
                     :max_message_size,
+                    :connect_timeout,
                     :mechanism,
                     :curve_server,          :curve_server_key,
                     :curve_public_key,      :curve_secret_key,

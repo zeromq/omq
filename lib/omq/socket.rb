@@ -34,6 +34,7 @@ module OMQ
       tcp_keepalive_count     tcp_keepalive_count=
       tcp_keepalive_interval  tcp_keepalive_interval=
       max_message_size        max_message_size=
+      connect_timeout         connect_timeout=
       mechanism               mechanism=
       curve_server            curve_server=
       curve_server_key        curve_server_key=

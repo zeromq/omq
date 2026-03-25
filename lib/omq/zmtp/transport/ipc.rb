@@ -33,8 +33,9 @@ module OMQ
                 client = server.accept
                 Reactor.run do
                   engine.handle_accepted(TCP::SocketIO.new(client), endpoint: endpoint)
-                rescue ProtocolError, EOFError
+                rescue => e
                   client.close rescue nil
+                  raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError)
                 end
               end
             rescue IOError

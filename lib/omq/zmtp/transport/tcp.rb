@@ -29,8 +29,9 @@ module OMQ
                 client = server.accept
                 Reactor.run do
                   engine.handle_accepted(SocketIO.new(client, options: engine.options), endpoint: resolved)
-                rescue ProtocolError, EOFError
+                rescue => e
                   client.close rescue nil
+                  raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError)
                 end
               end
             rescue IOError
@@ -48,7 +49,12 @@ module OMQ
           #
           def connect(endpoint, engine)
             host, port = parse_endpoint(endpoint)
-            sock = TCPSocket.new(host, port)
+            timeout = engine.options.connect_timeout
+            sock = if timeout
+                     ::Socket.tcp(host, port, connect_timeout: timeout)
+                   else
+                     TCPSocket.new(host, port)
+                   end
             engine.handle_connected(SocketIO.new(sock, options: engine.options), endpoint: endpoint)
           end
 
@@ -70,7 +76,7 @@ module OMQ
           #
           def initialize(socket, options: nil)
             @socket = socket
-            if socket.is_a?(TCPSocket)
+            if socket.is_a?(TCPSocket) || socket.is_a?(::Socket)
               socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, 1)
               apply_tcp_keepalive(socket, options) if options
             end
