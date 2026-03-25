@@ -7,22 +7,6 @@ module OMQ
   # strategies. They are not part of the public API.
   #
   module ZMTP
-    # Reads exactly n bytes from io, raising on short read or EOF.
-    #
-    # @param io [#read]
-    # @param n [Integer]
-    # @return [String]
-    # @raise [EOFError]
-    #
-    def self.read_exact(io, n)
-      data = "".b
-      while data.bytesize < n
-        chunk = io.read(n - data.bytesize)
-        raise EOFError, "connection closed" if chunk.nil? || chunk.empty?
-        data << chunk
-      end
-      data
-    end
   end
 end
 
@@ -38,7 +22,6 @@ require_relative "zmtp/transport/tcp"
 require_relative "zmtp/transport/ipc"
 
 # Mechanisms
-require_relative "zmtp/mechanism"
 require_relative "zmtp/mechanism/null"
 
 # Core

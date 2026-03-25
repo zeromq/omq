@@ -16,4 +16,5 @@ Gem::Specification.new do |s|
   s.files = Dir["lib/**/*.rb", "README.md", "LICENSE"]
 
   s.add_dependency "async", "~> 2"
+  s.add_dependency "io-stream", "~> 0.11"
 end

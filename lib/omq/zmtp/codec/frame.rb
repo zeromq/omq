@@ -75,7 +75,7 @@ module OMQ
         # @raise [EOFError] if the connection is closed
         #
         def self.read_from(io)
-          flags_byte = ZMTP.read_exact(io, 1)
+          flags_byte = io.read_exactly(1)
           flags_buf = IO::Buffer.for(flags_byte)
           flags = flags_buf.get_value(:U8, 0)
 
@@ -84,16 +84,16 @@ module OMQ
           command = (flags & FLAGS_COMMAND) != 0
 
           if long
-            size_bytes = ZMTP.read_exact(io, 8)
+            size_bytes = io.read_exactly(8)
             size_buf = IO::Buffer.for(size_bytes)
             size = size_buf.get_value(:U64, 0) # big-endian
           else
-            size_byte = ZMTP.read_exact(io, 1)
+            size_byte = io.read_exactly(1)
             size_buf = IO::Buffer.for(size_byte)
             size = size_buf.get_value(:U8, 0)
           end
 
-          body = size > 0 ? ZMTP.read_exact(io, size) : "".b
+          body = size > 0 ? io.read_exactly(size) : "".b
 
           new(body, more: more, command: command)
         end

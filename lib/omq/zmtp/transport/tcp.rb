@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 require "socket"
-require "async"
+require "uri"
+require "io/stream"
 
 module OMQ
   module ZMTP
@@ -21,14 +22,14 @@ module OMQ
             host = "0.0.0.0" if host == "*"
             server = TCPServer.new(host, port)
             actual_port = server.local_address.ip_port
-            host_part = host.include?(":") ? "[#{host}]" : host
-            resolved  = "tcp://#{host_part}:#{actual_port}"
+            host_part   = host.include?(":") ? "[#{host}]" : host
+            resolved    = "tcp://#{host_part}:#{actual_port}"
 
             accept_task = Reactor.spawn_pump do
               loop do
                 client = server.accept
                 Reactor.run do
-                  engine.handle_accepted(SocketIO.new(client, options: engine.options), endpoint: resolved)
+                  engine.handle_accepted(IO::Stream::Buffered.wrap(client, minimum_write_size: 0), endpoint: resolved)
                 rescue => e
                   client.close rescue nil
                   raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError)
@@ -55,83 +56,14 @@ module OMQ
                    else
                      TCPSocket.new(host, port)
                    end
-            engine.handle_connected(SocketIO.new(sock, options: engine.options), endpoint: endpoint)
+            engine.handle_connected(IO::Stream::Buffered.wrap(sock, minimum_write_size: 0), endpoint: endpoint)
           end
 
           private
 
           def parse_endpoint(endpoint)
-            # tcp://host:port
-            uri = endpoint.sub(%r{\Atcp://}, "")
-            host, port_str = uri.rsplit_host_port
-            [host, port_str.to_i]
-          end
-        end
-
-        # Wraps a Ruby TCPSocket/UNIXSocket to provide #read/#write/#close.
-        #
-        class SocketIO
-          # @param socket [TCPSocket, UNIXSocket]
-          # @param options [Options, nil] socket options for TCP tuning
-          #
-          def initialize(socket, options: nil)
-            @socket = socket
-            if socket.is_a?(TCPSocket) || socket.is_a?(::Socket)
-              socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, 1)
-              apply_tcp_keepalive(socket, options) if options
-            end
-          end
-
-          # Reads up to n bytes.
-          #
-          # @param n [Integer]
-          # @return [String, nil]
-          #
-          def read(n)
-            @socket.read(n)
-          end
-
-          # Writes data.
-          #
-          # @param data [String]
-          # @return [Integer]
-          #
-          def write(data)
-            @socket.write(data)
-          end
-
-          # Closes the socket.
-          #
-          def close
-            @socket.close
-          rescue IOError
-            # already closed
-          end
-
-          private
-
-          def apply_tcp_keepalive(socket, options)
-            return if options.tcp_keepalive.nil?
-
-            socket.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE,
-                              options.tcp_keepalive ? 1 : 0)
-
-            if options.tcp_keepalive
-              if options.tcp_keepalive_idle
-                socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_KEEPIDLE,
-                                  options.tcp_keepalive_idle.to_i)
-              end
-
-              if options.tcp_keepalive_interval
-                socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_KEEPINTVL,
-                                  options.tcp_keepalive_interval.to_i)
-              end
-
-              if options.tcp_keepalive_count
-                socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_KEEPCNT,
-                                  options.tcp_keepalive_count.to_i)
-              end
-            end
+            uri = URI.parse(endpoint)
+            [uri.hostname, uri.port]
           end
         end
 
@@ -147,10 +79,10 @@ module OMQ
           attr_reader :port
 
           def initialize(endpoint, server, accept_task, port)
-            @endpoint = endpoint
-            @server = server
+            @endpoint    = endpoint
+            @server      = server
             @accept_task = accept_task
-            @port = port
+            @port        = port
           end
 
           # Stops the listener.
@@ -160,22 +92,6 @@ module OMQ
             @server.close rescue nil
           end
         end
-      end
-    end
-  end
-end
-
-# Helper to split "host:port" handling IPv6 bracket notation
-#
-class String
-  unless method_defined?(:rsplit_host_port)
-    def rsplit_host_port
-      if self =~ /\A\[(.+)\]:(\d+)\z/
-        [$1, $2]
-      elsif self =~ /\A(.+):(\d+)\z/
-        [$1, $2]
-      else
-        [self, "0"]
       end
     end
   end

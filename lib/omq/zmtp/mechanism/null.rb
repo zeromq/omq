@@ -8,8 +8,6 @@ module OMQ
       # Performs the ZMTP 3.1 greeting exchange and READY command handshake.
       #
       class Null
-        include Mechanism
-
         MECHANISM_NAME = "NULL"
 
         # Performs the full NULL handshake over +io+.
@@ -30,7 +28,7 @@ module OMQ
           io.write(Codec::Greeting.encode(mechanism: MECHANISM_NAME, as_server: as_server))
 
           # Read peer greeting
-          greeting_data = ZMTP.read_exact(io, Codec::Greeting::SIZE)
+          greeting_data = io.read_exactly(Codec::Greeting::SIZE)
           peer_greeting = Codec::Greeting.decode(greeting_data)
 
           unless peer_greeting[:mechanism] == MECHANISM_NAME

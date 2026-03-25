@@ -2,13 +2,14 @@
 
 require_relative "test_helper"
 require "socket"
+require "io/stream"
 
 describe OMQ::ZMTP::Connection do
   Connection = OMQ::ZMTP::Connection
 
   # Use a Unix socket pair for testing ZMTP framing (no inproc pipe needed)
   def make_socketpair
-    UNIXSocket.pair.map { |s| OMQ::ZMTP::Transport::TCP::SocketIO.new(s) }
+    UNIXSocket.pair.map { |s| IO::Stream::Buffered.wrap(s, minimum_write_size: 0) }
   end
 
   describe "#handshake!" do

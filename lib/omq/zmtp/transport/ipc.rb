@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "socket"
-require "async"
+require "io/stream"
 
 module OMQ
   module ZMTP
@@ -32,7 +32,7 @@ module OMQ
               loop do
                 client = server.accept
                 Reactor.run do
-                  engine.handle_accepted(TCP::SocketIO.new(client), endpoint: endpoint)
+                  engine.handle_accepted(IO::Stream::Buffered.wrap(client, minimum_write_size: 0), endpoint: endpoint)
                 rescue => e
                   client.close rescue nil
                   raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError)
@@ -55,7 +55,7 @@ module OMQ
             path = parse_path(endpoint)
             sock_path = to_socket_path(path)
             sock = UNIXSocket.new(sock_path)
-            engine.handle_connected(TCP::SocketIO.new(sock), endpoint: endpoint)
+            engine.handle_connected(IO::Stream::Buffered.wrap(sock, minimum_write_size: 0), endpoint: endpoint)
           end
 
           private
