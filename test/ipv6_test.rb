@@ -56,7 +56,7 @@ describe "IPv6" do
       pub = OMQ::PUB.bind("tcp://[::1]:0")
       port = pub.last_tcp_port
 
-      sub = OMQ::SUB.connect("tcp://[::1]:#{port}")
+      sub = OMQ::SUB.connect("tcp://[::1]:#{port}", prefix: "topic.")
 
       # Give subscription time to propagate
       sleep 0.1

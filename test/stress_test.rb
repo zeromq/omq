@@ -106,7 +106,7 @@ describe "Stress tests" do
       pub = OMQ::PUB.bind("inproc://stress-pubsub")
 
       subs = n_subs.times.map do
-        OMQ::SUB.connect("inproc://stress-pubsub")
+        OMQ::SUB.connect("inproc://stress-pubsub", prefix: "")
       end
 
       # Wait for subscriptions to propagate

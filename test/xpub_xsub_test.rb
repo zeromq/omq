@@ -24,11 +24,9 @@ describe "XPUB/XSUB" do
   it "XPUB delivers messages to matching subscribers" do
     Async do
       xpub = OMQ::XPUB.bind("inproc://xpub-sub-2")
-      sub  = OMQ::SUB.connect("inproc://xpub-sub-2")
-      sub.subscribe("news.")
+      sub  = OMQ::SUB.connect("inproc://xpub-sub-2", prefix: "news.")
 
-      # Consume subscription notifications (default "" + explicit "news.")
-      xpub.receive
+      # Consume subscription notification
       xpub.receive
 
       xpub.send("news.headline")

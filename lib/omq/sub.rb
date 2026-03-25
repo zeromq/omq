@@ -12,10 +12,10 @@ module OMQ
 
     # @param endpoints [String, nil]
     # @param linger [Integer]
-    # @param prefix [String, nil] subscription prefix; defaults to
-    #   everything ({EVERYTHING}). Pass +nil+ to skip subscribing.
+    # @param prefix [String, nil] subscription prefix; +nil+ (default)
+    #   means no subscription — call {#subscribe} explicitly.
     #
-    def initialize(endpoints = nil, linger: 0, prefix: EVERYTHING)
+    def initialize(endpoints = nil, linger: 0, prefix: nil)
       _init_engine(:SUB, linger: linger)
       _attach(endpoints, default: :connect)
       subscribe(prefix) unless prefix.nil?

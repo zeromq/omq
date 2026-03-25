@@ -77,7 +77,7 @@ describe 'Clone' do
       sleep 0.05
 
       # Client: subscribe first, snapshot second, apply buffered updates
-      sub = OMQ::SUB.connect(pub_ep)
+      sub = OMQ::SUB.connect(pub_ep, prefix: "")
       sub.recv_timeout = 1.5
 
       # Buffer live updates in an Async task while fetching snapshot
