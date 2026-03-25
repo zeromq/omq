@@ -974,6 +974,5 @@ Run any example: `ruby examples/zguide/03_pipeline.rb`
   in 20+ languages
 - [ZMTP 3.1 spec](https://rfc.zeromq.org/spec/23/) — wire protocol
 - [CurveZMQ spec](https://rfc.zeromq.org/spec/26/) — encryption
-- [ZAP spec](https://rfc.zeromq.org/spec/27/) — authentication
 - [OMQ source](https://github.com/paddor/omq) — the pure Ruby
   implementation used in all examples above
