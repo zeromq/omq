@@ -168,6 +168,26 @@ module OMQ
       end
     end
 
+    # Generates a Socket subclass with the given mixins and default mode.
+    #
+    # @param type [Symbol] socket type (e.g. :REQ, :PUSH)
+    # @param default [Symbol] :connect or :bind
+    # @param readable [Boolean] include Readable mixin
+    # @param writable [Boolean] include Writable mixin
+    # @return [Class]
+    #
+    def self.define(type, default, readable: false, writable: false)
+      Class.new(self) do
+        include ZMTP::Readable if readable
+        include ZMTP::Writable if writable
+
+        define_method(:initialize) do |endpoints = nil, linger: 0|
+          _init_engine(type, linger: linger)
+          _attach(endpoints, default: default)
+        end
+      end
+    end
+
     # Initializes engine and options for a socket type.
     #
     # @param socket_type [Symbol]

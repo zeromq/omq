@@ -14,14 +14,20 @@ end
 
 require_relative "omq/zmtp"
 require_relative "omq/socket"
-require_relative "omq/pair"
-require_relative "omq/req"
-require_relative "omq/rep"
-require_relative "omq/dealer"
+
+# Simple socket types defined via Socket.define
+module OMQ
+  REQ    = Socket.define(:REQ,    :connect, readable: true, writable: true)
+  REP    = Socket.define(:REP,    :bind,    readable: true, writable: true)
+  DEALER = Socket.define(:DEALER, :connect, readable: true, writable: true)
+  PUB    = Socket.define(:PUB,    :bind,    writable: true)
+  XPUB   = Socket.define(:XPUB,   :bind,    readable: true, writable: true)
+  XSUB   = Socket.define(:XSUB,   :connect, readable: true, writable: true)
+  PUSH   = Socket.define(:PUSH,   :connect, writable: true)
+  PULL   = Socket.define(:PULL,   :bind,    readable: true)
+  PAIR   = Socket.define(:PAIR,   :connect, readable: true, writable: true)
+end
+
+# Socket types with extra methods
 require_relative "omq/router"
-require_relative "omq/pub"
 require_relative "omq/sub"
-require_relative "omq/xpub"
-require_relative "omq/xsub"
-require_relative "omq/push"
-require_relative "omq/pull"

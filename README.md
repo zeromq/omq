@@ -7,7 +7,7 @@
 
 Pure Ruby implementation of the [ZMTP 3.1](https://rfc.zeromq.org/spec/23/) wire protocol ([ZeroMQ](https://zeromq.org/)) using the [Async](https://github.com/socketry/async) gem. No native libraries required.
 
-> **184k msg/s** inproc throughput | **13 µs** req/rep roundtrip latency
+> **186k msg/s** inproc throughput | **12 µs** req/rep roundtrip latency | pure Ruby + YJIT
 
 ---
 

@@ -2,7 +2,7 @@
 
 module OMQ
   module ZMTP
-    # Pure Ruby socket options, replacing ZsockOptions.
+    # Pure Ruby socket options.
     #
     # All timeouts are in seconds (Numeric) or nil (no timeout).
     # HWM values are integers.
