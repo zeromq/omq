@@ -11,12 +11,12 @@ describe "Auto-reconnection" do
       req.connect("tcp://127.0.0.1:19876")
 
       # Start server after a delay
-      sleep 0.3
+      sleep 0.1
       rep = OMQ::REP.new(nil, linger: 0)
       rep.bind("tcp://127.0.0.1:19876")
 
       # Wait for background reconnect to succeed
-      sleep 0.5
+      sleep 0.15
 
       req.send("late start")
       msg = rep.receive
@@ -53,14 +53,14 @@ describe "Auto-reconnection" do
       rep.close
 
       # Wait a bit for the reconnect to kick in
-      sleep 0.3
+      sleep 0.1
 
       # Restart server on same port
       rep2 = OMQ::REP.new(nil, linger: 0)
       rep2.bind("tcp://127.0.0.1:#{port}")
 
       # Wait for reconnection
-      sleep 0.5
+      sleep 0.15
 
       # Second exchange should work after reconnection
       req.send("reconnected")

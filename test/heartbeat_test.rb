@@ -26,7 +26,7 @@ describe "Heartbeat" do
       assert_equal ["world"], reply
 
       # Wait — heartbeats should keep the connection alive
-      sleep 0.3
+      sleep 0.15
 
       # Another exchange should still work
       req.send("still alive")
@@ -64,10 +64,10 @@ describe "Heartbeat" do
       req.close
 
       # Wait for heartbeat timeout to detect the dead peer
-      sleep 0.5
+      sleep 0.2
 
       # REP should have detected dead peer. Try to receive — should timeout.
-      rep.recv_timeout = 0.2
+      rep.recv_timeout = 0.1
       assert_raises(IO::TimeoutError) { rep.receive }
     ensure
       rep&.close
