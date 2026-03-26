@@ -268,7 +268,7 @@ module OMQ
         @connections << conn
         @connection_endpoints[conn] = endpoint if endpoint
         @routing.connection_added(conn)
-      rescue ProtocolError, EOFError
+      rescue ProtocolError, EOFError, Errno::EPIPE, Errno::ECONNRESET
         conn&.close
         raise
       end

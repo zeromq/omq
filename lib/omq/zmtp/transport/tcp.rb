@@ -32,7 +32,8 @@ module OMQ
                   engine.handle_accepted(IO::Stream::Buffered.wrap(client, minimum_write_size: 0), endpoint: resolved)
                 rescue => e
                   client.close rescue nil
-                  raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError)
+                  raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError) &&
+                           !e.is_a?(Errno::EPIPE) && !e.is_a?(Errno::ECONNRESET)
                 end
               end
             rescue IOError
