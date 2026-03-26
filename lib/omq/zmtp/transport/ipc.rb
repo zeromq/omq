@@ -33,11 +33,11 @@ module OMQ
                 client = server.accept
                 Reactor.run do
                   engine.handle_accepted(IO::Stream::Buffered.wrap(client, minimum_write_size: 0), endpoint: endpoint)
+                rescue ProtocolError, *ZMTP::CONNECTION_LOST
+                  # peer disconnected during handshake
                 rescue => e
-                  client.close rescue nil
-                  raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError) &&
-                           !e.is_a?(Errno::EPIPE) && !e.is_a?(Errno::ECONNRESET) &&
-                           !e.is_a?(IO::Stream::ConnectionResetError)
+                  client&.close rescue nil
+                  raise
                 end
               end
             rescue IOError

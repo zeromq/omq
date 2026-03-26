@@ -59,7 +59,7 @@ module OMQ
               conn  = next_connection
               conn.send_message(transform_send(parts))
             end
-          rescue EOFError, IOError
+          rescue *ZMTP::CONNECTION_LOST
             # connection lost mid-write
           end
         end

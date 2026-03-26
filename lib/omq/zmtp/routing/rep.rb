@@ -73,7 +73,7 @@ module OMQ
               next unless reply_info
               reply_info[:conn].send_message([*reply_info[:envelope], "".b, *parts])
             end
-          rescue EOFError
+          rescue *ZMTP::CONNECTION_LOST
             # connection lost mid-write
           end
         end

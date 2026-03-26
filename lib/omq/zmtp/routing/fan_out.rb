@@ -60,7 +60,7 @@ module OMQ
                 next unless subscribed?(conn, topic)
                 begin
                   conn.send_message(parts)
-                rescue IOError, EOFError
+                rescue *ZMTP::CONNECTION_LOST
                   # connection dead — will be cleaned up
                 end
               end
@@ -79,7 +79,7 @@ module OMQ
               when "CANCEL"    then on_cancel(conn, cmd.data)
               end
             end
-          rescue EOFError
+          rescue *ZMTP::CONNECTION_LOST
             @engine.connection_lost(conn)
           end
         end

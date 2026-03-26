@@ -7,6 +7,27 @@ module OMQ
   # strategies. They are not part of the public API.
   #
   module ZMTP
+    require "io/stream"
+
+    # Errors raised when a peer disconnects or resets the connection.
+    CONNECTION_LOST = [
+      EOFError,
+      IOError,
+      Errno::EPIPE,
+      Errno::ECONNRESET,
+      Errno::ECONNABORTED,
+      Errno::ENOTCONN,
+      IO::Stream::ConnectionResetError,
+    ].freeze
+
+    # Errors raised when a peer cannot be reached.
+    CONNECTION_FAILED = [
+      Errno::ECONNREFUSED,
+      Errno::ENOENT,
+      Errno::ETIMEDOUT,
+      Errno::EHOSTUNREACH,
+      Errno::ENETUNREACH,
+    ].freeze
   end
 end
 

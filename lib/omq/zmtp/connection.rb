@@ -139,7 +139,7 @@ module OMQ
               end
             end
           end
-        rescue IOError, EOFError
+        rescue *ZMTP::CONNECTION_LOST
           # connection closed
         end
       end

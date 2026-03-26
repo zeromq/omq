@@ -58,7 +58,7 @@ module OMQ
         def start_send_pump(conn)
           @tasks << Reactor.spawn_pump do
             loop { conn.send_message(@send_queue.dequeue) }
-          rescue EOFError, IOError
+          rescue *ZMTP::CONNECTION_LOST
             @engine.connection_lost(conn)
           end
         end
