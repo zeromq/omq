@@ -25,7 +25,6 @@ module OMQ
         @heartbeat_ttl         = nil   # seconds, nil = use heartbeat_interval
         @heartbeat_timeout     = nil   # seconds, nil = use heartbeat_interval
         @max_message_size       = nil  # bytes, nil = unlimited
-        @connect_timeout        = 60   # seconds, nil = OS default
         @mechanism              = :null # :null or :curve
         @curve_server           = false
         @curve_server_key       = nil  # 32-byte binary (server's permanent public key)
@@ -41,7 +40,6 @@ module OMQ
                     :reconnect_interval,
                     :heartbeat_interval,    :heartbeat_ttl,    :heartbeat_timeout,
                     :max_message_size,
-                    :connect_timeout,
                     :mechanism,
                     :curve_server,          :curve_server_key,
                     :curve_public_key,      :curve_secret_key,

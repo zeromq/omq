@@ -51,12 +51,7 @@ module OMQ
           #
           def connect(endpoint, engine)
             host, port = parse_endpoint(endpoint)
-            timeout = engine.options.connect_timeout
-            sock = if timeout
-                     ::Socket.tcp(host, port, connect_timeout: timeout)
-                   else
-                     TCPSocket.new(host, port)
-                   end
+            sock = TCPSocket.new(host, port)
             engine.handle_connected(IO::Stream::Buffered.wrap(sock, minimum_write_size: 0), endpoint: endpoint)
           end
 

@@ -30,7 +30,6 @@ module OMQ
       heartbeat_ttl           heartbeat_ttl=
       heartbeat_timeout       heartbeat_timeout=
       max_message_size        max_message_size=
-      connect_timeout         connect_timeout=
       mechanism               mechanism=
       curve_server            curve_server=
       curve_server_key        curve_server_key=
