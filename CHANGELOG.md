@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-03-26
+
+### Added
+
+- `ØMQ` alias for `OMQ` — because Ruby can
+
 ## 0.2.1 — 2026-03-26
 
 ### Improved
