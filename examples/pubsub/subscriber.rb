@@ -3,13 +3,13 @@
 require_relative "../../lib/omq"
 require "async"
 
-prefix = ARGV[0] || ""
-label  = prefix.empty? ? "everything" : prefix
+endpoint = ARGV[0] || "tcp://localhost:5556"
+prefix   = ARGV[1] || ""
 
 Async do
-  sub = OMQ::SUB.connect("tcp://localhost:5556")
-  sub.subscribe(prefix)
-  puts "Subscribed to #{label.inspect} on tcp://localhost:5556 ..."
+  sub = OMQ::SUB.new(endpoint, prefix: prefix)
+  label = prefix.empty? ? "#{prefix.inspect} (everything)" : prefix.inspect
+  puts "Subscribed to #{label} on #{endpoint.delete_prefix(">")} ..."
 
   loop do
     msg = sub.receive

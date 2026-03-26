@@ -3,9 +3,11 @@
 require_relative "../../lib/omq"
 require "async"
 
+endpoint = ARGV[0] || "tcp://localhost:5555"
+
 Async do
-  req = OMQ::REQ.connect("tcp://localhost:5555")
-  puts "Client connected to tcp://localhost:5555"
+  req = OMQ::REQ.new(endpoint)
+  puts "Client connected to #{endpoint.delete_prefix(">")}"
 
   loop do
     print "> "

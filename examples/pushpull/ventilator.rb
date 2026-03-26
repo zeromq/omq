@@ -3,9 +3,11 @@
 require_relative "../../lib/omq"
 require "async"
 
+endpoint = ARGV[0] || "tcp://*:5557"
+
 Async do
-  push = OMQ::PUSH.bind("tcp://*:5557")
-  puts "Ventilator bound on #{push.last_endpoint} — type tasks, one per line"
+  push = OMQ::PUSH.new(endpoint)
+  puts "Ventilator on #{push.last_endpoint} — type tasks, one per line"
 
   loop do
     print "> "

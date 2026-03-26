@@ -3,9 +3,11 @@
 require_relative "../../lib/omq"
 require "async"
 
+endpoint = ARGV[0] || "tcp://*:5555"
+
 Async do
-  rep = OMQ::REP.bind("tcp://*:5555")
-  puts "Server listening on #{rep.last_endpoint} ..."
+  rep = OMQ::REP.new(endpoint)
+  puts "Server on #{rep.last_endpoint} ..."
 
   loop do
     msg = rep.receive
