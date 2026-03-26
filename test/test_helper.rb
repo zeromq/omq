@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-$VERBOSE = nil # suppress IO::Buffer experimental warnings
-
 require "minitest/autorun"
 require "omq"
 require "async"

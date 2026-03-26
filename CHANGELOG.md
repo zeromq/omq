@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-03-26
+
+### Improved
+
+- Replace `IO::Buffer` with `pack`/`unpack1`/`getbyte`/`byteslice` in
+  frame, command, and greeting codecs — up to 68% higher throughput for
+  large messages, 21% lower TCP latency
+
 ## 0.2.0 — 2026-03-26
 
 ### Changed

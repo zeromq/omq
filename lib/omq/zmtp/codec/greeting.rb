@@ -33,26 +33,11 @@ module OMQ
         # @return [String] 64-byte binary greeting
         #
         def self.encode(mechanism: "NULL", as_server: false)
-          buf = IO::Buffer.new(SIZE)
-          buf.clear
-
-          # Signature
-          buf.set_value(:U8, 0, SIGNATURE_START)
-          # bytes 1-8 are already 0x00
-          buf.set_value(:U8, 9, SIGNATURE_END)
-
-          # Version
-          buf.set_value(:U8, 10, VERSION_MAJOR)
-          buf.set_value(:U8, 11, VERSION_MINOR)
-
-          # Mechanism (null-padded)
-          buf.set_string(mechanism.b, MECHANISM_OFFSET)
-
-          # As-server flag
-          buf.set_value(:U8, AS_SERVER_OFFSET, as_server ? 1 : 0)
-
-          # Filler bytes 33-63 are already 0x00
-          buf.get_string(0, SIZE, Encoding::BINARY)
+          buf = "\xFF".b + ("\x00" * 8) + "\x7F".b
+          buf << [VERSION_MAJOR, VERSION_MINOR].pack("CC")
+          buf << mechanism.b.ljust(MECHANISM_LENGTH, "\x00")
+          buf << (as_server ? "\x01" : "\x00")
+          buf << ("\x00" * 31)
         end
 
         # Decodes a ZMTP greeting.
@@ -64,24 +49,21 @@ module OMQ
         def self.decode(data)
           raise ProtocolError, "greeting too short (#{data.bytesize} bytes)" if data.bytesize < SIZE
 
-          buf = IO::Buffer.for(data.b)
+          data = data.b
 
-          # Validate signature
-          unless buf.get_value(:U8, 0) == SIGNATURE_START &&
-                 buf.get_value(:U8, 9) == SIGNATURE_END
+          unless data.getbyte(0) == SIGNATURE_START && data.getbyte(9) == SIGNATURE_END
             raise ProtocolError, "invalid greeting signature"
           end
 
-          major = buf.get_value(:U8, 10)
-          minor = buf.get_value(:U8, 11)
+          major = data.getbyte(10)
+          minor = data.getbyte(11)
 
           unless major >= 3
             raise ProtocolError, "unsupported ZMTP version #{major}.#{minor} (need >= 3.0)"
           end
 
-          mechanism = buf.get_string(MECHANISM_OFFSET, MECHANISM_LENGTH, Encoding::BINARY)
-                        .delete("\x00")
-          as_server = buf.get_value(:U8, AS_SERVER_OFFSET) == 1
+          mechanism = data.byteslice(MECHANISM_OFFSET, MECHANISM_LENGTH).delete("\x00")
+          as_server = data.getbyte(AS_SERVER_OFFSET) == 1
 
           {
             major:     major,

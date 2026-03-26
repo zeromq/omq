@@ -39,11 +39,7 @@ module OMQ
         #
         def to_body
           name_bytes = @name.b
-          buf = IO::Buffer.new(1 + name_bytes.bytesize + @data.bytesize)
-          buf.set_value(:U8, 0, name_bytes.bytesize)
-          buf.set_string(name_bytes, 1)
-          buf.set_string(@data, 1 + name_bytes.bytesize)
-          buf.get_string(0, buf.size, Encoding::BINARY)
+          name_bytes.bytesize.chr.b + name_bytes + @data
         end
 
         # Encodes as a complete command Frame.
@@ -64,12 +60,11 @@ module OMQ
           body = body.b
           raise ProtocolError, "command body too short" if body.bytesize < 1
 
-          buf = IO::Buffer.for(body)
-          name_len = buf.get_value(:U8, 0)
+          name_len = body.getbyte(0)
 
           raise ProtocolError, "command name truncated" if body.bytesize < 1 + name_len
 
-          name = buf.get_string(1, name_len, Encoding::BINARY)
+          name = body.byteslice(1, name_len)
           data = body.byteslice(1 + name_len..)
           new(name, data)
         end
@@ -113,12 +108,8 @@ module OMQ
         # @return [Command]
         #
         def self.ping(ttl: 0, context: "".b)
-          # TTL is encoded as 2-byte big-endian value in tenths of a second
           ttl_ds = (ttl * 10).to_i
-          buf = IO::Buffer.new(2 + context.bytesize)
-          buf.set_value(:U16, 0, ttl_ds)
-          buf.set_string(context.b, 2) if context.bytesize > 0
-          new("PING", buf.get_string(0, buf.size, Encoding::BINARY))
+          new("PING", [ttl_ds].pack("n") + context.b)
         end
 
         # Builds a PONG command.
@@ -135,8 +126,7 @@ module OMQ
         # @return [Array(Numeric, String)] [ttl_seconds, context_bytes]
         #
         def ping_ttl_and_context
-          buf = IO::Buffer.for(@data)
-          ttl_ds = buf.get_value(:U16, 0)
+          ttl_ds  = @data.unpack1("n")
           context = @data.bytesize > 2 ? @data.byteslice(2..) : "".b
           [ttl_ds / 10.0, context]
         end
@@ -157,17 +147,13 @@ module OMQ
         #
         def self.encode_properties(props)
           parts = props.map do |name, value|
-            name_bytes = name.b
+            name_bytes  = name.b
             value_bytes = value.b
-            buf = IO::Buffer.new(1 + name_bytes.bytesize + 4 + value_bytes.bytesize)
-            buf.set_value(:U8, 0, name_bytes.bytesize)
-            buf.set_string(name_bytes, 1)
-            buf.set_value(:U32, 1 + name_bytes.bytesize, value_bytes.bytesize) # big-endian
-            buf.set_string(value_bytes, 1 + name_bytes.bytesize + 4)
-            buf.get_string(0, buf.size, Encoding::BINARY)
+            name_bytes.bytesize.chr.b + name_bytes + [value_bytes.bytesize].pack("N") + value_bytes
           end
           parts.join
         end
+
         # Decodes a ZMTP property list from binary data.
         #
         # @param data [String] binary property list
@@ -176,24 +162,23 @@ module OMQ
         #
         def self.decode_properties(data)
           result = {}
-          buf    = IO::Buffer.for(data)
           offset = 0
 
           while offset < data.bytesize
             raise ProtocolError, "property name truncated" if offset + 1 > data.bytesize
-            name_len = buf.get_value(:U8, offset)
+            name_len = data.getbyte(offset)
             offset += 1
 
             raise ProtocolError, "property name truncated" if offset + name_len > data.bytesize
-            name = buf.get_string(offset, name_len, Encoding::BINARY)
+            name = data.byteslice(offset, name_len)
             offset += name_len
 
             raise ProtocolError, "property value length truncated" if offset + 4 > data.bytesize
-            value_len = buf.get_value(:U32, offset)
+            value_len = data.byteslice(offset, 4).unpack1("N")
             offset += 4
 
             raise ProtocolError, "property value truncated" if offset + value_len > data.bytesize
-            value = buf.get_string(offset, value_len, Encoding::BINARY)
+            value = data.byteslice(offset, value_len)
             offset += value_len
 
             result[name] = value

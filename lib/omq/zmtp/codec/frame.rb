@@ -46,52 +46,37 @@ module OMQ
         # @return [String] binary wire representation (flags + size + body)
         #
         def to_wire
-          size = @body.bytesize
+          size  = @body.bytesize
           flags = 0
           flags |= FLAGS_MORE if @more
           flags |= FLAGS_COMMAND if @command
 
           if size > SHORT_MAX
-            flags |= FLAGS_LONG
-            buf = IO::Buffer.new(9 + size)
-            buf.set_value(:U8, 0, flags)
-            buf.set_value(:U64, 1, size) # big-endian
-            buf.set_string(@body, 9)
-            buf.get_string(0, 9 + size, Encoding::BINARY)
+            (flags | FLAGS_LONG).chr.b + [size].pack("Q>") + @body
           else
-            buf = IO::Buffer.new(2 + size)
-            buf.set_value(:U8, 0, flags)
-            buf.set_value(:U8, 1, size)
-            buf.set_string(@body, 2)
-            buf.get_string(0, 2 + size, Encoding::BINARY)
+            flags.chr.b + size.chr.b + @body
           end
         end
 
         # Reads one frame from an IO-like object.
         #
-        # @param io [#read] must support read(n) returning exactly n bytes
+        # @param io [#read_exactly] must support read_exactly(n)
         # @return [Frame]
         # @raise [ProtocolError] on invalid frame
         # @raise [EOFError] if the connection is closed
         #
         def self.read_from(io)
-          flags_byte = io.read_exactly(1)
-          flags_buf = IO::Buffer.for(flags_byte)
-          flags = flags_buf.get_value(:U8, 0)
+          flags = io.read_exactly(1).getbyte(0)
 
-          more = (flags & FLAGS_MORE) != 0
-          long = (flags & FLAGS_LONG) != 0
+          more    = (flags & FLAGS_MORE) != 0
+          long    = (flags & FLAGS_LONG) != 0
           command = (flags & FLAGS_COMMAND) != 0
 
-          if long
-            size_bytes = io.read_exactly(8)
-            size_buf = IO::Buffer.for(size_bytes)
-            size = size_buf.get_value(:U64, 0) # big-endian
-          else
-            size_byte = io.read_exactly(1)
-            size_buf = IO::Buffer.for(size_byte)
-            size = size_buf.get_value(:U8, 0)
-          end
+          size = if long
+                   io.read_exactly(8).unpack1("Q>")
+                 else
+                   io.read_exactly(1).getbyte(0)
+                 end
 
           body = size > 0 ? io.read_exactly(size) : "".b
 
