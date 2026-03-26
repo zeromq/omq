@@ -70,7 +70,7 @@ module OMQ
         @connected_endpoints << endpoint
         transport = transport_for(endpoint)
         transport.connect(endpoint, self)
-      rescue Errno::ECONNREFUSED, Errno::ENOENT, Errno::ETIMEDOUT, IOError, ProtocolError
+      rescue Errno::ECONNREFUSED, Errno::ENOENT, Errno::ETIMEDOUT, Errno::ECONNRESET, IO::Stream::ConnectionResetError, IOError, ProtocolError
         # Server not up yet — schedule background reconnect
         schedule_reconnect(endpoint)
       end
@@ -268,7 +268,7 @@ module OMQ
         @connections << conn
         @connection_endpoints[conn] = endpoint if endpoint
         @routing.connection_added(conn)
-      rescue ProtocolError, EOFError, Errno::EPIPE, Errno::ECONNRESET
+      rescue ProtocolError, EOFError, Errno::EPIPE, Errno::ECONNRESET, IO::Stream::ConnectionResetError
         conn&.close
         raise
       end
@@ -292,7 +292,7 @@ module OMQ
               transport = transport_for(endpoint)
               transport.connect(endpoint, self)
               break # reconnected successfully
-            rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, IOError, ProtocolError
+            rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::ECONNRESET, IO::Stream::ConnectionResetError, IOError, ProtocolError
               delay = [delay * 2, max_delay].min if max_delay
             end
           end

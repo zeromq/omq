@@ -33,7 +33,8 @@ module OMQ
                 rescue => e
                   client.close rescue nil
                   raise if !e.is_a?(ProtocolError) && !e.is_a?(EOFError) &&
-                           !e.is_a?(Errno::EPIPE) && !e.is_a?(Errno::ECONNRESET)
+                           !e.is_a?(Errno::EPIPE) && !e.is_a?(Errno::ECONNRESET) &&
+                           !e.is_a?(IO::Stream::ConnectionResetError)
                 end
               end
             rescue IOError
