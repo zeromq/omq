@@ -68,11 +68,14 @@ module OMQ
       #
       def connect(endpoint)
         @connected_endpoints << endpoint
-        transport = transport_for(endpoint)
-        transport.connect(endpoint, self)
-      rescue *CONNECTION_LOST, *CONNECTION_FAILED, ProtocolError
-        # Server not up yet — schedule background reconnect
-        schedule_reconnect(endpoint)
+        if endpoint.start_with?("inproc://")
+          # Inproc connect is synchronous and instant
+          transport = transport_for(endpoint)
+          transport.connect(endpoint, self)
+        else
+          # TCP/IPC connect in background — never blocks the caller
+          schedule_reconnect(endpoint, delay: 0)
+        end
       end
 
       # Disconnects from an endpoint. Closes connections to that endpoint
@@ -273,27 +276,29 @@ module OMQ
         raise
       end
 
-      def schedule_reconnect(endpoint)
+      def schedule_reconnect(endpoint, delay: nil)
         ri = @options.reconnect_interval
         if ri.is_a?(Range)
-          delay   = ri.begin
+          delay   ||= ri.begin
           max_delay = ri.end
         else
-          delay     = ri
+          delay   ||= ri
           max_delay = nil
         end
 
         @tasks << Reactor.spawn_pump do
           loop do
             break if @closed
-            sleep delay
+            sleep delay if delay > 0
             break if @closed
             begin
               transport = transport_for(endpoint)
               transport.connect(endpoint, self)
-              break # reconnected successfully
+              break # connected successfully
             rescue *CONNECTION_LOST, *CONNECTION_FAILED, ProtocolError
               delay = [delay * 2, max_delay].min if max_delay
+              # After first attempt with delay: 0, use the configured interval
+              delay = ri.is_a?(Range) ? ri.begin : ri if delay == 0
             end
           end
         end
