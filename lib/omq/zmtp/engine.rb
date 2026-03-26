@@ -292,7 +292,7 @@ module OMQ
               transport = transport_for(endpoint)
               transport.connect(endpoint, self)
               break # reconnected successfully
-            rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::ECONNRESET, IO::Stream::ConnectionResetError, IOError, ProtocolError
+            rescue Errno::ECONNREFUSED, Errno::ENOENT, Errno::ETIMEDOUT, Errno::ECONNRESET, IO::Stream::ConnectionResetError, IOError, ProtocolError
               delay = [delay * 2, max_delay].min if max_delay
             end
           end
