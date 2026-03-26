@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-03-26
+
+### Improved
+
+- `omqcat --help` responds in ~90ms (was ~470ms) — defer heavy gem loading
+  until after option parsing
+
 ## 0.3.0 — 2026-03-26
 
 ### Added

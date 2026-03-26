@@ -12,29 +12,9 @@
 #   omqcat sub -c tcp://localhost:5556 -s "weather."
 #
 
-require "omq"
-require "async"
 require "optparse"
-require "json"
-require "console"
 
-HAS_MSGPACK = begin; require "msgpack"; true; rescue LoadError; false; end
-HAS_ZSTD    = begin; require "zstd-ruby"; true; rescue LoadError; false; end
-
-SOCKET_TYPES = {
-  "req"    => OMQ::REQ,
-  "rep"    => OMQ::REP,
-  "pub"    => OMQ::PUB,
-  "sub"    => OMQ::SUB,
-  "push"   => OMQ::PUSH,
-  "pull"   => OMQ::PULL,
-  "pair"   => OMQ::PAIR,
-  "dealer" => OMQ::DEALER,
-  "router" => OMQ::ROUTER,
-}.freeze
-
-SEND_ONLY = [OMQ::PUB, OMQ::PUSH].freeze
-RECV_ONLY = [OMQ::SUB, OMQ::PULL].freeze
+SOCKET_TYPE_NAMES = %w[req rep pub sub push pull pair dealer router].freeze
 
 
 # ── Option parsing ──────────────────────────────────────────────────
@@ -61,7 +41,7 @@ opts = {
 
 parser = OptionParser.new do |o|
   o.banner = "Usage: omqcat TYPE [options]\n\n" \
-             "Types: #{SOCKET_TYPES.keys.join(', ')}\n\n"
+             "Types: #{SOCKET_TYPE_NAMES.join(', ')}\n\n"
 
   o.separator "Connection:"
   o.on("-c", "--connect URL", "Connect to endpoint (repeatable)")   { |v| opts[:connects] << v }
@@ -102,7 +82,7 @@ parser = OptionParser.new do |o|
   o.separator "\nOther:"
   o.on("-v", "--verbose", "Print connection events to stderr") { opts[:verbose] = true }
   o.on("-q", "--quiet",   "Suppress message output")           { opts[:quiet] = true }
-  o.on("-V", "--version")                                      { puts "omqcat #{OMQ::VERSION}"; exit }
+  o.on("-V", "--version")                                      { require "omq"; puts "omqcat #{OMQ::VERSION}"; exit }
   o.on("-h", "--help")                                         { puts o; exit }
 end
 
@@ -114,16 +94,39 @@ end
 
 type_name = ARGV.shift
 abort parser.to_s unless type_name
-klass = SOCKET_TYPES[type_name.downcase]
-abort "Unknown socket type: #{type_name}. Known: #{SOCKET_TYPES.keys.join(', ')}" unless klass
+abort "Unknown socket type: #{type_name}. Known: #{SOCKET_TYPE_NAMES.join(', ')}" unless SOCKET_TYPE_NAMES.include?(type_name.downcase)
 
-# ── Validation ──────────────────────────────────────────────────────
+# ── Validation (fast, before loading gems) ──────────────────────────
 
 abort "At least one --connect or --bind is required"   if opts[:connects].empty? && opts[:binds].empty?
 abort "--data and --file are mutually exclusive"        if opts[:data] && opts[:file]
-abort "--subscribe is only valid for SUB"               if !opts[:subscribes].empty? && klass != OMQ::SUB
-abort "--identity is only valid for DEALER/ROUTER"      if opts[:identity] && ![OMQ::DEALER, OMQ::ROUTER].include?(klass)
-abort "--target is only valid for ROUTER"               if opts[:target] && klass != OMQ::ROUTER
+abort "--subscribe is only valid for SUB"               if !opts[:subscribes].empty? && type_name.downcase != "sub"
+abort "--identity is only valid for DEALER/ROUTER"      if opts[:identity] && !%w[dealer router].include?(type_name.downcase)
+abort "--target is only valid for ROUTER"               if opts[:target] && type_name.downcase != "router"
+
+# ── Load gems ───────────────────────────────────────────────────────
+
+require "omq"
+require "async"
+require "json"
+require "console"
+
+HAS_MSGPACK = begin; require "msgpack"; true; rescue LoadError; false; end
+HAS_ZSTD    = begin; require "zstd-ruby"; true; rescue LoadError; false; end
+
+SOCKET_TYPES = {
+  "req"    => OMQ::REQ,    "rep"    => OMQ::REP,
+  "pub"    => OMQ::PUB,    "sub"    => OMQ::SUB,
+  "push"   => OMQ::PUSH,   "pull"   => OMQ::PULL,
+  "pair"   => OMQ::PAIR,
+  "dealer" => OMQ::DEALER,  "router" => OMQ::ROUTER,
+}.freeze
+
+SEND_ONLY = [OMQ::PUB, OMQ::PUSH].freeze
+RECV_ONLY = [OMQ::SUB, OMQ::PULL].freeze
+
+klass = SOCKET_TYPES[type_name.downcase]
+
 abort "--msgpack requires the msgpack gem"              if opts[:format] == :msgpack && !HAS_MSGPACK
 abort "--compress requires the zstd-ruby gem"           if opts[:compress] && !HAS_ZSTD
 
