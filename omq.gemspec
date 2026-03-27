@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
   s.summary  = "OMQ — pure Ruby ZeroMQ (ZMTP 3.1)"
   s.description = "Pure Ruby implementation of the ZMTP 3.1 wire protocol " \
                   "(ZeroMQ) using the Async gem. No native libraries required."
-  s.homepage = "https://github.com/paddor/omq"
+  s.homepage = "https://github.com/zeromq/omq"
   s.license  = "ISC"
 
   s.required_ruby_version = ">= 3.3"

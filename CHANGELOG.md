@@ -137,4 +137,4 @@ Initial release. Pure Ruby implementation of ZMTP 3.1 (ZeroMQ) using Async.
 - Linger on close (drain send queue before closing)
 - `max_message_size` enforcement
 - Works inside Async reactors or standalone (shared IO thread)
-- Optional CURVE encryption via the [omq-curve](https://github.com/paddor/omq-curve) gem
+- Optional CURVE encryption via the [omq-curve](https://github.com/zeromq/omq-curve) gem
