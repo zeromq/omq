@@ -35,7 +35,7 @@ module OMQ
                   engine.handle_accepted(IO::Stream::Buffered.wrap(client, minimum_write_size: 0), endpoint: endpoint)
                 rescue ProtocolError, *ZMTP::CONNECTION_LOST
                   # peer disconnected during handshake
-                rescue => e
+                rescue
                   client&.close rescue nil
                   raise
                 end
