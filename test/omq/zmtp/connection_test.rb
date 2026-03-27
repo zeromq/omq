@@ -9,7 +9,7 @@ describe OMQ::ZMTP::Connection do
 
   # Use a Unix socket pair for testing ZMTP framing (no inproc pipe needed)
   def make_socketpair
-    UNIXSocket.pair.map { |s| IO::Stream::Buffered.wrap(s, minimum_write_size: 0) }
+    UNIXSocket.pair.map { |s| IO::Stream::Buffered.wrap(s) }
   end
 
   describe "#handshake!" do

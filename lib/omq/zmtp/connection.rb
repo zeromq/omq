@@ -92,6 +92,7 @@ module OMQ
               @io.write(Codec::Frame.new(part, more: more).to_wire)
             end
           end
+          @io.flush
         end
       end
 
@@ -156,6 +157,7 @@ module OMQ
           else
             @io.write(command.to_frame.to_wire)
           end
+          @io.flush
         end
       end
 

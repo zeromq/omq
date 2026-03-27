@@ -32,7 +32,7 @@ module OMQ
               loop do
                 client = server.accept
                 Reactor.run do
-                  engine.handle_accepted(IO::Stream::Buffered.wrap(client, minimum_write_size: 0), endpoint: endpoint)
+                  engine.handle_accepted(IO::Stream::Buffered.wrap(client), endpoint: endpoint)
                 rescue ProtocolError, *ZMTP::CONNECTION_LOST
                   # peer disconnected during handshake
                 rescue
@@ -57,7 +57,7 @@ module OMQ
             path = parse_path(endpoint)
             sock_path = to_socket_path(path)
             sock = UNIXSocket.new(sock_path)
-            engine.handle_connected(IO::Stream::Buffered.wrap(sock, minimum_write_size: 0), endpoint: endpoint)
+            engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
           end
 
           private
