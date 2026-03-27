@@ -3,9 +3,9 @@
 module OMQ
   module ZMTP
     module Routing
-      # PUSH socket routing: round-robin send to PULL peers.
+      # SCATTER socket routing: round-robin send to GATHER peers.
       #
-      class Push
+      class Scatter
         include RoundRobin
 
         # @param engine [Engine]
@@ -20,10 +20,10 @@ module OMQ
         #
         attr_reader :send_queue
 
-        # PUSH is write-only.
+        # SCATTER is write-only.
         #
         def recv_queue
-          raise "PUSH sockets cannot receive"
+          raise "SCATTER sockets cannot receive"
         end
 
         # @param connection [Connection]
@@ -55,14 +55,9 @@ module OMQ
 
         private
 
-        # Monitors a connection for disconnection.
-        # Write-only sockets have no recv pump, so without this monitor
-        # a dead peer is only detected on the next send — which may
-        # succeed if the kernel send buffer absorbs the data.
-        #
         def start_monitor(conn)
           @tasks << Reactor.spawn_pump do
-            conn.receive_message # blocks until peer disconnects
+            conn.receive_message
           rescue *ZMTP::CONNECTION_LOST
             @engine.connection_lost(conn)
           end
