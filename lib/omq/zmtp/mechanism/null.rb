@@ -26,6 +26,7 @@ module OMQ
         def handshake!(io, as_server:, socket_type:, identity:)
           # Send our greeting
           io.write(Codec::Greeting.encode(mechanism: MECHANISM_NAME, as_server: as_server))
+          io.flush
 
           # Read peer greeting
           greeting_data = io.read_exactly(Codec::Greeting::SIZE)
@@ -38,6 +39,7 @@ module OMQ
           # Send our READY command
           ready_cmd = Codec::Command.ready(socket_type: socket_type, identity: identity)
           io.write(ready_cmd.to_frame.to_wire)
+          io.flush
 
           # Read peer READY command
           frame = Codec::Frame.read_from(io)

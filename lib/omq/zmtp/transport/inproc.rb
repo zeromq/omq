@@ -202,7 +202,7 @@ module OMQ
           # @return [Async::LimitedQueue, nil] when set, {#send_message}
           #   enqueues directly here instead of using the internal queue
           #
-          attr_accessor :direct_recv_queue
+          attr_reader :direct_recv_queue
 
           # @return [Proc, nil] optional transform applied before
           #   enqueuing into {#direct_recv_queue}
@@ -224,6 +224,20 @@ module OMQ
             @peer                  = nil
             @direct_recv_queue     = nil
             @direct_recv_transform = nil
+            @pending_direct        = nil
+          end
+
+          # Sets the direct recv queue. Drains any messages that were
+          # buffered before the queue was available.
+          #
+          def direct_recv_queue=(queue)
+            @direct_recv_queue = queue
+            if queue && @pending_direct
+              @pending_direct.each do |msg|
+                queue.enqueue(msg)
+              end
+              @pending_direct = nil
+            end
           end
 
           # Sends a multi-frame message.
@@ -240,8 +254,11 @@ module OMQ
             if @direct_recv_queue
               msg = @direct_recv_transform ? @direct_recv_transform.call(parts) : parts
               @direct_recv_queue.enqueue(msg)
-            else
+            elsif @send_queue
               @send_queue.enqueue(parts)
+            else
+              msg = @direct_recv_transform ? @direct_recv_transform.call(parts) : parts
+              (@pending_direct ||= []) << msg
             end
           end
 

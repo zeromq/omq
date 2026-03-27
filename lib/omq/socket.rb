@@ -164,8 +164,13 @@ module OMQ
     # @param socket_type [Symbol]
     # @param linger [Integer]
     #
-    def _init_engine(socket_type, linger:)
+    def _init_engine(socket_type, linger:, send_hwm: nil, recv_hwm: nil,
+                     send_timeout: nil, recv_timeout: nil)
       @options = ZMTP::Options.new(linger: linger)
+      @options.send_hwm     = send_hwm     if send_hwm
+      @options.recv_hwm     = recv_hwm     if recv_hwm
+      @options.send_timeout  = send_timeout if send_timeout
+      @options.recv_timeout  = recv_timeout if recv_timeout
       @engine  = ZMTP::Engine.new(socket_type, @options)
     end
   end

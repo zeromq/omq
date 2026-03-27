@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.2 — 2026-03-27
+
+### Fixed
+
+- Send pump dies permanently on connection loss — `rescue` was outside
+  the loop, so a single `CONNECTION_LOST` killed the pump and all
+  subsequent messages queued but never sent
+- NULL handshake deadlocks with buffered IO — missing `io.flush` after
+  greeting and READY writes caused both peers to block on read
+- Inproc DirectPipe drops messages when send pump runs before
+  `direct_recv_queue` is wired — now buffers to `@pending_direct` and
+  drains on assignment
+- HWM and timeout options set after construction had no effect because
+  `Async::LimitedQueue` was already allocated with the default
+
+### Added
+
+- `send_hwm:`, `send_timeout:` constructor kwargs for `PUSH`
+- `recv_hwm:`, `recv_timeout:` constructor kwargs for `PULL`
+
+### Changed
+
+- Use `Async::Clock.now` instead of `Process.clock_gettime` internally
+
 ## 0.4.1 — 2026-03-27
 
 ### Improved

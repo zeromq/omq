@@ -218,7 +218,7 @@ module OMQ
       end
 
       def monotonic_now
-        Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        Async::Clock.now
       end
 
       # Sends one frame to the wire.

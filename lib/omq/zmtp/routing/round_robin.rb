@@ -56,12 +56,17 @@ module OMQ
           @tasks << Reactor.spawn_pump do
             loop do
               parts = @send_queue.dequeue
-              conn  = next_connection
-              conn.send_message(transform_send(parts))
+              send_with_retry(parts)
             end
-          rescue *ZMTP::CONNECTION_LOST
-            # connection lost mid-write
           end
+        end
+
+        def send_with_retry(parts)
+          conn = next_connection
+          conn.send_message(transform_send(parts))
+        rescue *ZMTP::CONNECTION_LOST
+          @engine.connection_lost(conn)
+          retry
         end
       end
     end

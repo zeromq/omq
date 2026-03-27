@@ -8,15 +8,13 @@ describe "Non-blocking TCP connect" do
       req = OMQ::REQ.new(nil, linger: 0)
       req.reconnect_interval = 0.05
 
-      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-      # Connect to 3 endpoints — none are listening.
-      # With blocking connect, each would wait for OS timeout (~2 min).
-      req.connect("tcp://127.0.0.1:19871")
-      req.connect("tcp://127.0.0.1:19872")
-      req.connect("tcp://127.0.0.1:19873")
-
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+      elapsed = Async::Clock.measure do
+        # Connect to 3 endpoints — none are listening.
+        # With blocking connect, each would wait for OS timeout (~2 min).
+        req.connect("tcp://127.0.0.1:19871")
+        req.connect("tcp://127.0.0.1:19872")
+        req.connect("tcp://127.0.0.1:19873")
+      end
 
       # All three should return instantly (well under 1 second).
       assert_operator elapsed, :<, 0.5,

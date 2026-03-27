@@ -38,9 +38,9 @@ describe "Linger" do
       push.send("before close")
 
       # Close immediately — some messages may be lost
-      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      push.close
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      elapsed = Async::Clock.measure do
+        push.close
+      end
 
       # Close should be near-instant (< 100ms)
       assert_operator elapsed, :<, 0.1

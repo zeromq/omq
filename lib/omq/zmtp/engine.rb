@@ -243,11 +243,11 @@ module OMQ
       #
       def drain_send_queues(timeout)
         return unless @routing.respond_to?(:send_queue)
-        deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
+        deadline = timeout ? Async::Clock.now + timeout : nil
 
         until @routing.send_queue.empty?
           if deadline
-            remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            remaining = deadline - Async::Clock.now
             break if remaining <= 0
           end
           sleep 0.001
