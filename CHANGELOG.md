@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.6.0 — 2026-03-28
+
+### Added
+
+- **Draft socket types in omqcat** — CLIENT, SERVER, RADIO, DISH, SCATTER,
+  GATHER, CHANNEL, and PEER are now supported in the CLI tool.
+  - `-j`/`--join GROUP` for DISH (like `--subscribe` for SUB)
+  - `-g`/`--group GROUP` for RADIO publishing
+  - `--target` extended to SERVER and PEER (accepts `0x` hex for binary routing IDs)
+  - `--echo` and `-e` on SERVER/PEER reply to the originating client via `send_to`
+  - CLIENT uses request-reply loop (send then receive)
+- **Unified `--timeout`** — replaces `--recv-timeout`/`--send-timeout` with a
+  single `-t`/`--timeout` flag that applies to both directions.
+- **`--linger`** — configurable drain time on close (default 5s).
+- **Exit codes** — 0 = success, 1 = error, 2 = timeout.
+- **CLI unit tests** — 74 tests covering Formatter, routing helpers,
+  validation, and option parsing.
+
+### Improved
+
+- **Extracted `OMQ::CLI` module** — `exe/omqcat` is now a thin wrapper;
+  bulk of the CLI lives in `lib/omq/cli.rb` (loaded via `require "omq/cli"`,
+  not auto-loaded by `require "omq"`).
+  - `Formatter` class for encode/decode/compress/decompress
+  - `Runner` is stateful with `@sock`, cleaner method signatures
+- **Quoted format uses `String#dump`/`undump`** — fixes backslash escaping
+  bug, proper round-tripping of all byte values.
+- **Hex routing IDs** — binary identities display as `0xdeadbeef` instead
+  of lossy Z85 encoding. `--target 0x...` decodes hex on input.
+- **Compression-safe routing** — routing ID and delimiter frames are no
+  longer compressed/decompressed in ROUTER, SERVER, and PEER loops.
+
+### Fixed
+
+- **Linger drain kills reconnect tasks** — `Engine#close` set `@closed = true`
+  before draining send queues, causing reconnect tasks to bail immediately.
+  Messages queued before any peer connected were silently dropped. Now `@closed`
+  is set after draining, so reconnection continues during the linger period.
+
 ## 0.5.1 — 2026-03-28
 
 ### Improved

@@ -89,15 +89,12 @@ describe OMQ::CLI::Formatter do
       assert_equal "a\\tb\n", @fmt.encode(["a\tb"])
     end
 
-    it "passes through printable backslashes" do
-      # Backslash (0x5C) is printable, so encode does not escape it.
-      # This means a bare backslash followed by n/r/t will be
-      # misinterpreted by decode — a known limitation.
-      assert_equal "a\\b\n", @fmt.encode(["a\\b"])
+    it "escapes backslashes" do
+      assert_equal "a\\\\b\n", @fmt.encode(["a\\b"])
     end
 
     it "hex-escapes other non-printable bytes" do
-      assert_equal "\\x00\\x01\\x7f\n", @fmt.encode(["\x00\x01\x7f"])
+      assert_equal "\\x00\\x01\\x7F\n", @fmt.encode(["\x00\x01\x7f"])
     end
 
     it "encodes multipart as tab-separated" do
@@ -121,11 +118,11 @@ describe OMQ::CLI::Formatter do
     end
 
     it "decodes hex escapes" do
-      assert_equal ["\x00\xff".b], @fmt.decode("\\x00\\xff\n").map(&:b)
+      assert_equal ["\x00\xff".b], @fmt.decode("\\x00\\xFF\n").map(&:b)
     end
 
     it "round-trips text with special characters" do
-      parts = ["line1\nline2\ttab"]
+      parts = ["line1\nline2\ttab\\back"]
       assert_equal parts, @fmt.decode(@fmt.encode(parts))
     end
 

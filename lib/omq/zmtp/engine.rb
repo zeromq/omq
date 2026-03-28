@@ -213,16 +213,20 @@ module OMQ
       # @return [void]
       #
       def close
-        return if @closed
-        @closed = true
+        return if @closed || @closing
+        @closing = true
 
         # Linger: wait for send queues to drain before closing.
         # linger=0 → close immediately, linger=nil → wait forever.
+        # Note: @closed is set AFTER draining so reconnect tasks keep
+        # running during the linger period.
         linger = @options.linger
         if linger.nil? || linger > 0
           drain_timeout = linger # nil = wait forever, >0 = seconds
           drain_send_queues(drain_timeout)
         end
+
+        @closed = true
 
         # Close connections — causes pump tasks to get EOFError/IOError
         @connections.each(&:close)

@@ -182,7 +182,7 @@ P=$(next_port)
 run_bg $OMQCAT pull -b tcp://:$P -n 1 -Q > $TMPDIR/quoted_out.txt 2>/dev/null
 sleep 0.5
 # Send binary data via raw format, receive with quoted format
-printf 'hello\x01world' | timeout 5 $OMQCAT push -c tcp://localhost:$P --raw 2>/dev/null
+printf 'hello\001world' | timeout 5 $OMQCAT push -c tcp://localhost:$P --raw 2>/dev/null
 wait 2>/dev/null
 QUOTED_OUT=$(cat $TMPDIR/quoted_out.txt)
 check "quoted format escapes non-printable" 'hello\x01world' "$QUOTED_OUT"

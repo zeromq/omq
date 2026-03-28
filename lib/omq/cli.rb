@@ -57,6 +57,7 @@ module OMQ
         count:        nil,
         delay:        nil,
         timeout:      nil,
+        linger:       5,
         compress:     false,
         expr:         nil,
         verbose:      false,
@@ -98,6 +99,7 @@ module OMQ
         o.on("-n", "--count COUNT",   Integer, "Max iterations (0=inf)") { |v| opts[:count] = v }
         o.on("-d", "--delay SECS",    Float, "Delay before first send")  { |v| opts[:delay] = v }
         o.on("-t", "--timeout SECS", Float, "Send/receive timeout")       { |v| opts[:timeout] = v }
+        o.on("-l", "--linger SECS",  Float, "Drain time on close (default 5)") { |v| opts[:linger] = v }
 
         o.separator "\nCompression:"
         o.on("-z", "--compress", "Zstandard compression per frame") { opts[:compress] = true }
@@ -178,17 +180,7 @@ module OMQ
         when :ascii
           parts.map { |p| p.b.gsub(/[^[:print:]\t]/, ".") }.join("\t") + "\n"
         when :quoted
-          parts.map { |p|
-            p.b.gsub(/[^[:print:]]/) { |c|
-              case c
-              when "\n" then "\\n"
-              when "\r" then "\\r"
-              when "\t" then "\\t"
-              when "\\" then "\\\\"
-              else format("\\x%02x", c.ord)
-              end
-            }
-          }.join("\t") + "\n"
+          parts.map { |p| p.b.dump[1..-2] }.join("\t") + "\n"
         when :raw
           parts.join
         when :jsonl
@@ -203,17 +195,7 @@ module OMQ
         when :ascii
           line.chomp.split("\t")
         when :quoted
-          line.chomp.split("\t").map { |p|
-            p.gsub(/\\(?:n|r|t|\\|x[0-9a-fA-F]{2})/) { |m|
-              case m
-              when "\\n" then "\n"
-              when "\\r" then "\r"
-              when "\\t" then "\t"
-              when "\\\\" then "\\"
-              else [m[2..].to_i(16)].pack("C")
-              end
-            }
-          }
+          line.chomp.split("\t").map { |p| "\"#{p}\"".undump }
         when :raw
           [line]
         when :jsonl
@@ -256,7 +238,7 @@ module OMQ
       end
 
       def call(task)
-        @sock = @klass.new(nil, linger: 1)
+        @sock = @klass.new(nil, linger: @opts[:linger])
         @sock.recv_timeout = @opts[:timeout] if @opts[:timeout]
         @sock.send_timeout = @opts[:timeout] if @opts[:timeout]
         @sock.identity     = @opts[:identity]     if @opts[:identity]

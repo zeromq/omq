@@ -49,6 +49,65 @@ describe "Linger" do
     end
   end
 
+  it "reconnects during linger to deliver queued messages" do
+    Async do
+      # Grab a free port by binding temporarily
+      tmp = TCPServer.new("127.0.0.1", 0)
+      port = tmp.local_address.ip_port
+      tmp.close
+
+      push = OMQ::PUSH.new(nil, linger: 5)
+      push.reconnect_interval = 0.02
+      push.connect("tcp://127.0.0.1:#{port}")
+
+      # Send while no peer is listening — message queues
+      push.send("early")
+
+      # Bind after a delay — reconnect should find it during linger
+      sleep 0.05
+      pull = OMQ::PULL.bind("tcp://127.0.0.1:#{port}")
+
+      # Close push — linger should drain the queued message
+      push.close
+
+      pull.recv_timeout = 2
+      msg = pull.receive
+      assert_equal ["early"], msg
+    ensure
+      pull&.close
+    end
+  end
+
+  it "delivers multiple messages when peer appears during linger period" do
+    Async do
+      tmp = TCPServer.new("127.0.0.1", 0)
+      port = tmp.local_address.ip_port
+      tmp.close
+
+      push = OMQ::PUSH.new(nil, linger: 5)
+      push.reconnect_interval = 0.02
+      push.connect("tcp://127.0.0.1:#{port}")
+
+      3.times { |i| push.send("msg-#{i}") }
+
+      # Start close in a separate task — it will block during linger
+      closer = Async { push.close }
+
+      # Bind while close is draining
+      sleep 0.05
+      pull = OMQ::PULL.bind("tcp://127.0.0.1:#{port}")
+
+      closer.wait
+
+      pull.recv_timeout = 2
+      received = []
+      3.times { received << pull.receive.first }
+      assert_equal ["msg-0", "msg-1", "msg-2"], received
+    ensure
+      pull&.close
+    end
+  end
+
   it "actually delivers all messages before close completes over TCP" do
     Async do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
