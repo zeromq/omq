@@ -34,10 +34,10 @@ Both use OMQ PUSH/PULL over IPC:
 
 | | Workers | Throughput | Total time | Speedup |
 |---|---------|-----------|-----------|---------|
-| Async (1 thread) | 4 fibers | 92 msg/s | 10.9s | 1.0x |
-| Ractors (4 threads) | 4 Ractors | 354 msg/s | 2.8s | **3.8x** |
+| Async (1 thread) | 4 fibers | 85 msg/s | 11.8s | 1.0x |
+| Ractors (4 threads) | 4 Ractors | 314 msg/s | 3.2s | **3.7x** |
 
-Near-linear scaling: 4 cores → 3.8x speedup.
+Near-linear scaling: 4 cores → 3.7x speedup.
 
 ### Without CPU work (pure forwarding)
 

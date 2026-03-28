@@ -18,8 +18,8 @@ Measured on Linux x86_64, Ruby 4.0.2 +YJIT (io_uring).
 
 | Transport | msg/s |
 |-----------|-------|
-| tcp | 9.3k |
-| ipc | 9.8k |
+| tcp | 126k |
+| ipc | 56k |
 
 ## Latency (REQ/REP, `-D "ping" -i 0`)
 
@@ -35,10 +35,10 @@ Measured on Linux x86_64, Ruby 4.0.2 +YJIT (io_uring).
 
 | Transport | µs/roundtrip |
 |-----------|-------------|
-| tcp | 1,225 |
-| ipc | 1,162 |
+| tcp | 170 |
+| ipc | 179 |
 
-The overhead vs the direct Ruby API (~3–4x throughput, ~14–19x latency) comes
+The overhead vs the direct Ruby API (~2x throughput, ~3x latency) comes
 from stdin/stdout line processing per message. This is expected for a CLI tool.
 
 ## Running
