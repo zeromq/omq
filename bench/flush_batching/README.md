@@ -7,21 +7,27 @@ write + single flush path.
 **Setup**: 1000-message bursts, 256 B payload, 20 rounds, median reported.
 
 ```
-ruby bench/flush_batching/bench.rb
+ruby --yjit bench/flush_batching/bench.rb
 ```
 
 ## Results
 
-Linux x86_64, Ruby 4.0.2 (no JIT).
+Linux x86_64, Ruby 4.0.2.
 
-### PUSH/PULL
+### Without JIT (no JIT)
 
-| Transport | Before    | After      | Speedup |
-|-----------|-----------|------------|---------|
+The improvement is most visible without JIT, where per-message Ruby
+overhead is higher and messages accumulate in the queue faster than
+the pump can drain them.
+
+#### PUSH/PULL
+
+| Transport | Before    | After      | Speedup  |
+|-----------|-----------|------------|----------|
 | ipc       | 29,605/s  | 87,487/s   | **3.0x** |
 | tcp       | 24,365/s  | 83,170/s   | **3.4x** |
 
-### PUB/SUB
+#### PUB/SUB
 
 | Transport | Subs | Before   | After     | Speedup  |
 |-----------|------|----------|-----------|----------|
@@ -31,6 +37,26 @@ Linux x86_64, Ruby 4.0.2 (no JIT).
 | tcp       | 1    | 22,373/s | 67,228/s  | **3.0x** |
 | tcp       | 5    | 4,588/s  | 18,280/s  | **4.0x** |
 | tcp       | 10   | 2,314/s  | 9,205/s   | **4.0x** |
+
+### With YJIT
+
+With YJIT the pump is fast enough that messages rarely accumulate —
+batch sizes stay close to 1 in this benchmark. The improvement shows
+under heavier real-world load (multiple producers, slower consumers).
+
+#### PUSH/PULL
+
+| Transport | msg/s  |
+|-----------|--------|
+| ipc       | 199k   |
+| tcp       | 150k   |
+
+#### PUB/SUB
+
+| Transport | 1 sub | 5 subs | 10 subs |
+|-----------|-------|--------|---------|
+| ipc       | 199k  | 44k    | 22k     |
+| tcp       | 153k  | 40k    | 16k     |
 
 ## Why
 

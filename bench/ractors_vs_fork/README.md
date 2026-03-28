@@ -51,8 +51,8 @@ main──send┬─→│ Ractor │─┬─port──main
 Ruby 4.0.2 +YJIT, Linux x86_64 (1000 tasks):
 
 ```
-fork + OMQ     (4 processes):  267 tasks/s  (3.8s)
-Ractor::Port   (4 ractors):   199 tasks/s  (5.0s)
+fork + OMQ     (4 processes):  360 tasks/s  (2.8s)
+Ractor::Port   (4 ractors):   315 tasks/s  (3.2s)
 ```
 
 Fork + OMQ is faster, simpler, and works on every Ruby since 1.8.

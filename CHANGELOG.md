@@ -2,6 +2,20 @@
 
 ## 0.5.1 — 2026-03-28
 
+### Improved
+
+- **3–4x throughput under burst load** — send pumps now batch writes
+  before flushing. `Connection#write_message` buffers without flushing;
+  `Connection#flush` triggers the syscall. Pumps drain all queued messages
+  per cycle, reducing flush count from `N_msgs × N_conns` to `N_conns`
+  per batch. PUB/SUB TCP with 10 subscribers: 2.3k → 9.2k msg/s (**4x**).
+  PUSH/PULL TCP: 24k → 83k msg/s (**3.4x**). Zero overhead under light
+  load (batch of 1 = same path as before).
+
+- **Simplified Reactor IO thread** — replaced `Thread::Queue` + `IO.pipe`
+  wake signal with a single `Async::Queue`. `Thread::Queue#pop` is
+  fiber-scheduler-aware in Ruby 4.0, so the pipe pair was unnecessary.
+
 ### Fixed
 
 - **`router_mandatory` SocketError raised in send pump** — the error
