@@ -58,6 +58,7 @@ module OMQ
         delay:        nil,
         timeout:      nil,
         linger:       5,
+        conflate:     false,
         compress:     false,
         expr:         nil,
         verbose:      false,
@@ -86,7 +87,7 @@ module OMQ
         o.on(      "--msgpack", "MessagePack arrays (binary stream)")         { opts[:format] = :msgpack }
 
         o.separator "\nSubscription/groups:"
-        o.on("-s", "--subscribe PREFIX", "Subscribe prefix (repeatable, SUB only)")  { |v| opts[:subscribes] << v }
+        o.on("-s", "--subscribe PREFIX", "Subscribe prefix (SUB, default all)")       { |v| opts[:subscribes] << v }
         o.on("-j", "--join GROUP",       "Join group (repeatable, DISH only)")       { |v| opts[:joins] << v }
         o.on("-g", "--group GROUP",      "Publish group (RADIO only)")              { |v| opts[:group] = v }
 
@@ -100,6 +101,9 @@ module OMQ
         o.on("-d", "--delay SECS",    Float, "Delay before first send")  { |v| opts[:delay] = v }
         o.on("-t", "--timeout SECS", Float, "Send/receive timeout")       { |v| opts[:timeout] = v }
         o.on("-l", "--linger SECS",  Float, "Drain time on close (default 5)") { |v| opts[:linger] = v }
+
+        o.separator "\nDelivery:"
+        o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
 
         o.separator "\nCompression:"
         o.on("-z", "--compress", "Zstandard compression per frame") { opts[:compress] = true }
@@ -152,6 +156,7 @@ module OMQ
       abort "--group is only valid for RADIO"                 if opts[:group] && type_name != "radio"
       abort "--identity is only valid for DEALER/ROUTER"      if opts[:identity] && !%w[dealer router].include?(type_name)
       abort "--target is only valid for ROUTER/SERVER/PEER"   if opts[:target] && !%w[router server peer].include?(type_name)
+      abort "--conflate is only valid for PUB/RADIO"          if opts[:conflate] && !%w[pub radio].include?(type_name)
 
       (opts[:connects] + opts[:binds]).each do |url|
         abort "inproc not supported, use tcp:// or ipc://" if url.include?("inproc://")
@@ -238,7 +243,9 @@ module OMQ
       end
 
       def call(task)
-        @sock = @klass.new(nil, linger: @opts[:linger])
+        sock_opts = { linger: @opts[:linger] }
+        sock_opts[:conflate] = true if @opts[:conflate] && %w[pub radio].include?(@type_name)
+        @sock = @klass.new(nil, **sock_opts)
         @sock.recv_timeout = @opts[:timeout] if @opts[:timeout]
         @sock.send_timeout = @opts[:timeout] if @opts[:timeout]
         @sock.identity     = @opts[:identity]     if @opts[:identity]
