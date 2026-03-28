@@ -63,7 +63,7 @@ describe "PUSH/PULL delivery guarantees" do
       pull = OMQ::PULL.bind("inproc://dg-inproc-cb")
 
       # Give reconnect a moment
-      sleep 0.15
+      sleep 0.05
 
       push.send("late-1")
 
@@ -112,9 +112,9 @@ describe "PUSH/PULL delivery guarantees" do
 
       push.send("early-1")
 
-      sleep 0.05
+      sleep 0.02
       pull = OMQ::PULL.bind("ipc://#{path}")
-      sleep 0.2
+      sleep 0.1
 
       push.send("late-1")
 
@@ -141,7 +141,7 @@ describe "PUSH/PULL delivery guarantees" do
 
       push = OMQ::PUSH.new(nil, linger: 1)
       push.connect("ipc://#{path}")
-      sleep 0.15
+      sleep 0.05
 
       5.times { |i| push.send("msg-#{i}") }
 
@@ -168,9 +168,9 @@ describe "PUSH/PULL delivery guarantees" do
 
       push.send("early-1")
 
-      sleep 0.05
+      sleep 0.02
       pull = OMQ::PULL.bind("tcp://127.0.0.1:19890")
-      sleep 0.2
+      sleep 0.1
 
       push.send("late-1")
 
@@ -196,7 +196,7 @@ describe "PUSH/PULL delivery guarantees" do
 
       push = OMQ::PUSH.new(nil, linger: 1)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.15
+      sleep 0.05
 
       5.times { |i| push.send("msg-#{i}") }
 
@@ -248,13 +248,13 @@ describe "PUSH/PULL delivery guarantees" do
       push = OMQ::PUSH.new(nil, linger: 1)
       push.reconnect_interval = 0.05
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.15
+      sleep 0.05
 
       # Send first batch
       5.times { |i| push.send("batch1-#{i}") }
 
       # Simulate busy receiver — sleep before draining
-      sleep 0.1
+      sleep 0.05
 
       # Receive first batch
       5.times do |i|

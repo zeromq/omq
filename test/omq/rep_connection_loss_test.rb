@@ -21,7 +21,7 @@ describe "REP connection loss with pending reply" do
       req1.close
 
       # Give the connection loss time to propagate
-      sleep 0.05
+      sleep 0.02
 
       # Reply to the now-dead client (should not crash)
       rep.send("reply-to-req1")

@@ -31,12 +31,12 @@ describe "Non-blocking TCP connect" do
       req.connect("tcp://127.0.0.1:19874")
 
       # Server starts after client — connect already returned
-      sleep 0.05
+      sleep 0.02
       rep = OMQ::REP.new(nil, linger: 0)
       rep.bind("tcp://127.0.0.1:19874")
 
       # Wait for background connect to succeed
-      sleep 0.15
+      sleep 0.08
 
       req.send("async connect")
       msg = rep.receive

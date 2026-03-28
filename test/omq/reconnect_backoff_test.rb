@@ -23,14 +23,14 @@ describe "Reconnection with Range backoff" do
       rep.close
 
       # Wait for the connection to drop
-      sleep 0.1
+      sleep 0.03
 
       # Restart server on same port
       rep2 = OMQ::REP.new(nil, linger: 0)
       rep2.bind("tcp://127.0.0.1:#{port}")
 
       # Wait for backoff reconnection (starts at 50ms, doubles)
-      sleep 0.25
+      sleep 0.15
 
       # Should reconnect and work
       req.send("reconnected")
@@ -58,11 +58,11 @@ describe "Reconnection with Range backoff" do
       req.receive
 
       rep.close
-      sleep 0.1
+      sleep 0.03
 
       rep2 = OMQ::REP.new(nil, linger: 0)
       rep2.bind("tcp://127.0.0.1:#{port}")
-      sleep 0.15
+      sleep 0.08
 
       req.send("second")
       assert_equal ["second"], rep2.receive

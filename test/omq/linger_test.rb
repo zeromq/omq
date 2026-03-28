@@ -56,7 +56,7 @@ describe "Linger" do
 
       push = OMQ::PUSH.new(nil, linger: 2)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.1
+      sleep 0.05
 
       20.times { |i| push.send("drain-#{i}") }
       push.close

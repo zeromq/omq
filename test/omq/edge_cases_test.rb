@@ -60,13 +60,13 @@ describe "Edge cases" do
         10.times do |i|
           push = OMQ::PUSH.new(nil, linger: 1)
           push.connect("tcp://127.0.0.1:#{port}")
-          sleep 0.02
+          sleep 0.01
           push.send("msg-#{i}")
           push.close
         end
 
         received = 0
-        pull.recv_timeout = 0.5
+        pull.recv_timeout = 0.2
         loop do
           pull.receive
           received += 1
@@ -88,11 +88,10 @@ describe "Edge cases" do
         port = rep1.last_tcp_port
 
         assert_raises(Errno::EADDRINUSE) do
-          rep2 = OMQ::REP.bind("tcp://127.0.0.1:#{port}")
+          OMQ::REP.bind("tcp://127.0.0.1:#{port}")
         end
       ensure
         rep1&.close
-        rep2&.close
       end
     end
 
@@ -101,11 +100,10 @@ describe "Edge cases" do
         rep1 = OMQ::REP.bind("inproc://edge-dupbind")
 
         assert_raises(RuntimeError, ArgumentError) do
-          rep2 = OMQ::REP.bind("inproc://edge-dupbind")
+          OMQ::REP.bind("inproc://edge-dupbind")
         end
       ensure
         rep1&.close
-        rep2&.close
       end
     end
   end

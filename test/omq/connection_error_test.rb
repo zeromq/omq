@@ -16,7 +16,7 @@ describe "Connection error handling" do
       raw.close
 
       # Give the server time to handle the broken connection
-      sleep 0.05
+      sleep 0.02
 
       # A real client should still be able to connect and exchange messages
       req = OMQ::REQ.new(nil, linger: 0)
@@ -42,7 +42,7 @@ describe "Connection error handling" do
       raw = UNIXSocket.new(path)
       raw.close
 
-      sleep 0.05
+      sleep 0.02
 
       req = OMQ::REQ.new(nil, linger: 0)
       req.connect("ipc://#{path}")
@@ -81,14 +81,14 @@ describe "Connection error handling" do
       # Kill the server (removes socket file)
       rep.close
 
-      sleep 0.1
+      sleep 0.03
 
       # Restart server on same path
       rep2 = OMQ::REP.new(nil, linger: 0)
       rep2.bind("ipc://#{path}")
 
       # Wait for reconnection
-      sleep 0.15
+      sleep 0.08
 
       req.send("reconnected")
       msg = rep2.receive
@@ -120,7 +120,7 @@ describe "Connection error handling" do
       req.connect("tcp://127.0.0.1:#{port}")
 
       # Wait for the reset + reconnect attempt
-      sleep 0.1
+      sleep 0.03
       resetter.wait
       server.close
 
@@ -128,7 +128,7 @@ describe "Connection error handling" do
       rep = OMQ::REP.new(nil, linger: 0)
       rep.bind("tcp://127.0.0.1:#{port}")
 
-      sleep 0.15
+      sleep 0.08
 
       req.send("recovered")
       msg = rep.receive
