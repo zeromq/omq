@@ -69,18 +69,26 @@ module OMQ
           @send_pump_started = true
           @tasks << Reactor.spawn_pump do
             loop do
-              parts = @send_queue.dequeue
-              group = parts[0]
-              body  = parts[1] || "".b
-              @connections.each do |conn|
-                next unless @groups[conn]&.include?(group)
-                begin
-                  # Wire format: group frame (MORE) + body frame
-                  conn.send_message([group, body])
-                rescue *ZMTP::CONNECTION_LOST
-                  # connection dead — will be cleaned up
+              batch = [@send_queue.dequeue]
+              Routing.drain_send_queue(@send_queue, batch)
+
+              written = []
+              batch.each do |parts|
+                group = parts[0]
+                body  = parts[1] || "".b
+                @connections.each do |conn|
+                  next unless @groups[conn]&.include?(group)
+                  begin
+                    # Wire format: group frame (MORE) + body frame
+                    conn.write_message([group, body])
+                    written << conn
+                  rescue *ZMTP::CONNECTION_LOST
+                    # connection dead — will be cleaned up
+                  end
                 end
               end
+              written.uniq!
+              written.each { |conn| conn.flush rescue nil }
             end
           end
         end

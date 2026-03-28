@@ -77,21 +77,36 @@ module OMQ
         end
       end
 
-      # Sends a multi-frame message.
+      # Sends a multi-frame message (write + flush).
       #
       # @param parts [Array<String>] message frames
       # @return [void]
       #
       def send_message(parts)
         @mutex.synchronize do
-          parts.each_with_index do |part, i|
-            more = i < parts.size - 1
-            if @mechanism.encrypted?
-              @io.write(@mechanism.encrypt(part.b, more: more))
-            else
-              @io.write(Codec::Frame.new(part, more: more).to_wire)
-            end
-          end
+          write_frames(parts)
+          @io.flush
+        end
+      end
+
+      # Writes a multi-frame message to the buffer without flushing.
+      # Call {#flush} after batching writes.
+      #
+      # @param parts [Array<String>] message frames
+      # @return [void]
+      #
+      def write_message(parts)
+        @mutex.synchronize do
+          write_frames(parts)
+        end
+      end
+
+      # Flushes the write buffer to the underlying IO.
+      #
+      # @return [void]
+      #
+      def flush
+        @mutex.synchronize do
           @io.flush
         end
       end
@@ -212,6 +227,17 @@ module OMQ
       end
 
       private
+
+      def write_frames(parts)
+        parts.each_with_index do |part, i|
+          more = i < parts.size - 1
+          if @mechanism.encrypted?
+            @io.write(@mechanism.encrypt(part.b, more: more))
+          else
+            @io.write(Codec::Frame.new(part, more: more).to_wire)
+          end
+        end
+      end
 
       def touch_heartbeat
         @last_received_at = monotonic_now if @heartbeat_interval

@@ -123,7 +123,7 @@ when "ractors"
   ensure
     producer&.close; collector&.close
   end
-  exit!
+  exit!(true)
 
 else
   abort "Usage: ruby --yjit #{$0} [async|ractors]"

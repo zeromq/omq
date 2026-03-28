@@ -55,8 +55,14 @@ module OMQ
           @send_pump_started = true
           @tasks << Reactor.spawn_pump do
             loop do
-              parts = @send_queue.dequeue
-              send_with_retry(parts)
+              batch = [@send_queue.dequeue]
+              Routing.drain_send_queue(@send_queue, batch)
+
+              if batch.size == 1
+                send_with_retry(batch[0])
+              else
+                send_batch(batch)
+              end
             end
           end
         end
@@ -67,6 +73,29 @@ module OMQ
         rescue *ZMTP::CONNECTION_LOST
           @engine.connection_lost(conn)
           retry
+        end
+
+        def send_batch(batch)
+          written = []
+          batch.each_with_index do |parts, i|
+            conn = next_connection
+            begin
+              conn.write_message(transform_send(parts))
+              written << conn
+            rescue *ZMTP::CONNECTION_LOST
+              @engine.connection_lost(conn)
+              # Flush what we've written so far
+              written.uniq!
+              written.each { |c| c.flush rescue nil }
+              written.clear
+              # Fall back to send_with_retry for this and remaining
+              send_with_retry(parts)
+              batch[(i + 1)..].each { |p| send_with_retry(p) }
+              return
+            end
+          end
+          written.uniq!
+          written.each { |conn| conn.flush rescue nil }
         end
       end
     end

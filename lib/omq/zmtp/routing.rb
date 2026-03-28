@@ -12,6 +12,25 @@ module OMQ
     # the socket's send/recv queues.
     #
     module Routing
+      # Maximum messages to drain from the send queue per flush cycle.
+      MAX_SEND_BATCH = 64
+
+      # Drains up to +max+ additional messages from +queue+ into +batch+
+      # without blocking. Call after the initial blocking dequeue.
+      #
+      # @param queue [Async::LimitedQueue]
+      # @param batch [Array]
+      # @param max [Integer]
+      # @return [void]
+      #
+      def self.drain_send_queue(queue, batch, max = MAX_SEND_BATCH)
+        while batch.size < max
+          msg = queue.dequeue(timeout: 0)
+          break unless msg
+          batch << msg
+        end
+      end
+
       # Returns the routing strategy class for a socket type.
       #
       # @param socket_type [Symbol] e.g. :PAIR, :REQ

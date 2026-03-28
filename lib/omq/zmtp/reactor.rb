@@ -12,11 +12,9 @@ module OMQ
     # tasks — mirroring libzmq's IO thread architecture.
     #
     module Reactor
-      @work_queue = Thread::Queue.new
+      @work_queue = Async::Queue.new
       @thread     = nil
       @mutex      = Mutex.new
-      @wake_r     = nil
-      @wake_w     = nil
 
       class << self
         # Spawns a pump task (recv loop, send loop, accept loop).
@@ -33,7 +31,6 @@ module OMQ
             handle = PumpHandle.new
             ensure_started
             @work_queue.push([:spawn, block, handle])
-            @wake_w.write_nonblock(".") rescue nil
             handle
           end
         end
@@ -52,7 +49,6 @@ module OMQ
             result_queue = Thread::Queue.new
             ensure_started
             @work_queue.push([:run, block, result_queue])
-            @wake_w.write_nonblock(".") rescue nil
             status, value = result_queue.pop
             raise value if status == :error
             value
@@ -66,9 +62,8 @@ module OMQ
         def ensure_started
           @mutex.synchronize do
             return if @thread&.alive?
-            @wake_r, @wake_w = IO.pipe
             ready = Thread::Queue.new
-            @thread = Thread.new { run_reactor(ready, @wake_r) }
+            @thread = Thread.new { run_reactor(ready) }
             @thread.name = "omq-io"
             ready.pop
           end
@@ -80,42 +75,31 @@ module OMQ
         #
         def stop!
           @work_queue.push([:stop])
-          @wake_w&.write_nonblock(".") rescue nil
           @thread&.join(2)
           @thread = nil
-          @wake_r&.close rescue nil
-          @wake_w&.close rescue nil
-          @wake_r = nil
-          @wake_w = nil
         end
 
         private
 
-        def run_reactor(ready, wake_r)
+        def run_reactor(ready)
           Async do |task|
             ready.push(true)
             loop do
-              # Wait for wakeup signal (non-blocking for Async scheduler)
-              wake_r.wait_readable
-              wake_r.read_nonblock(256) rescue nil
-
-              # Drain all pending work items
-              while (item = @work_queue.pop(true) rescue nil)
-                case item[0]
-                when :spawn
-                  _, block, handle = item
-                  async_task = task.async(transient: true, &block)
-                  handle.task = async_task
-                when :run
-                  _, block, result_queue = item
-                  task.async do
-                    result_queue.push([:ok, block.call])
-                  rescue => e
-                    result_queue.push([:error, e])
-                  end
-                when :stop
-                  return
+              item = @work_queue.dequeue
+              case item[0]
+              when :spawn
+                _, block, handle = item
+                async_task = task.async(transient: true, &block)
+                handle.task = async_task
+              when :run
+                _, block, result_queue = item
+                task.async do
+                  result_queue.push([:ok, block.call])
+                rescue => e
+                  result_queue.push([:error, e])
                 end
+              when :stop
+                return
               end
             end
           end

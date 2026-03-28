@@ -262,6 +262,14 @@ module OMQ
             end
           end
 
+          alias write_message send_message
+
+          # No-op — inproc has no IO buffer to flush.
+          #
+          # @return [void]
+          #
+          def flush = nil
+
           # Receives a multi-frame message.
           #
           # @return [Array<String>]

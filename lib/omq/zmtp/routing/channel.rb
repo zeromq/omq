@@ -58,7 +58,12 @@ module OMQ
 
         def start_send_pump(conn)
           @send_pump = Reactor.spawn_pump do
-            loop { conn.send_message(@send_queue.dequeue) }
+            loop do
+              batch = [@send_queue.dequeue]
+              Routing.drain_send_queue(@send_queue, batch)
+              batch.each { |parts| conn.write_message(parts) }
+              conn.flush
+            end
           rescue *ZMTP::CONNECTION_LOST
             @engine.connection_lost(conn)
           end
