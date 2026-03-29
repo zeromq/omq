@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../test_helper"
+require "pathname"
 
 describe "PUSH/PULL over inproc" do
   before { OMQ::ZMTP::Transport::Inproc.reset! }
@@ -40,6 +41,30 @@ describe "PUSH/PULL over inproc" do
       push&.close
       pull1&.close
       pull2&.close
+    end
+  end
+  it "rejects non-string parts with TypeError" do
+    Async do
+      push = OMQ::PUSH.bind("inproc://pushpull-type")
+      assert_raises(NoMethodError) { push.send([123]) }
+      assert_raises(NoMethodError) { push.send([:symbol]) }
+      assert_raises(NoMethodError) { push.send([nil]) }
+    ensure
+      push&.close
+    end
+  end
+
+  it "accepts objects that respond to #to_str" do
+    Async do
+      pull = OMQ::PULL.bind("inproc://pushpull-tostr")
+      push = OMQ::PUSH.connect("inproc://pushpull-tostr")
+
+      push.send([Pathname.new("/tmp")])
+      msg = pull.receive
+      assert_equal ["/tmp"], msg
+    ensure
+      push&.close
+      pull&.close
     end
   end
 end

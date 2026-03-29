@@ -115,6 +115,10 @@ module OMQ
     def peer_connected   = @engine.peer_connected
 
 
+    # @return [Async::Promise] resolves when first subscriber joins (PUB/XPUB only)
+    def subscriber_joined = @engine.routing.subscriber_joined
+
+
     # @return [Async::Promise] resolves when all peers disconnect (after having had peers)
     def all_peers_gone   = @engine.all_peers_gone
 

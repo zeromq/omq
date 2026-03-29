@@ -12,6 +12,8 @@ module OMQ
       # their #initialize.
       #
       module FanOut
+        attr_reader :subscriber_joined
+
         private
 
         def init_fan_out(engine)
@@ -20,6 +22,7 @@ module OMQ
           @send_queue         = Async::LimitedQueue.new(engine.options.send_hwm)
           @send_pump_started  = false
           @conflate           = engine.options.conflate
+          @subscriber_joined  = Async::Promise.new
         end
 
         # @return [Boolean] whether the connection is subscribed to the topic
@@ -39,6 +42,7 @@ module OMQ
         #
         def on_subscribe(conn, prefix)
           @subscriptions[conn] << prefix
+          @subscriber_joined.resolve(conn) unless @subscriber_joined.resolved?
         end
 
         # Called when a cancel command is received from a peer.

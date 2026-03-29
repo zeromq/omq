@@ -16,7 +16,7 @@ module OMQ
       def send(message)
         parts = message.is_a?(Array) ? message : [message]
         raise ArgumentError, "message has no parts" if parts.empty?
-        parts = parts.map { |p| p.b.freeze }
+        parts = parts.map { |p| p.to_str.b.freeze }
 
         with_timeout(@options.write_timeout) { @engine.enqueue_send(parts) }
         self

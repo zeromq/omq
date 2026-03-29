@@ -201,7 +201,7 @@ module OMQ
       Async do |task|
         runner = Runner.new(opts, klass)
         runner.call(task)
-      rescue IO::TimeoutError
+      rescue IO::TimeoutError, Async::TimeoutError
         $stderr.puts "omq: timeout" unless opts[:quiet]
         exit 2
       end
@@ -257,7 +257,8 @@ module OMQ
         o.on("-Q", "--quoted",  "C-style quoted with escapes")                { opts[:format] = :quoted }
         o.on(      "--raw",     "Raw binary, no framing")                     { opts[:format] = :raw }
         o.on("-J", "--jsonl",   "JSON Lines (array of strings per line)")     { opts[:format] = :jsonl }
-        o.on(      "--msgpack", "MessagePack arrays (binary stream)")         { opts[:format] = :msgpack }
+        o.on(      "--msgpack",  "MessagePack arrays (binary stream)")         { opts[:format] = :msgpack }
+        o.on("-M", "--marshal", "Ruby Marshal stream (binary, Array<String>)") { opts[:format] = :marshal }
 
         o.separator "\nSubscription/groups:"
         o.on("-s", "--subscribe PREFIX", "Subscribe prefix (SUB, default all)")       { |v| opts[:subscribes] << v }
@@ -389,13 +390,15 @@ module OMQ
           JSON.generate(parts) + "\n"
         when :msgpack
           MessagePack.pack(parts)
+        when :marshal
+          parts.map(&:inspect).join("\t") + "\n"
         end
       end
 
 
       def decode(line)
         case @format
-        when :ascii
+        when :ascii, :marshal
           line.chomp.split("\t")
         when :quoted
           line.chomp.split("\t").map { |p| "\"#{p}\"".undump }
@@ -406,6 +409,13 @@ module OMQ
           abort "JSON Lines input must be an array of strings" unless arr.is_a?(Array) && arr.all? { |e| e.is_a?(String) }
           arr
         end
+      end
+
+
+      def decode_marshal(io)
+        Marshal.load(io)
+      rescue EOFError, TypeError
+        nil
       end
 
 
@@ -451,9 +461,10 @@ module OMQ
         sock_opts = { linger: @opts[:linger] }
         sock_opts[:conflate] = true if @opts[:conflate] && %w[pub radio].include?(@type_name)
         @sock = @klass.new(nil, **sock_opts)
-        @sock.recv_timeout = @opts[:timeout] if @opts[:timeout]
-        @sock.send_timeout = @opts[:timeout] if @opts[:timeout]
-        @sock.identity     = @opts[:identity] if @opts[:identity]
+        @sock.recv_timeout      = @opts[:timeout] if @opts[:timeout]
+        @sock.send_timeout      = @opts[:timeout] if @opts[:timeout]
+        @sock.identity          = @opts[:identity] if @opts[:identity]
+        @sock.router_mandatory  = true if @type_name == "router"
 
         setup_curve
 
@@ -475,7 +486,7 @@ module OMQ
         end
 
         sleep(@opts[:delay]) if @opts[:delay] && recv_only?
-        wait_for_peer if !recv_only? && @opts[:connects].any?
+        wait_for_peer if !recv_only? && (@opts[:connects].any? || @type_name == "router")
 
         run_loop(task)
       ensure
@@ -512,8 +523,23 @@ module OMQ
 
 
       def wait_for_peer
-        @sock.peer_connected.wait
-        log "Peer connected" if @opts[:verbose]
+        with_timeout(@opts[:timeout]) do
+          @sock.peer_connected.wait
+          log "Peer connected" if @opts[:verbose]
+          if %w[pub xpub].include?(@type_name)
+            @sock.subscriber_joined.wait
+            log "Subscriber joined" if @opts[:verbose]
+          end
+        end
+      end
+
+
+      def with_timeout(seconds)
+        if seconds
+          Async::Task.current.with_timeout(seconds) { yield }
+        else
+          yield
+        end
       end
 
 
@@ -611,18 +637,17 @@ module OMQ
         i = 0
         sleep(@opts[:delay]) if @opts[:delay]
         if @opts[:interval]
-          Async::Loop.quantized(interval: @opts[:interval]) do
-            raw = read_next_or_nil
-            break if raw.nil? && !@eval_proc
-            parts = eval_expr(raw)
-            send_msg(parts) if parts
-            i += 1
-            break if n && n > 0 && i >= n
+          i += send_tick
+          unless @send_tick_eof || (n && n > 0 && i >= n)
+            Async::Loop.quantized(interval: @opts[:interval]) do
+              i += send_tick
+              break if @send_tick_eof || (n && n > 0 && i >= n)
+            end
           end
         elsif @opts[:data] || @opts[:file]
           parts = eval_expr(read_next)
           send_msg(parts) if parts
-        else
+        elsif stdin_ready?
           loop do
             parts = read_next
             break unless parts
@@ -631,7 +656,22 @@ module OMQ
             i += 1
             break if n && n > 0 && i >= n
           end
+        elsif @eval_proc
+          parts = eval_expr(nil)
+          send_msg(parts) if parts
         end
+      end
+
+
+      def send_tick
+        raw = read_next_or_nil
+        if raw.nil? && !@eval_proc
+          @send_tick_eof = true
+          return 0
+        end
+        parts = eval_expr(raw)
+        send_msg(parts) if parts
+        1
       end
 
 
@@ -653,7 +693,7 @@ module OMQ
         i = 0
         sleep(@opts[:delay]) if @opts[:delay]
         if @opts[:interval]
-          Async::Loop.quantized(interval: @opts[:interval]) do
+          loop do
             parts = read_next
             break unless parts
             send_msg(parts)
@@ -662,6 +702,9 @@ module OMQ
             output(reply)
             i += 1
             break if n && n > 0 && i >= n
+            interval = @opts[:interval]
+            wait = interval - (Time.now.to_f % interval)
+            sleep(wait) if wait > 0
           end
         else
           loop do
@@ -723,18 +766,17 @@ module OMQ
           i = 0
           sleep(@opts[:delay]) if @opts[:delay]
           if @opts[:interval]
-            Async::Loop.quantized(interval: @opts[:interval]) do
-              raw   = read_next_or_nil
-              break if raw.nil? && @stdin_open
-              parts = eval_expr(raw)
-              send_msg(parts) if parts
-              i += 1
-              break if n && n > 0 && i >= n
+            i += send_tick
+            unless @send_tick_eof || (n && n > 0 && i >= n)
+              Async::Loop.quantized(interval: @opts[:interval]) do
+                i += send_tick
+                break if @send_tick_eof || (n && n > 0 && i >= n)
+              end
             end
           elsif @opts[:data] || @opts[:file]
             parts = eval_expr(read_next)
             send_msg(parts) if parts
-          else
+          elsif stdin_ready?
             loop do
               parts = read_next
               break unless parts
@@ -743,6 +785,9 @@ module OMQ
               i += 1
               break if n && n > 0 && i >= n
             end
+          elsif @eval_proc
+            parts = eval_expr(nil)
+            send_msg(parts) if parts
           end
         end
 
@@ -903,7 +948,10 @@ module OMQ
 
 
       def wait_for_loops(receiver, sender)
-        if @opts[:count] && @opts[:count] > 0
+        if @opts[:data] || @opts[:file] || @opts[:expr] || @opts[:target]
+          sender.wait
+          receiver.stop
+        elsif @opts[:count] && @opts[:count] > 0
           receiver.wait
           sender.stop
         else
@@ -917,6 +965,7 @@ module OMQ
 
       def send_msg(parts)
         return if parts.empty?
+        parts = [Marshal.dump(parts)] if @opts[:format] == :marshal
         parts = @fmt.compress(parts)
         if @type_name == "radio"
           group = @opts[:group] || parts.shift
@@ -930,6 +979,7 @@ module OMQ
 
       def recv_msg
         parts = @fmt.decompress(@sock.receive)
+        parts = Marshal.load(parts.first) if @opts[:format] == :marshal
         transient_ready!
         parts
       end
@@ -948,6 +998,8 @@ module OMQ
           @fmt.decode(@file_data + "\n")
         elsif @opts[:format] == :msgpack
           @fmt.decode_msgpack($stdin)
+        elsif @opts[:format] == :marshal
+          @fmt.decode_marshal($stdin)
         elsif @opts[:format] == :raw
           data = $stdin.read
           return nil if data.nil? || data.empty?
@@ -957,6 +1009,12 @@ module OMQ
           return nil if line.nil?
           @fmt.decode(line)
         end
+      end
+
+
+      def stdin_ready?
+        return @stdin_ready unless @stdin_ready.nil?
+        @stdin_ready = !$stdin.closed? && !$stdin.tty? && IO.select([$stdin], nil, nil, 0.01) && !$stdin.eof?
       end
 
 
@@ -1010,12 +1068,16 @@ module OMQ
         return parts unless @eval_proc
         $F = parts
         result = @sock.instance_exec(&@eval_proc)
+        return nil if result.nil?
+        return [result] if @opts[:format] == :marshal
         case result
-        when nil    then nil
         when Array  then result
         when String then [result]
-        else             [result.to_s]
+        else             [result.to_str]
         end
+      rescue => e
+        $stderr.puts "omq: -e error: #{e.message} (#{e.class})"
+        Process.exit!(3)
       end
 
 
