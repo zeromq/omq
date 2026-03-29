@@ -10,6 +10,13 @@
 #
 
 require_relative "omq/version"
+
+module OMQ
+  # Raised when an internal pump task crashes unexpectedly.
+  # The socket is no longer usable; the original error is available via #cause.
+  #
+  class SocketDeadError < RuntimeError; end
+end
 require_relative "omq/zmtp"
 require_relative "omq/socket"
 require_relative "omq/req_rep"

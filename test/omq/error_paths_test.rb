@@ -16,6 +16,51 @@ describe "Error paths" do
     end
   end
 
+  describe "pump crash raises SocketDeadError" do
+    it "surfaces on receive with the original error as cause" do
+      Async do
+        rep = OMQ::REP.bind("inproc://err-pump-recv")
+        req = OMQ::REQ.connect("inproc://err-pump-recv")
+
+        # Inject a crash into REQ's send pump
+        conn = req.instance_variable_get(:@engine).connections.first
+        def conn.write_message(_parts) = raise("boom")
+        def conn.send_message(_parts)  = raise("boom")
+
+        req << "trigger"
+        sleep 0.01 # let the pump crash
+
+        err = assert_raises(OMQ::SocketDeadError) { req << "again" }
+        assert_match(/REQ/, err.message)
+        assert_kind_of RuntimeError, err.cause
+        assert_equal "boom", err.cause.message
+      ensure
+        req&.close
+        rep&.close
+      end
+    end
+
+    it "bricks the socket — all subsequent calls raise" do
+      Async do
+        rep = OMQ::REP.bind("inproc://err-pump-brick")
+        req = OMQ::REQ.connect("inproc://err-pump-brick")
+
+        conn = req.instance_variable_get(:@engine).connections.first
+        def conn.write_message(_parts) = raise("boom")
+        def conn.send_message(_parts)  = raise("boom")
+
+        req << "trigger"
+        sleep 0.01
+
+        assert_raises(OMQ::SocketDeadError) { req << "one" }
+        assert_raises(OMQ::SocketDeadError) { req << "two" }
+      ensure
+        req&.close
+        rep&.close
+      end
+    end
+  end
+
   describe "double close" do
     it "is idempotent on PUSH" do
       Async do

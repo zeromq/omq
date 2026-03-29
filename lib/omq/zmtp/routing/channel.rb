@@ -61,7 +61,7 @@ module OMQ
 
 
         def start_send_pump(conn)
-          @send_pump = @engine.parent_task.async(transient: true, annotation: "send pump") do
+          @send_pump = @engine.spawn_pump_task(annotation: "send pump") do
             loop do
               @send_pump_idle = true
               batch = [@send_queue.dequeue]

@@ -4,6 +4,16 @@
 
 ### Added
 
+- **Broker pattern tests** — ROUTER→DEALER broker integration tests
+  covering single round-trip, multiple round-trips, and multi-worker
+  round-robin.
+- **`OMQ::SocketDeadError`** — raised on `#send`/`#receive` after an
+  internal pump task crashes. The original exception is available via
+  `#cause`. The socket is permanently bricked.
+- **`Engine#spawn_pump_task`** — replaces bare `parent_task.async(transient: true)`
+  in all 10 routing strategies. Catches unexpected exceptions and forwards
+  them via `signal_fatal_error` so blocked `#send`/`#receive` callers see
+  the real error instead of deadlocking.
 - **`Socket#close_read`** — pushes a nil sentinel into the recv queue,
   causing a blocked `#receive` to return nil. Used by `--transient` to
   drain remaining messages before exit instead of killing the task.
@@ -43,6 +53,20 @@
 
 ### Fixed
 
+- **Inproc DEALER→REP broker deadlock** — `Writable#send` freezes the
+  message array, but the REP recv transform mutated it in-place via
+  `Array#shift`. On the inproc fast-path the frozen array passed through
+  the DEALER send pump unchanged, causing `FrozenError` that silently
+  killed the send pump task and deadlocked the broker.
+  `DirectPipe#send_message` now dups the array before passing to
+  transforms.
+- **Pump errors swallowed silently** — all send/recv pump tasks ran as
+  `transient: true` Async tasks, so unexpected exceptions (bugs) were
+  logged but never surfaced to the caller. The socket would deadlock
+  instead of raising. Now `Engine#signal_fatal_error` stores the error
+  and unblocks the recv queue; subsequent `#send`/`#receive` calls
+  re-raise it. Expected errors (`Async::Stop`, `ProtocolError`,
+  `CONNECTION_LOST`) are still handled normally.
 - **Pipe `--transient` drains too early** — `all_peers_gone` fired while
   `pull.receive` was blocked, hanging the worker forever. Now the transient
   monitor pushes a nil sentinel via `close_read`, which unblocks the

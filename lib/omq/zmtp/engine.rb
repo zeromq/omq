@@ -56,6 +56,7 @@ module OMQ
         @reconnect_enabled    = true
         @parent_task          = nil
         @connection_promises  = {} # connection => Async::Promise
+        @fatal_error          = nil
       end
 
 
@@ -179,9 +180,13 @@ module OMQ
       # Dequeues the next received message. Blocks until available.
       #
       # @return [Array<String>] message parts
+      # @raise if a background pump task crashed
       #
       def dequeue_recv
-        @routing.recv_queue.dequeue
+        raise @fatal_error if @fatal_error
+        msg = @routing.recv_queue.dequeue
+        raise @fatal_error if msg.nil? && @fatal_error
+        msg
       end
 
 
@@ -197,8 +202,10 @@ module OMQ
       #
       # @param parts [Array<String>]
       # @return [void]
+      # @raise if a background pump task crashed
       #
       def enqueue_send(parts)
+        raise @fatal_error if @fatal_error
         @routing.enqueue(parts)
       end
 
@@ -224,8 +231,12 @@ module OMQ
             msg = transform ? transform.call(msg) : msg
             recv_queue.enqueue(msg)
           end
-        rescue *CONNECTION_LOST
+        rescue Async::Stop
+          # normal shutdown
+        rescue ProtocolError, *CONNECTION_LOST
           connection_lost(conn)
+        rescue => error
+          signal_fatal_error(error)
         end
       end
 
@@ -297,6 +308,46 @@ module OMQ
         @routing.stop rescue nil
         @tasks.each { |t| t.stop rescue nil }
         @tasks.clear
+      end
+
+
+      # Spawns a transient pump task with error propagation.
+      #
+      # Unexpected exceptions are caught and forwarded to
+      # {#signal_fatal_error} so blocked callers (send/recv)
+      # see the real error instead of deadlocking.
+      #
+      # @param annotation [String] task annotation for debugging
+      # @yield the pump loop body
+      # @return [Async::Task]
+      #
+      def spawn_pump_task(annotation:, &block)
+        @parent_task.async(transient: true, annotation: annotation) do
+          yield
+        rescue Async::Stop, ProtocolError, *CONNECTION_LOST
+          # normal shutdown / expected disconnect
+        rescue => error
+          signal_fatal_error(error)
+        end
+      end
+
+
+      # Wraps an unexpected pump error as {OMQ::SocketDeadError} and
+      # unblocks any callers waiting on the recv queue.
+      #
+      # Must be called from inside a rescue block so that +error+ is
+      # +$!+ and Ruby sets it as +#cause+ on the new exception.
+      #
+      # @param error [Exception]
+      #
+      def signal_fatal_error(error)
+        return if @closing || @closed
+        @fatal_error = begin
+          raise OMQ::SocketDeadError, "internal error killed #{@socket_type} socket"
+        rescue => wrapped
+          wrapped
+        end
+        @routing.recv_queue.enqueue(nil) rescue nil
       end
 
 
