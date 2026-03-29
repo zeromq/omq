@@ -526,6 +526,16 @@ describe "OMQ::CLI.parse_options" do
   it "exits with no arguments" do
     assert_raises(SystemExit) { quietly { OMQ::CLI.parse_options([]) } }
   end
+
+  it "parses --reconnect-ivl as a fixed value" do
+    opts = OMQ::CLI.parse_options(["req", "-c", "tcp://x:1", "--reconnect-ivl", "0.5"])
+    assert_equal 0.5, opts[:reconnect_ivl]
+  end
+
+  it "parses --reconnect-ivl as a range" do
+    opts = OMQ::CLI.parse_options(["req", "-c", "tcp://x:1", "--reconnect-ivl", "0.1..2"])
+    assert_equal 0.1..2.0, opts[:reconnect_ivl]
+  end
 end
 
 # ── Eval ($F and $_) ────────────────────────────────────────────────
@@ -602,6 +612,37 @@ describe "output" do
     @runner.send(:output, ["hello"])
     $stdout = STDOUT
     assert_equal "hello\n", out.string
+  end
+end
+
+
+# ── Grace period with Range reconnect_interval ─────────────────────
+
+describe "wait_for_peer grace period with range reconnect_ivl" do
+  it "uses Range#begin for the grace sleep" do
+    Sync do
+      push = OMQ::PUSH.new(linger: 0)
+      push.reconnect_interval = 0.05..1.0
+      push.bind("tcp://127.0.0.1:0")
+      port = push.last_tcp_port
+
+      pull = OMQ::PULL.new(linger: 0)
+      pull.connect("tcp://127.0.0.1:#{port}")
+
+      config = make_config(
+        type_name: "push",
+        reconnect_ivl: 0.05..1.0,
+        binds: ["tcp://127.0.0.1:#{port}"],
+      )
+      runner = OMQ::CLI::PushRunner.new(config, OMQ::PUSH)
+      runner.instance_variable_set(:@sock, push)
+
+      # Should not raise TypeError from sleep(Range)
+      runner.send(:wait_for_peer)
+    ensure
+      push&.close
+      pull&.close
+    end
   end
 end
 

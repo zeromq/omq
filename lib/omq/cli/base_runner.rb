@@ -90,7 +90,8 @@ module OMQ
           # multiple connect URLs), wait one reconnect interval so
           # latecomers finish their handshake before we start sending.
           if config.binds.any? || config.connects.size > 1
-            sleep(@sock.options.reconnect_interval)
+            ri = @sock.options.reconnect_interval
+            sleep(ri.is_a?(Range) ? ri.begin : ri)
           end
         end
       end
