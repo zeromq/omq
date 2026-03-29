@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`Socket#close_read`** — pushes a nil sentinel into the recv queue,
+  causing a blocked `#receive` to return nil. Used by `--transient` to
+  drain remaining messages before exit instead of killing the task.
+- **`send_pump_idle?`** on all routing classes — tracks whether the send
+  pump has an in-flight batch. `Engine#drain_send_queues` now waits for
+  both `send_queue.empty?` and `send_pump_idle?`, preventing message loss
+  during linger close.
+- **Grace period after `peer_connected`** — senders that bind or connect
+  to multiple endpoints sleep one `reconnect_interval` (100ms) after the
+  first peer handshake, giving latecomers time to connect before messages
+  start flowing.
+
+### Improved
+
+- **CLI refactored into 16 files** — the 1162-line `cli.rb` monolith is
+  decomposed into `CLI::Config` (frozen `Data.define`), `CLI::Formatter`,
+  `CLI::BaseRunner` (shared infrastructure), and one runner class per
+  socket type combo (PushRunner, PullRunner, ReqRunner, RepRunner, etc.).
+  Each runner models its behavior as a single `#run_loop` override.
+- **`--transient` uses `close_read` instead of `task.stop`** — recv-only
+  and bidirectional sockets drain their recv queue via nil sentinel before
+  exiting, preventing message loss on disconnect. Send-only sockets still
+  use `task.stop`.
+- **Pipeline benchmark** — natural startup order (producer → workers →
+  sink), workers use `--transient -t 1` (timeout covers workers that
+  connect after the producer is already gone). Verified correct at 5M messages
+  (56k msg/s sustained, zero message loss).
+
+### Fixed
+
+- **Pipe `--transient` drains too early** — `all_peers_gone` fired while
+  `pull.receive` was blocked, hanging the worker forever. Now the transient
+  monitor pushes a nil sentinel via `close_read`, which unblocks the
+  blocked dequeue and lets the loop drain naturally.
+- **Linger drain missed in-flight batches** — `drain_send_queues` only
+  checked `send_queue.empty?`, but the send pump may have already dequeued
+  messages into a local batch. Now also checks `send_pump_idle?`.
+- **Pipe endpoint ordering** — `omq pipe -b url1 -c url2` assigned PULL
+  to `url2` and PUSH to `url1` (backwards) because connects were
+  concatenated before binds. Now uses ordered `Config#endpoints`.
+
 ## 0.6.0 — 2026-03-28
 
 ### Added

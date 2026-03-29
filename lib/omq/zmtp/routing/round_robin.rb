@@ -26,6 +26,7 @@ module OMQ
           @connection_available = Async::Promise.new
           @send_queue           = Async::LimitedQueue.new(engine.options.send_hwm)
           @send_pump_started    = false
+          @send_pump_idle       = true
         end
 
 
@@ -66,12 +67,18 @@ module OMQ
         # Starts the background send pump that dequeues messages
         # and dispatches them round-robin across connections.
         #
+        # @return [Boolean] true when the send pump is idle (not sending a batch)
+        def send_pump_idle? = @send_pump_idle
+
+
         def start_send_pump
           @send_pump_started = true
           parent = @engine.parent_task
           @tasks << parent.async(transient: true, annotation: "send pump") do
             loop do
+              @send_pump_idle = true
               batch = [@send_queue.dequeue]
+              @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
               if batch.size == 1

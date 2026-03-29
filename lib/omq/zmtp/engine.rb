@@ -185,6 +185,14 @@ module OMQ
       end
 
 
+      # Pushes a nil sentinel into the recv queue, unblocking a
+      # pending {#dequeue_recv} with a nil return value.
+      #
+      def dequeue_recv_sentinel
+        @routing.recv_queue.push(nil)
+      end
+
+
       # Enqueues a message for sending. Blocks at HWM.
       #
       # @param parts [Array<String>]
@@ -328,7 +336,8 @@ module OMQ
         return unless @routing.respond_to?(:send_queue)
         deadline = timeout ? Async::Clock.now + timeout : nil
 
-        until @routing.send_queue.empty?
+        until @routing.send_queue.empty? &&
+              (!@routing.respond_to?(:send_pump_idle?) || @routing.send_pump_idle?)
           if deadline
             remaining = deadline - Async::Clock.now
             break if remaining <= 0

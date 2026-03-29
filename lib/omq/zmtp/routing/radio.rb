@@ -70,7 +70,9 @@ module OMQ
           @send_pump_started = true
           @tasks << @engine.parent_task.async(transient: true, annotation: "send pump") do
             loop do
+              @send_pump_idle = true
               batch = [@send_queue.dequeue]
+              @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
               written = Set.new

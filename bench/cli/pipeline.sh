@@ -29,17 +29,17 @@ SINK="ipc://@omq_bench_sink_$ID"
 echo "omq pipeline benchmark — $N messages, $WORKERS workers, fib(1..$FIB_MAX)"
 echo
 
-# ── Producer: bind and generate work ─────────────────────────────
+# ── Producer: bind and generate work ─────────────────────────
 
 START=$(ruby -e 'puts Process.clock_gettime(Process::CLOCK_MONOTONIC)')
 
 ruby --yjit -e "
 ints = (1..$FIB_MAX).cycle
 $N.times { puts ints.next }
-" | $OMQ push --bind $WORK --linger 2 2>/dev/null &
+" | $OMQ push --bind $WORK --linger 5 2>/dev/null &
 PRODUCER_PID=$!
 
-# ── Workers: pull → fib → push ──────────────────────────────────
+# ── Workers: pull → fib → push ──────────────────────────────
 
 WORKER_PIDS=""
 i=0
@@ -47,17 +47,17 @@ while [ $i -lt $WORKERS ]; do
   $OMQ pipe -c $WORK -c $SINK \
     -r"$BENCH_DIR/fib.rb" \
     -e '[fib(Integer($F.first)).to_s]' \
-    -t 1 2>/dev/null &
+    --transient -t 1 2>/dev/null & # -t 1: exit if producer is already gone
   WORKER_PIDS="$WORKER_PIDS $!"
   i=$((i + 1))
 done
 
-# ── Sink: pull results ───────────────────────────────────────────
+# ── Sink: pull results ───────────────────────────────────────
 
 $OMQ pull --bind $SINK --transient 2>/dev/null \
 | awk '{ s += $1 } END { print s }' > "/tmp/omq_bench_sum_$ID"
 
-# ── Done ─────────────────────────────────────────────────────────
+# ── Done ─────────────────────────────────────────────────────
 
 END=$(ruby -e 'puts Process.clock_gettime(Process::CLOCK_MONOTONIC)')
 

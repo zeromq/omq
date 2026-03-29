@@ -21,6 +21,7 @@ module OMQ
           @subscriptions      = {} # connection => Set of prefixes
           @send_queue         = Async::LimitedQueue.new(engine.options.send_hwm)
           @send_pump_started  = false
+          @send_pump_idle     = true
           @conflate           = engine.options.conflate
           @subscriber_joined  = Async::Promise.new
         end
@@ -55,11 +56,17 @@ module OMQ
           @subscriptions[conn]&.delete(prefix)
         end
 
+        # @return [Boolean] true when the send pump is idle (not sending a batch)
+        def send_pump_idle? = @send_pump_idle
+
+
         def start_send_pump
           @send_pump_started = true
           @tasks << @engine.parent_task.async(transient: true, annotation: "send pump") do
             loop do
+              @send_pump_idle = true
               batch = [@send_queue.dequeue]
+              @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
               written = Set.new

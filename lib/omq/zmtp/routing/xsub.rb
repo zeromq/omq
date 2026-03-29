@@ -19,6 +19,7 @@ module OMQ
           @send_queue        = Async::LimitedQueue.new(engine.options.send_hwm)
           @tasks             = []
           @send_pump_started = false
+          @send_pump_idle    = true
         end
 
         # @return [Async::LimitedQueue]
@@ -54,11 +55,16 @@ module OMQ
 
         private
 
+        def send_pump_idle? = @send_pump_idle
+
+
         def start_send_pump
           @send_pump_started = true
           @tasks << @engine.parent_task.async(transient: true, annotation: "send pump") do
             loop do
+              @send_pump_idle = true
               parts = @send_queue.dequeue
+              @send_pump_idle = false
               frame = parts.first&.b
               next if frame.nil? || frame.empty?
 

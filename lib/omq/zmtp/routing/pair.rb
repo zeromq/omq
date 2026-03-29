@@ -17,7 +17,8 @@ module OMQ
           @connection = nil
           @recv_queue = Async::LimitedQueue.new(engine.options.recv_hwm)
           @send_queue = Async::LimitedQueue.new(engine.options.send_hwm)
-          @tasks      = []
+          @tasks          = []
+          @send_pump_idle = true
         end
 
         # @return [Async::LimitedQueue]
@@ -59,10 +60,15 @@ module OMQ
 
         private
 
+        def send_pump_idle? = @send_pump_idle
+
+
         def start_send_pump(conn)
           @send_pump = @engine.parent_task.async(transient: true, annotation: "send pump") do
             loop do
+              @send_pump_idle = true
               batch = [@send_queue.dequeue]
+              @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
               batch.each { |parts| conn.write_message(parts) }
               conn.flush

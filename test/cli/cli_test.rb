@@ -20,6 +20,42 @@ ensure
   $stdout = orig_stdout
 end
 
+# Helper to build a minimal Config for unit tests.
+def make_config(type_name:, **overrides)
+  defaults = {
+    type_name:       type_name,
+    endpoints:       [],
+    connects:        [],
+    binds:           [],
+    data:            nil,
+    file:            nil,
+    format:          :ascii,
+    subscribes:      [],
+    joins:           [],
+    group:           nil,
+    identity:        nil,
+    target:          nil,
+    interval:        nil,
+    count:           nil,
+    delay:           nil,
+    timeout:         nil,
+    linger:          5,
+    conflate:        false,
+    compress:        false,
+    expr:            nil,
+    transient:       false,
+    verbose:         false,
+    quiet:           false,
+    echo:            false,
+    curve_server:    false,
+    curve_server_key: nil,
+    has_msgpack:     false,
+    has_zstd:        false,
+    stdin_is_tty:    true,
+  }
+  OMQ::CLI::Config.new(**defaults.merge(overrides))
+end
+
 # ── Formatter ────────────────────────────────────────────────────────
 
 describe OMQ::CLI::Formatter do
@@ -265,8 +301,8 @@ end
 
 describe "Routing helpers" do
   before do
-    @runner = OMQ::CLI::Runner.new(
-      { type_name: "server", connects: [], binds: [] },
+    @runner = OMQ::CLI::ServerRunner.new(
+      make_config(type_name: "server"),
       OMQ::SERVER
     )
   end
@@ -347,6 +383,7 @@ describe "OMQ::CLI.validate!" do
   def base_opts(type_name)
     {
       type_name:  type_name,
+      endpoints:  [OMQ::CLI::Endpoint.new("tcp://localhost:5555", false)],
       connects:   ["tcp://localhost:5555"],
       binds:      [],
       data:       nil,
@@ -456,7 +493,7 @@ describe "OMQ::CLI.parse_options" do
 
   it "collects multiple binds" do
     opts = OMQ::CLI.parse_options(["pull", "-b", "tcp://:1", "-b", "tcp://:2"])
-    assert_equal ["tcp://:1", "tcp://:2"], opts[:binds]
+    assert_equal ["tcp://*:1", "tcp://*:2"], opts[:binds]
   end
 
   it "parses format flags" do
@@ -493,8 +530,8 @@ end
 
 describe "eval_expr" do
   before do
-    @runner = OMQ::CLI::Runner.new(
-      { type_name: "push", connects: [], binds: [], expr: "[$_, *$F]" },
+    @runner = OMQ::CLI::PushRunner.new(
+      make_config(type_name: "push", expr: "[$_, *$F]"),
       OMQ::PUSH
     )
     @runner.send(:compile_expr)
@@ -511,8 +548,8 @@ describe "eval_expr" do
   end
 
   it "sets $_ to nil when parts is nil" do
-    runner = OMQ::CLI::Runner.new(
-      { type_name: "push", connects: [], binds: [], expr: "$_.nil? ? 'yes' : 'no'" },
+    runner = OMQ::CLI::PushRunner.new(
+      make_config(type_name: "push", expr: "$_.nil? ? 'yes' : 'no'"),
       OMQ::PUSH
     )
     runner.send(:compile_expr)
@@ -521,8 +558,8 @@ describe "eval_expr" do
   end
 
   it "returns nil when expression evaluates to nil" do
-    runner = OMQ::CLI::Runner.new(
-      { type_name: "push", connects: [], binds: [], expr: "nil" },
+    runner = OMQ::CLI::PushRunner.new(
+      make_config(type_name: "push", expr: "nil"),
       OMQ::PUSH
     )
     runner.send(:compile_expr)
@@ -530,8 +567,8 @@ describe "eval_expr" do
   end
 
   it "wraps string result in array" do
-    runner = OMQ::CLI::Runner.new(
-      { type_name: "push", connects: [], binds: [], expr: "'hello'" },
+    runner = OMQ::CLI::PushRunner.new(
+      make_config(type_name: "push", expr: "'hello'"),
       OMQ::PUSH
     )
     runner.send(:compile_expr)
@@ -543,8 +580,8 @@ end
 
 describe "output" do
   before do
-    @runner = OMQ::CLI::Runner.new(
-      { type_name: "pull", connects: [], binds: [], quiet: false, format: :ascii },
+    @runner = OMQ::CLI::PullRunner.new(
+      make_config(type_name: "pull"),
       OMQ::PULL
     )
   end
@@ -563,5 +600,30 @@ describe "output" do
     @runner.send(:output, ["hello"])
     $stdout = STDOUT
     assert_equal "hello\n", out.string
+  end
+end
+
+# ── Config ──────────────────────────────────────────────────────────
+
+describe "OMQ::CLI::Config" do
+  it "is frozen" do
+    config = make_config(type_name: "push")
+    assert config.frozen?
+  end
+
+  it "knows send-only types" do
+    assert make_config(type_name: "push").send_only?
+    assert make_config(type_name: "pub").send_only?
+    assert make_config(type_name: "scatter").send_only?
+    assert make_config(type_name: "radio").send_only?
+    refute make_config(type_name: "pull").send_only?
+  end
+
+  it "knows recv-only types" do
+    assert make_config(type_name: "pull").recv_only?
+    assert make_config(type_name: "sub").recv_only?
+    assert make_config(type_name: "gather").recv_only?
+    assert make_config(type_name: "dish").recv_only?
+    refute make_config(type_name: "push").recv_only?
   end
 end

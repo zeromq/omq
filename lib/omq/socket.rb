@@ -127,6 +127,14 @@ module OMQ
     def connection_count = @engine.connections.size
 
 
+    # Signals end-of-stream on the receive side. A subsequent
+    # +#receive+ call that would otherwise block returns +nil+.
+    #
+    def close_read
+      @engine.dequeue_recv_sentinel
+    end
+
+
     # Disable auto-reconnect for connected endpoints.
     def reconnect_enabled=(val)
       @engine.reconnect_enabled = val
