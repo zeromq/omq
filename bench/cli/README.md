@@ -38,24 +38,13 @@ Measured on Linux x86_64, Ruby 4.0.2 +YJIT (io_uring).
 | tcp | 657 |
 | ipc | 643 |
 
-## Pipeline (4-worker fib)
-
-```
-+--------------+         +--------------+         +----------+
-|   producer   |---TCP---|  worker x4   |---TCP---|   sink   |
-|   PUSH       |         |  PULL|PUSH   |         |   PULL   |
-+--------------+         +--------------+         +----------+
-```
-
-| N | msg/s |
-|---|-------|
-| 1000 | 288 |
-| 5000 | 831 |
-
 ## Running
 
 ```sh
-sh bench/cli/throughput.sh [count]   # default: 10000
-sh bench/cli/latency.sh [count]      # default: 1000
-sh bench/cli/pipeline.sh [count]     # default: 1000
+sh bench/cli/throughput.sh [count]                    # default: 10000
+sh bench/cli/latency.sh [count]                       # default: 1000
+sh bench/cli/fib_pipeline/pipeline.sh [count]         # default: 1000
+sh bench/cli/fib_pipeline/pipeline_ractors.sh [count] # default: 1000
 ```
+
+See also: [fib_pipeline/](fib_pipeline/) for pipeline benchmark results.

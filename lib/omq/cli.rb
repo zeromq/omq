@@ -284,6 +284,7 @@ module OMQ
         conflate:         false,
         compress:         false,
         expr:             nil,
+        parallel:         nil,
         transient:        false,
         verbose:          false,
         quiet:            false,
@@ -340,6 +341,10 @@ module OMQ
         o.on("-e", "--eval EXPR",    "Eval Ruby for each message ($F = parts)") { |v| opts[:expr] = v }
         o.on("-r", "--require LIB",  "Require library or file (-r./lib.rb)")    { |v|
           v.start_with?("./", "../") ? require(File.expand_path(v)) : require(v)
+        }
+        o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers (pipe only, default: nproc)") { |v|
+          require "etc"
+          opts[:parallel] = v || Etc.nprocessors
         }
 
         o.separator "\nCURVE encryption (requires omq-curve gem):"
@@ -399,6 +404,12 @@ module OMQ
       abort "--identity is only valid for DEALER/ROUTER"      if opts[:identity] && !%w[dealer router].include?(type_name)
       abort "--target is only valid for ROUTER/SERVER/PEER"   if opts[:target] && !%w[router server peer].include?(type_name)
       abort "--conflate is only valid for PUB/RADIO"          if opts[:conflate] && !%w[pub radio].include?(type_name)
+
+      if opts[:parallel]
+        abort "-P/--parallel is only valid for pipe"                                    unless type_name == "pipe"
+        abort "-P/--parallel must be >= 2"                                              if opts[:parallel] < 2
+        abort "-P/--parallel requires both endpoints to use --connect (not --bind)" if opts[:endpoints].any?(&:bind?)
+      end
 
       (opts[:connects] + opts[:binds]).each do |url|
         abort "inproc not supported, use tcp:// or ipc://" if url.include?("inproc://")

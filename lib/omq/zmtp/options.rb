@@ -24,9 +24,9 @@ module OMQ
         @heartbeat_interval    = nil   # seconds, nil = disabled
         @heartbeat_ttl         = nil   # seconds, nil = use heartbeat_interval
         @heartbeat_timeout     = nil   # seconds, nil = use heartbeat_interval
-        @max_message_size       = nil  # bytes, nil = unlimited
-        @conflate               = false
-        @mechanism              = Mechanism::Null.new
+        @max_message_size      = nil  # bytes, nil = unlimited
+        @conflate              = false
+        @mechanism             = Mechanism::Null.new
       end
 
       attr_accessor :send_hwm,  :recv_hwm,

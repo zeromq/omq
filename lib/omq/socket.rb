@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "forwardable"
+
 module OMQ
   # Socket base class.
   #
@@ -16,26 +18,25 @@ module OMQ
 
     # Delegate socket option accessors to @options.
     #
-    %i[
-      send_hwm                send_hwm=
-      recv_hwm                recv_hwm=
-      linger                  linger=
-      identity                identity=
-      recv_timeout            recv_timeout=
-      send_timeout            send_timeout=
-      read_timeout            read_timeout=
-      write_timeout           write_timeout=
-      router_mandatory        router_mandatory=
-      router_mandatory?
-      reconnect_interval      reconnect_interval=
-      heartbeat_interval      heartbeat_interval=
-      heartbeat_ttl           heartbeat_ttl=
-      heartbeat_timeout       heartbeat_timeout=
-      max_message_size        max_message_size=
-      mechanism               mechanism=
-    ].each do |method|
-      define_method(method) { |*args| @options.public_send(method, *args) }
-    end
+    extend Forwardable
+
+    def_delegators :@options,
+      :send_hwm,              :send_hwm=,
+      :recv_hwm,              :recv_hwm=,
+      :linger,                :linger=,
+      :identity,              :identity=,
+      :recv_timeout,          :recv_timeout=,
+      :send_timeout,          :send_timeout=,
+      :read_timeout,          :read_timeout=,
+      :write_timeout,         :write_timeout=,
+      :router_mandatory,      :router_mandatory=,
+      :router_mandatory?,
+      :reconnect_interval,    :reconnect_interval=,
+      :heartbeat_interval,    :heartbeat_interval=,
+      :heartbeat_ttl,         :heartbeat_ttl=,
+      :heartbeat_timeout,     :heartbeat_timeout=,
+      :max_message_size,      :max_message_size=,
+      :mechanism,             :mechanism=
 
 
     # Creates a new socket and binds it to the given endpoint.

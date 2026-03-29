@@ -28,6 +28,7 @@ module OMQ
       :conflate,
       :compress,
       :expr,
+      :parallel,
       :transient,
       :verbose,
       :quiet,

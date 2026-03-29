@@ -15,6 +15,10 @@
   to multiple endpoints sleep one `reconnect_interval` (100ms) after the
   first peer handshake, giving latecomers time to connect before messages
   start flowing.
+- **`-P/--parallel [N]` for `omq pipe`** — spawns N Ractor workers
+  (default: nproc) in a single process for true CPU parallelism. Each
+  Ractor runs its own Async reactor with independent PULL/PUSH sockets.
+  `$F` in `-e` expressions is transparently rewritten for Ractor isolation.
 
 ### Improved
 
@@ -41,6 +45,9 @@
 - **Linger drain missed in-flight batches** — `drain_send_queues` only
   checked `send_queue.empty?`, but the send pump may have already dequeued
   messages into a local batch. Now also checks `send_pump_idle?`.
+- **Socket option delegators not Ractor-safe** — `define_method` with a
+  block captured state from the main Ractor, causing `Ractor::IsolationError`
+  when calling setters like `recv_timeout=`. Replaced with `Forwardable`.
 - **Pipe endpoint ordering** — `omq pipe -b url1 -c url2` assigned PULL
   to `url2` and PUSH to `url1` (backwards) because connects were
   concatenated before binds. Now uses ordered `Config#endpoints`.

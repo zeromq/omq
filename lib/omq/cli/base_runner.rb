@@ -46,13 +46,13 @@ module OMQ
 
 
       def create_socket
-        sock_opts = { linger: config.linger }
-        sock_opts[:conflate] = true if config.conflate && %w[pub radio].include?(config.type_name)
-        sock = @klass.new(nil, **sock_opts)
-        sock.recv_timeout     = config.timeout if config.timeout
-        sock.send_timeout     = config.timeout if config.timeout
-        sock.identity         = config.identity if config.identity
-        sock.router_mandatory = true if config.type_name == "router"
+        sock_opts              = { linger: config.linger }
+        sock_opts[:conflate]   = true if config.conflate && %w[pub radio].include?(config.type_name)
+        sock                   = @klass.new(**sock_opts)
+        sock.recv_timeout      = config.timeout if config.timeout
+        sock.send_timeout      = config.timeout if config.timeout
+        sock.identity          = config.identity if config.identity
+        sock.router_mandatory  = true if config.type_name == "router"
         sock
       end
 

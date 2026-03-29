@@ -43,6 +43,7 @@ def make_config(type_name:, **overrides)
     conflate:        false,
     compress:        false,
     expr:            nil,
+    parallel:        nil,
     transient:       false,
     verbose:         false,
     quiet:           false,
