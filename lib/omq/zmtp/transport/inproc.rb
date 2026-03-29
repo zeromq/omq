@@ -139,7 +139,7 @@ module OMQ
           end
 
           def start_connect_retry(endpoint, engine)
-            Reactor.spawn_pump do
+            Reactor.spawn_pump(annotation: "reconnect") do
               ri  = engine.options.reconnect_interval
               ivl = ri.is_a?(Range) ? ri.begin : ri
               loop do

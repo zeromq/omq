@@ -104,6 +104,20 @@ module OMQ
     #
     # @return [void]
     #
+    # @return [Async::Promise] resolves when first peer completes handshake
+    def peer_connected  = @engine.peer_connected
+
+    # @return [Async::Promise] resolves when all peers disconnect (after having had peers)
+    def all_peers_gone  = @engine.all_peers_gone
+
+# @return [Integer] current number of peer connections
+    def connection_count = @engine.connections.size
+
+    # Disable auto-reconnect for connected endpoints.
+    def reconnect_enabled=(val)
+      @engine.reconnect_enabled = val
+    end
+
     def close
       @engine.close
       nil

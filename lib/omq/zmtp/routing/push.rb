@@ -61,7 +61,7 @@ module OMQ
         # succeed if the kernel send buffer absorbs the data.
         #
         def start_monitor(conn)
-          @tasks << Reactor.spawn_pump do
+          @tasks << Reactor.spawn_pump(annotation: "monitor") do
             conn.receive_message # blocks until peer disconnects
           rescue *ZMTP::CONNECTION_LOST
             @engine.connection_lost(conn)

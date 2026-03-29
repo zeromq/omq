@@ -43,9 +43,16 @@ module OMQ
         @listeners            = []
         @tasks                = []
         @closed               = false
+        @closing              = false
         @last_endpoint        = nil
         @last_tcp_port        = nil
+        @peer_connected       = Async::Promise.new
+        @all_peers_gone       = Async::Promise.new
+        @reconnect_enabled    = true
       end
+
+      attr_reader :peer_connected, :all_peers_gone, :connections
+      attr_writer :reconnect_enabled
 
       # Binds to an endpoint.
       #
@@ -146,6 +153,7 @@ module OMQ
         @connections << pipe
         @connection_endpoints[pipe] = endpoint if endpoint
         @routing.connection_added(pipe)
+        @peer_connected.resolve(pipe)
       end
 
       # Dequeues the next received message. Blocks until available.
@@ -180,7 +188,7 @@ module OMQ
           return nil
         end
 
-        Reactor.spawn_pump do
+        Reactor.spawn_pump(annotation: "recv pump") do
           loop do
             msg = conn.receive_message
             msg = transform ? transform.call(msg) : msg
@@ -202,8 +210,13 @@ module OMQ
         @routing.connection_removed(connection)
         connection.close
 
+        # Resolve all_peers_gone once: had peers, now have none.
+        if @peer_connected.resolved? && @connections.empty?
+          @all_peers_gone.resolve(true)
+        end
+
         # Auto-reconnect if this was a connected (not bound) endpoint
-        if endpoint && @connected_endpoints.include?(endpoint) && !@closed
+        if endpoint && @connected_endpoints.include?(endpoint) && !@closed && !@closing && @reconnect_enabled
           schedule_reconnect(endpoint)
         end
       end
@@ -216,9 +229,18 @@ module OMQ
         return if @closed || @closing
         @closing = true
 
+        # Stop accepting new connections — but only if we already have
+        # peers to drain to. With zero connections the listeners must
+        # stay open so late-arriving peers can still receive queued
+        # messages during the linger period.
+        unless @connections.empty?
+          @listeners.each(&:stop)
+          @listeners.clear
+        end
+
         # Linger: wait for send queues to drain before closing.
         # linger=0 → close immediately, linger=nil → wait forever.
-        # Note: @closed is set AFTER draining so reconnect tasks keep
+        # @closed is set AFTER draining so reconnect tasks keep
         # running during the linger period.
         linger = @options.linger
         if linger.nil? || linger > 0
@@ -228,11 +250,13 @@ module OMQ
 
         @closed = true
 
+        # Stop any remaining listeners.
+        @listeners.each(&:stop)
+        @listeners.clear
+
         # Close connections — causes pump tasks to get EOFError/IOError
         @connections.each(&:close)
         @connections.clear
-        @listeners.each(&:stop)
-        @listeners.clear
         # Stop any remaining pump tasks
         @routing.stop rescue nil
         @tasks.each { |t| t.stop rescue nil }
@@ -275,6 +299,7 @@ module OMQ
         @connections << conn
         @connection_endpoints[conn] = endpoint if endpoint
         @routing.connection_added(conn)
+        @peer_connected.resolve(conn)
       rescue ProtocolError, *CONNECTION_LOST
         conn&.close
         raise
@@ -290,7 +315,7 @@ module OMQ
           max_delay = nil
         end
 
-        @tasks << Reactor.spawn_pump do
+        @tasks << Reactor.spawn_pump(annotation: "reconnect #{endpoint}") do
           loop do
             break if @closed
             sleep delay if delay > 0

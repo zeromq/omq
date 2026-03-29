@@ -24,13 +24,13 @@ module OMQ
         #
         # @return [#stop] a stoppable handle
         #
-        def spawn_pump(&block)
+        def spawn_pump(annotation: nil, &block)
           if Async::Task.current?
-            Async(transient: true, &block)
+            Async(transient: true, annotation: annotation, &block)
           else
             handle = PumpHandle.new
             ensure_started
-            @work_queue.push([:spawn, block, handle])
+            @work_queue.push([:spawn, block, handle, annotation])
             handle
           end
         end
@@ -88,8 +88,8 @@ module OMQ
               item = @work_queue.dequeue
               case item[0]
               when :spawn
-                _, block, handle = item
-                async_task = task.async(transient: true, &block)
+                _, block, handle, annotation = item
+                async_task = task.async(transient: true, annotation: annotation, &block)
                 handle.task = async_task
               when :run
                 _, block, result_queue = item

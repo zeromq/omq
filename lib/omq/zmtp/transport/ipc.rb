@@ -28,16 +28,14 @@ module OMQ
 
             server = UNIXServer.new(sock_path)
 
-            accept_task = Reactor.spawn_pump do
+            accept_task = Reactor.spawn_pump(annotation: "ipc accept #{endpoint}") do
+              parent = Async::Task.current.parent
               loop do
                 client = server.accept
-                Reactor.run do
+                parent.async(transient: true, annotation: "ipc conn #{endpoint}") do
                   engine.handle_accepted(IO::Stream::Buffered.wrap(client), endpoint: endpoint)
                 rescue ProtocolError, *ZMTP::CONNECTION_LOST
                   # peer disconnected during handshake
-                rescue
-                  client&.close rescue nil
-                  raise
                 end
               end
             rescue IOError

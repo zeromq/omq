@@ -56,7 +56,7 @@ module OMQ
 
         def start_send_pump
           @send_pump_started = true
-          @tasks << Reactor.spawn_pump do
+          @tasks << Reactor.spawn_pump(annotation: "send pump") do
             loop do
               parts = @send_queue.dequeue
               frame = parts.first&.b

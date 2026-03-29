@@ -56,7 +56,7 @@ module OMQ
         private
 
         def start_monitor(conn)
-          @tasks << Reactor.spawn_pump do
+          @tasks << Reactor.spawn_pump(annotation: "monitor") do
             conn.receive_message
           rescue *ZMTP::CONNECTION_LOST
             @engine.connection_lost(conn)

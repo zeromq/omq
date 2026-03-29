@@ -138,7 +138,7 @@ module OMQ
       def start_heartbeat
         return nil unless @heartbeat_interval
         @last_received_at = monotonic_now
-        @heartbeat_task = Reactor.spawn_pump do
+        @heartbeat_task = Reactor.spawn_pump(annotation: "heartbeat") do
           loop do
             sleep @heartbeat_interval
             # Send PING with TTL
