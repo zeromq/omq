@@ -1,12 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-03-30
 
 ### Added
 
-- **Broker pattern tests** — ROUTER→DEALER broker integration tests
-  covering single round-trip, multiple round-trips, and multi-worker
-  round-robin.
 - **`OMQ::SocketDeadError`** — raised on `#send`/`#receive` after an
   internal pump task crashes. The original exception is available via
   `#cause`. The socket is permanently bricked.
@@ -34,62 +31,6 @@
   Example: `-e 'BEGIN{ @sum = 0 } @sum += Integer($_); next END{ puts @sum }'`
 - **`--reconnect-ivl`** — set reconnect interval from the CLI, accepts a
   fixed value (`0.5`) or a range for exponential backoff (`0.1..2`).
-
-### Improved
-
-- **Received messages are always frozen** — `Connection#receive_message`
-  (TCP/IPC) now returns a frozen array of frozen strings, matching the
-  inproc fast-path. REP and REQ recv transforms rewritten to avoid
-  in-place mutation (`Array#shift` → slicing). Removes the `parts.dup`
-  workaround in `DirectPipe#send_message`.
-- **CLI refactored into 16 files** — the 1162-line `cli.rb` monolith is
-  decomposed into `CLI::Config` (frozen `Data.define`), `CLI::Formatter`,
-  `CLI::BaseRunner` (shared infrastructure), and one runner class per
-  socket type combo (PushRunner, PullRunner, ReqRunner, RepRunner, etc.).
-  Each runner models its behavior as a single `#run_loop` override.
-- **`--transient` uses `close_read` instead of `task.stop`** — recv-only
-  and bidirectional sockets drain their recv queue via nil sentinel before
-  exiting, preventing message loss on disconnect. Send-only sockets still
-  use `task.stop`.
-- **Pipeline benchmark** — natural startup order (producer → workers →
-  sink), workers use `--transient -t 1` (timeout covers workers that
-  connect after the producer is already gone). Verified correct at 5M messages
-  (56k msg/s sustained, zero message loss).
-
-### Fixed
-
-- **Inproc DEALER→REP broker deadlock** — `Writable#send` freezes the
-  message array, but the REP recv transform mutated it in-place via
-  `Array#shift`. On the inproc fast-path the frozen array passed through
-  the DEALER send pump unchanged, causing `FrozenError` that silently
-  killed the send pump task and deadlocked the broker.
-  `DirectPipe#send_message` now dups the array before passing to
-  transforms.
-- **Pump errors swallowed silently** — all send/recv pump tasks ran as
-  `transient: true` Async tasks, so unexpected exceptions (bugs) were
-  logged but never surfaced to the caller. The socket would deadlock
-  instead of raising. Now `Engine#signal_fatal_error` stores the error
-  and unblocks the recv queue; subsequent `#send`/`#receive` calls
-  re-raise it. Expected errors (`Async::Stop`, `ProtocolError`,
-  `CONNECTION_LOST`) are still handled normally.
-- **Pipe `--transient` drains too early** — `all_peers_gone` fired while
-  `pull.receive` was blocked, hanging the worker forever. Now the transient
-  monitor pushes a nil sentinel via `close_read`, which unblocks the
-  blocked dequeue and lets the loop drain naturally.
-- **Linger drain missed in-flight batches** — `drain_send_queues` only
-  checked `send_queue.empty?`, but the send pump may have already dequeued
-  messages into a local batch. Now also checks `send_pump_idle?`.
-- **Socket option delegators not Ractor-safe** — `define_method` with a
-  block captured state from the main Ractor, causing `Ractor::IsolationError`
-  when calling setters like `recv_timeout=`. Replaced with `Forwardable`.
-- **Pipe endpoint ordering** — `omq pipe -b url1 -c url2` assigned PULL
-  to `url2` and PUSH to `url1` (backwards) because connects were
-  concatenated before binds. Now uses ordered `Config#endpoints`.
-
-## 0.6.0 — 2026-03-28
-
-### Added
-
 - **`--transient`** — exit when all peers disconnect (after at least one
   message has been sent/received). Useful for pipeline sinks and workers.
 - **`--examples`** — annotated usage examples, paged via `$PAGER` or `less`.
@@ -146,6 +87,23 @@
 
 ### Improved
 
+- **Received messages are always frozen** — `Connection#receive_message`
+  (TCP/IPC) now returns a frozen array of frozen strings, matching the
+  inproc fast-path. REP and REQ recv transforms rewritten to avoid
+  in-place mutation (`Array#shift` → slicing).
+- **CLI refactored into 16 files** — the 1162-line `cli.rb` monolith is
+  decomposed into `CLI::Config` (frozen `Data.define`), `CLI::Formatter`,
+  `CLI::BaseRunner` (shared infrastructure), and one runner class per
+  socket type combo (PushRunner, PullRunner, ReqRunner, RepRunner, etc.).
+  Each runner models its behavior as a single `#run_loop` override.
+- **`--transient` uses `close_read` instead of `task.stop`** — recv-only
+  and bidirectional sockets drain their recv queue via nil sentinel before
+  exiting, preventing message loss on disconnect. Send-only sockets still
+  use `task.stop`.
+- **Pipeline benchmark** — natural startup order (producer → workers →
+  sink), workers use `--transient -t 1` (timeout covers workers that
+  connect after the producer is already gone). Verified correct at 5M messages
+  (56k msg/s sustained, zero message loss).
 - **Renamed `omqcat` → `omq`** — the CLI executable is now `omq`, matching
   the gem name.
 - **Per-connection task subtrees** — each connection gets an isolated Async
@@ -185,6 +143,31 @@
 
 ### Fixed
 
+- **Inproc DEALER→REP broker deadlock** — `Writable#send` freezes the
+  message array, but the REP recv transform mutated it in-place via
+  `Array#shift`. On the inproc fast-path the frozen array passed through
+  the DEALER send pump unchanged, causing `FrozenError` that silently
+  killed the send pump task and deadlocked the broker.
+- **Pump errors swallowed silently** — all send/recv pump tasks ran as
+  `transient: true` Async tasks, so unexpected exceptions (bugs) were
+  logged but never surfaced to the caller. The socket would deadlock
+  instead of raising. Now `Engine#signal_fatal_error` stores the error
+  and unblocks the recv queue; subsequent `#send`/`#receive` calls
+  re-raise it as `SocketDeadError`. Expected errors (`Async::Stop`,
+  `ProtocolError`, `CONNECTION_LOST`) are still handled normally.
+- **Pipe `--transient` drains too early** — `all_peers_gone` fired while
+  `pull.receive` was blocked, hanging the worker forever. Now the transient
+  monitor pushes a nil sentinel via `close_read`, which unblocks the
+  blocked dequeue and lets the loop drain naturally.
+- **Linger drain missed in-flight batches** — `drain_send_queues` only
+  checked `send_queue.empty?`, but the send pump may have already dequeued
+  messages into a local batch. Now also checks `send_pump_idle?`.
+- **Socket option delegators not Ractor-safe** — `define_method` with a
+  block captured state from the main Ractor, causing `Ractor::IsolationError`
+  when calling setters like `recv_timeout=`. Replaced with `Forwardable`.
+- **Pipe endpoint ordering** — `omq pipe -b url1 -c url2` assigned PULL
+  to `url2` and PUSH to `url1` (backwards) because connects were
+  concatenated before binds. Now uses ordered `Config#endpoints`.
 - **Linger drain kills reconnect tasks** — `Engine#close` set `@closed = true`
   before draining send queues, causing reconnect tasks to bail immediately.
   Messages queued before any peer connected were silently dropped. Now `@closed`
