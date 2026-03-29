@@ -10,6 +10,7 @@ describe "inproc memory leaks" do
       GC.start
       before = ObjectSpace.each_object(OMQ::ZMTP::Transport::Inproc::DirectPipe).count
 
+      push = pull = nil
       10.times do |i|
         push = OMQ::PUSH.new
         pull = OMQ::PULL.new
@@ -20,14 +21,13 @@ describe "inproc memory leaks" do
         push.close
         pull.close
       end
+      push = pull = nil
 
-      # Clear block-local refs from last iteration so GC can collect
       GC.start
       GC.start
       after = ObjectSpace.each_object(OMQ::ZMTP::Transport::Inproc::DirectPipe).count
 
-      # Allow up to 2 (the last iteration's pair, held by block locals)
-      assert after - before <= 2, "leaked #{after - before} DirectPipe objects"
+      assert_equal 0, after - before, "leaked #{after - before} DirectPipe objects"
     end
   end
 
