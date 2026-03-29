@@ -204,8 +204,9 @@ module OMQ
         #
         # When a routing strategy sets {#direct_recv_queue} on a pipe,
         # {#send_message} enqueues directly into the peer's recv queue,
-        # bypassing the intermediate internal queues and the recv pump
-        # task entirely.  This reduces inproc from 3 queue hops to 1.
+        # bypassing the intermediate pipe queues and the recv pump task.
+        # This reduces inproc from 3 queue hops to 2 (send_queue →
+        # recv_queue), eliminating the internal pipe queue in between.
         #
         class DirectPipe
           # @return [String] peer's socket type
