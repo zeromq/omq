@@ -61,8 +61,7 @@ module OMQ
         # REQ strips the leading empty delimiter frame on receive.
         #
         def transform_recv(msg)
-          msg.shift if msg.first&.empty?
-          msg
+          msg.first&.empty? ? msg[1..] : msg
         end
       end
     end

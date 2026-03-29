@@ -133,10 +133,10 @@ module OMQ
             yield frame if block_given?
             next
           end
-          frames << frame.body
+          frames << frame.body.freeze
           break unless frame.more?
         end
-        frames
+        frames.freeze
       end
 
 

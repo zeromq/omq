@@ -30,13 +30,11 @@ module OMQ
         #
         def connection_added(connection)
           transform = ->(msg) {
-            envelope = []
-            while msg.first && !msg.first.empty?
-              envelope << msg.shift
-            end
-            msg.shift # remove empty delimiter
+            delimiter = msg.index(&:empty?) || msg.size
+            envelope  = msg[0, delimiter]
+            body      = msg[(delimiter + 1)..] || []
             @pending_replies << { conn: connection, envelope: envelope }
-            msg
+            body
           }
           task = @engine.start_recv_pump(connection, @recv_queue, transform: transform)
           @tasks << task if task

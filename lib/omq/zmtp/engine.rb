@@ -228,7 +228,7 @@ module OMQ
         Reactor.spawn_pump(annotation: "recv pump") do
           loop do
             msg = conn.receive_message
-            msg = transform ? transform.call(msg) : msg
+            msg = transform ? transform.call(msg).freeze : msg
             recv_queue.enqueue(msg)
           end
         rescue Async::Stop

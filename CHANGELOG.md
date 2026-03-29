@@ -37,6 +37,11 @@
 
 ### Improved
 
+- **Received messages are always frozen** — `Connection#receive_message`
+  (TCP/IPC) now returns a frozen array of frozen strings, matching the
+  inproc fast-path. REP and REQ recv transforms rewritten to avoid
+  in-place mutation (`Array#shift` → slicing). Removes the `parts.dup`
+  workaround in `DirectPipe#send_message`.
 - **CLI refactored into 16 files** — the 1162-line `cli.rb` monolith is
   decomposed into `CLI::Config` (frozen `Data.define`), `CLI::Formatter`,
   `CLI::BaseRunner` (shared infrastructure), and one runner class per

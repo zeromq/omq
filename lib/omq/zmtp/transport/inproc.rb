@@ -281,12 +281,12 @@ module OMQ
           def send_message(parts)
             raise IOError, "closed" if @closed
             if @direct_recv_queue
-              msg = @direct_recv_transform ? @direct_recv_transform.call(parts.dup) : parts
+              msg = @direct_recv_transform ? @direct_recv_transform.call(parts).freeze : parts
               @direct_recv_queue.enqueue(msg)
             elsif @send_queue
               @send_queue.enqueue(parts)
             else
-              msg = @direct_recv_transform ? @direct_recv_transform.call(parts.dup) : parts
+              msg = @direct_recv_transform ? @direct_recv_transform.call(parts).freeze : parts
               (@pending_direct ||= []) << msg
             end
           end
