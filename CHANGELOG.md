@@ -41,6 +41,22 @@
   before sending. Replaces the need for manual `--delay` on PUB, PUSH, etc.
 - **`OMQ_DEV` env var** — unified dev-mode flag for loading local omq and
   omq-curve source via `require_relative` (replaces `DEV_ENV`).
+- **`--marshal` / `-M`** — Ruby Marshal stream format. Sends any Ruby
+  object over the wire; receiver deserializes and prints `inspect` output.
+  E.g. `omq pub -e 'Time.now' -M` / `omq sub -M`.
+- **`-e` single-shot** — eval runs once and exits when no other data
+  source is present. Supports `self << msg` for direct socket sends.
+- **`subscriber_joined`** — `Async::Promise` on PUB/XPUB that resolves
+  when the first subscription arrives. CLI PUB waits for it before sending.
+- **`#to_str` enforcement** — message parts must be string-like; passing
+  integers or symbols raises `NoMethodError` instead of silently coercing.
+- **`-e` error handling** — eval errors abort with exit code 3.
+- **`--raw` outputs ZMTP frames** — flags + length + body per frame,
+  suitable for `hexdump -C`. Compression remains transparent.
+- **ROUTER `router_mandatory` by default** — CLI ROUTER rejects sends to
+  unknown identities and waits for first peer before sending.
+- **`--timeout` applies to `wait_for_peer`** — `-t` now bounds the initial
+  connection wait via `Async::TimeoutError`.
 
 ### Improved
 
@@ -77,6 +93,9 @@
   instead of the installed gem.
 - **`output` skips nil** — `-e` returning nil no longer prints a blank line.
 - **Removed `#count_reached?`** — inlined for clarity.
+- **System tests overhauled** — `test/omqcat` → `test/cli`, all IPC
+  abstract namespace, `set -eu`, stderr captured, no sleeps (except
+  ROUTER --target), under 10s.
 
 ### Fixed
 

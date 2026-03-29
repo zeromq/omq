@@ -139,12 +139,13 @@ describe OMQ::CLI::Formatter do
   describe "raw" do
     before { @fmt = OMQ::CLI::Formatter.new(:raw) }
 
-    it "encodes by joining parts" do
-      assert_equal "helloworld", @fmt.encode(["hello", "world"])
+    it "encodes as ZMTP frames" do
+      encoded = @fmt.encode(["hello", "world"])
+      assert_equal "\x01\x05hello\x00\x05world".b, encoded
     end
 
     it "encodes empty message" do
-      assert_equal "", @fmt.encode([""])
+      assert_equal "\x00\x00".b, @fmt.encode([""])
     end
 
     it "decodes line as single-element array" do
