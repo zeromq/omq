@@ -41,16 +41,12 @@ PRODUCER_PID=$!
 
 # ── Workers: pull → fib → push ──────────────────────────────
 
-WORKER_PIDS=""
-i=0
-while [ $i -lt $WORKERS ]; do
+seq $WORKERS | xargs -P $WORKERS -I{} \
   $OMQ pipe -c $WORK -c $SINK \
     -r"$BENCH_DIR/fib.rb" \
     -e '[fib(Integer($F.first)).to_s]' \
     --transient -t 1 2>/dev/null & # -t 1: exit if producer is already gone
-  WORKER_PIDS="$WORKER_PIDS $!"
-  i=$((i + 1))
-done
+WORKERS_PID=$!
 
 # ── Sink: pull results ───────────────────────────────────────
 
@@ -69,5 +65,5 @@ echo "  $WORKERS workers: $RATE msg/s ($N messages in ${ELAPSED}s, sum=$SUM)"
 
 # Clean up
 rm -f "/tmp/omq_bench_sum_$ID"
-kill $PRODUCER_PID $WORKER_PIDS 2>/dev/null
+kill $PRODUCER_PID $WORKERS_PID 2>/dev/null
 wait 2>/dev/null
