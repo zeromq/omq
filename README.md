@@ -1,39 +1,34 @@
-# OMQ! Where did the C dependency go?!
+# OMQ — ZeroMQ in pure Ruby
 
 [![CI](https://github.com/zeromq/omq/actions/workflows/ci.yml/badge.svg)](https://github.com/zeromq/omq/actions/workflows/ci.yml)
 [![Gem Version](https://img.shields.io/gem/v/omq?color=e9573f)](https://rubygems.org/gems/omq)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Ruby](https://img.shields.io/badge/Ruby-%3E%3D%203.3-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
 
-Pure Ruby implementation of the [ZMTP 3.1](https://rfc.zeromq.org/spec/23/) wire protocol ([ZeroMQ](https://zeromq.org/)) using the [Async](https://github.com/socketry/async) gem. No native libraries required.
+`gem install omq` — that's it. No libzmq, no compiler, no system packages. Just Ruby.
+
+OMQ implements the [ZMTP 3.1](https://rfc.zeromq.org/spec/23/) wire protocol from scratch using [Async](https://github.com/socketry/async) fibers. It speaks native ZeroMQ on the wire and interoperates with libzmq, pyzmq, CZMQ, and everything else in the ZMQ ecosystem.
 
 > **244k msg/s** inproc | **47k msg/s** ipc | **36k msg/s** tcp
 >
 > **9 µs** inproc latency | **47 µs** ipc | **61 µs** tcp
 >
-> Ruby 4.0 + YJIT on a Linux VM on a 2019 MacBook Pro (Intel) — [~340k msg/s with io_uring](bench/README.md#io_uring)
+> Ruby 4.0 + YJIT — [~340k msg/s with io_uring](bench/README.md#io_uring)
 
 ---
 
 ## Highlights
 
-- **Pure Ruby** — no C extensions, no FFI, no libzmq/libczmq dependency
-- **All socket types** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair + draft types (client/server, radio/dish, scatter/gather, peer, channel)
-- **Async-native** — built on [Async](https://github.com/socketry/async) fibers, also works with plain threads
-- **Ruby-idiomatic API** — messages as `Array<String>`, errors as exceptions, timeouts as `IO::TimeoutError`
-- **All transports** — tcp, ipc, inproc
+- **Zero dependencies on C** — no extensions, no FFI, no libzmq. `gem install` just works everywhere
+- **Fast** — YJIT-optimized hot paths, batched sends, 244k msg/s inproc with single-digit µs latency
+- **`omq` CLI** — pipe, filter, and transform messages from the terminal with Ruby eval, Ractor parallelism, and [script handlers](CLI.md#script-handlers--r)
+- **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair, and all draft types
+- **Every transport** — tcp, ipc (Unix domain sockets), inproc (in-process queues)
+- **Async-native** — built on fibers, non-blocking from the ground up
 
-## Why pure Ruby?
+New to ZeroMQ? See [GETTING_STARTED.md](GETTING_STARTED.md) — a ~30 min read covering all major patterns with working OMQ code examples.
 
-Modern Ruby has closed the gap:
-
-- **YJIT** — JIT-compiled hot paths close the throughput gap with C extensions
-- **Fiber Scheduler** — non-blocking I/O without callbacks or threads (`Async` builds on this)
-- **`io-stream`** — buffered I/O with read-ahead, from the Async ecosystem
-
-When [CZTop](https://github.com/paddor/cztop) was written, none of this existed. Today, a pure Ruby ZMTP implementation is fast enough for production use — and you get `gem install` with no compiler toolchain, no system packages, and no segfaults.
-
-See [DESIGN.md](DESIGN.md) for architecture details: task trees, send pump batching, the ZMTP wire protocol, and how OMQ handles the fallacies of distributed computing.
+For architecture internals, see [DESIGN.md](DESIGN.md).
 
 ## Install
 
@@ -44,10 +39,6 @@ gem install omq
 # or in Gemfile
 gem 'omq'
 ```
-
-## Learning ZeroMQ
-
-New to ZeroMQ? See [GETTING_STARTED.md](GETTING_STARTED.md) — a ~30 min read covering all major patterns with working OMQ code examples.
 
 ## Quick Start
 
@@ -105,45 +96,6 @@ ensure
 end
 ```
 
-## Socket Types
-
-| Pattern | Classes | Direction | Multipart |
-|---------|---------|-----------|-----------|
-| Request/Reply | `REQ`, `REP` | bidirectional | yes |
-| Publish/Subscribe | `PUB`, `SUB`, `XPUB`, `XSUB` | unidirectional | yes |
-| Pipeline | `PUSH`, `PULL` | unidirectional | yes |
-| Routing | `DEALER`, `ROUTER` | bidirectional | yes |
-| Exclusive pair | `PAIR` | bidirectional | yes |
-| Client/Server | `CLIENT`, `SERVER` | bidirectional | no |
-| Group messaging | `RADIO`, `DISH` | unidirectional | no |
-| Pipeline (draft) | `SCATTER`, `GATHER` | unidirectional | no |
-| Peer-to-peer | `PEER` | bidirectional | no |
-| Channel (draft) | `CHANNEL` | bidirectional | no |
-
-All classes live under `OMQ::`. For the purists, `ØMQ` is an alias:
-
-```ruby
-req = ØMQ::REQ.new(">tcp://localhost:5555")
-```
-
-## Performance
-
-Benchmarked with benchmark-ips on Linux x86_64 (Ruby 4.0.2 +YJIT):
-
-#### Throughput (push/pull, 64 B messages)
-
-| inproc | ipc | tcp |
-|--------|-----|-----|
-| 244k/s | 47k/s | 36k/s |
-
-#### Latency (req/rep roundtrip)
-
-| inproc | ipc | tcp |
-|--------|-----|-----|
-| 9 µs | 47 µs | 61 µs |
-
-See [`bench/`](bench/) for full results and scripts.
-
 ## omq — CLI tool
 
 `omq` is a command-line tool for sending and receiving messages on any OMQ socket. Like `nngcat` from libnng, but with Ruby superpowers.
@@ -197,9 +149,9 @@ omq pull -b tcp://:5557 -r./my_handler.rb
 
 See [CLI.md](CLI.md) for full documentation, or `omq --help` / `omq --examples`.
 
-## Interop with native ZMQ
+## Interop
 
-OMQ speaks ZMTP 3.1 on the wire and interoperates with libzmq, CZMQ, pyzmq, etc. over **tcp** and **ipc**. The `inproc://` transport is OMQ-internal (in-process Ruby queues) and is not visible to native ZMQ running in the same process — use `ipc://` to talk across library boundaries.
+OMQ interoperates with libzmq, CZMQ, pyzmq, etc. over **tcp** and **ipc**. The `inproc://` transport is OMQ-internal (in-process Ruby queues) — use `ipc://` to talk across library boundaries.
 
 ## Development
 
