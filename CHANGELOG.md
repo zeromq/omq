@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.7.0 — 2026-03-30
+
+### Breaking
+
+- **`-e` is now `--recv-eval`** — evaluates incoming messages only.
+  Send-only sockets (PUSH, PUB, SCATTER, RADIO) must use `-E` /
+  `--send-eval` instead of `-e`.
+
+### Added
+
+- **`-E` / `--send-eval`** — eval Ruby for each outgoing message.
+  REQ can now transform requests independently from replies.
+  ROUTER/SERVER/PEER: `-E` does dynamic routing (first element =
+  identity), mutually exclusive with `--target`.
+- **`OMQ.outgoing` / `OMQ.incoming`** — registration API for script
+  handlers loaded via `-r`. Blocks receive message parts as a block
+  argument (`|msg|`). Setup via closures, teardown via `at_exit`.
+  CLI flags override registered handlers.
+- **[CLI.md](CLI.md)** — comprehensive CLI documentation.
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** — renamed from
+  `ZGUIDE_SUMMARY.md` for discoverability.
+
+### Fixed
+
+- **Frozen array from `recv_msg_raw`** — ROUTER/SERVER receiver crashed
+  with `FrozenError` when shifting identity off frozen message arrays.
+  `#recv_msg_raw` now dups the array.
+
 ## 0.6.5 — 2026-03-30
 
 ### Fixed
