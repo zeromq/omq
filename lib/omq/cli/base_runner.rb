@@ -28,9 +28,11 @@ module OMQ
         sleep(config.delay) if config.delay && config.recv_only?
         wait_for_peer if needs_peer_wait?
 
-        @sock.instance_exec(&@begin_proc) if @begin_proc
+        @sock.instance_exec(&@send_begin_proc) if @send_begin_proc
+        @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
         run_loop(task)
-        @sock.instance_exec(&@end_proc) if @end_proc
+        @sock.instance_exec(&@send_end_proc) if @send_end_proc
+        @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
       ensure
         @sock&.close
       end
@@ -201,19 +203,19 @@ module OMQ
             end
           end
         elsif config.data || config.file
-          parts = eval_expr(read_next)
+          parts = eval_send_expr(read_next)
           send_msg(parts) if parts
         elsif stdin_ready?
           loop do
             parts = read_next
             break unless parts
-            parts = eval_expr(parts)
+            parts = eval_send_expr(parts)
             send_msg(parts) if parts
             i += 1
             break if n && n > 0 && i >= n
           end
-        elsif @eval_proc
-          parts = eval_expr(nil)
+        elsif @send_eval_proc
+          parts = eval_send_expr(nil)
           send_msg(parts) if parts
         end
       end
@@ -221,11 +223,11 @@ module OMQ
 
       def send_tick
         raw = read_next_or_nil
-        if raw.nil? && !@eval_proc
+        if raw.nil? && !@send_eval_proc
           @send_tick_eof = true
           return 0
         end
-        parts = eval_expr(raw)
+        parts = eval_send_expr(raw)
         send_msg(parts) if parts
         1
       end
@@ -237,7 +239,7 @@ module OMQ
         loop do
           parts = recv_msg
           break if parts.nil?
-          parts = eval_expr(parts)
+          parts = eval_recv_expr(parts)
           output(parts)
           i += 1
           break if n && n > 0 && i >= n
@@ -246,7 +248,7 @@ module OMQ
 
 
       def wait_for_loops(receiver, sender)
-        if config.data || config.file || config.expr || config.target
+        if config.data || config.file || config.send_expr || config.recv_expr || config.target
           sender.wait
           receiver.stop
         elsif config.count && config.count > 0
@@ -281,7 +283,8 @@ module OMQ
 
 
       def recv_msg_raw
-        @sock.receive
+        msg = @sock.receive
+        msg&.dup
       end
 
 
@@ -320,7 +323,7 @@ module OMQ
       def read_next_or_nil
         if config.data || config.file
           read_next
-        elsif @eval_proc
+        elsif @send_eval_proc
           nil
         else
           read_next
@@ -358,11 +361,27 @@ module OMQ
 
 
       def compile_expr
-        return unless config.expr
-        expr, begin_body, end_body = extract_blocks(config.expr)
-        @begin_proc = eval("proc { #{begin_body} }") if begin_body
-        @end_proc   = eval("proc { #{end_body} }")   if end_body
-        @eval_proc  = eval("proc { $_ = $F&.first; #{expr} }") if expr && !expr.strip.empty?
+        compile_one_expr(:send, config.send_expr)
+        compile_one_expr(:recv, config.recv_expr)
+        @send_eval_proc ||= wrap_registered_proc(OMQ.outgoing_proc)
+        @recv_eval_proc ||= wrap_registered_proc(OMQ.incoming_proc)
+      end
+
+
+      def wrap_registered_proc(block)
+        return unless block
+        proc { $_ = $F&.first; block.call }
+      end
+
+
+      def compile_one_expr(direction, src)
+        return unless src
+        expr, begin_body, end_body = extract_blocks(src)
+        instance_variable_set(:"@#{direction}_begin_proc", eval("proc { #{begin_body} }")) if begin_body
+        instance_variable_set(:"@#{direction}_end_proc",   eval("proc { #{end_body} }"))   if end_body
+        if expr && !expr.strip.empty?
+          instance_variable_set(:"@#{direction}_eval_proc", eval("proc { $_ = $F&.first; #{expr} }"))
+        end
       end
 
 
@@ -398,10 +417,21 @@ module OMQ
 
       SENT = Object.new.freeze # sentinel: eval already sent the reply
 
-      def eval_expr(parts)
-        return parts unless @eval_proc
+      def eval_send_expr(parts)
+        return parts unless @send_eval_proc
+        run_eval(@send_eval_proc, parts)
+      end
+
+
+      def eval_recv_expr(parts)
+        return parts unless @recv_eval_proc
+        run_eval(@recv_eval_proc, parts)
+      end
+
+
+      def run_eval(eval_proc, parts)
         $F = parts
-        result = @sock.instance_exec(&@eval_proc)
+        result = @sock.instance_exec(&eval_proc)
         return nil if result.nil?
         return SENT if result.equal?(@sock)
         return [result] if config.format == :marshal
@@ -411,7 +441,7 @@ module OMQ
         else             [result.to_str]
         end
       rescue => e
-        $stderr.puts "omq: -e error: #{e.message} (#{e.class})"
+        $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
         exit 3
       end
 

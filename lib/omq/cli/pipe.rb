@@ -39,7 +39,7 @@ module OMQ
         push_ep.bind? ? @push.bind(push_ep.url) : @push.connect(push_ep.url)
 
         compile_expr
-        @sock = @pull  # for eval_expr instance_exec
+        @sock = @pull  # for eval instance_exec
 
         with_timeout(config.timeout) do
           @push.peer_connected.wait
@@ -54,7 +54,7 @@ module OMQ
           end
         end
 
-        @sock.instance_exec(&@begin_proc) if @begin_proc
+        @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
 
         n = config.count
         i = 0
@@ -62,7 +62,7 @@ module OMQ
           parts = @pull.receive
           break if parts.nil?
           parts = @fmt.decompress(parts)
-          parts = eval_expr(parts)
+          parts = eval_recv_expr(parts)
           if parts && !parts.empty?
             @push.send(@fmt.compress(parts))
           end
@@ -70,7 +70,7 @@ module OMQ
           break if n && n > 0 && i >= n
         end
 
-        @sock.instance_exec(&@end_proc) if @end_proc
+        @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
       ensure
         @pull&.close
         @push&.close
@@ -86,7 +86,7 @@ module OMQ
             Sync do |task|
               # Parse BEGIN/END blocks and per-message expression
               begin_proc = end_proc = eval_proc = nil
-              if cfg.expr
+              if cfg.recv_expr
                 extract = ->(src, kw) {
                   s = src.index(/#{kw}\s*\{/)
                   return [src, nil] unless s
@@ -97,7 +97,7 @@ module OMQ
                   end
                   [src[0...s] + src[j..], src[(i + 1)..(j - 2)]]
                 }
-                expr, begin_body = extract.(cfg.expr, "BEGIN")
+                expr, begin_body = extract.(cfg.recv_expr, "BEGIN")
                 expr, end_body   = extract.(expr, "END")
                 begin_proc = eval("proc { #{begin_body} }") if begin_body
                 end_proc   = eval("proc { #{end_body} }")   if end_body
@@ -187,11 +187,12 @@ module OMQ
 
 
       def compile_expr
-        return unless config.expr
-        expr, begin_body, end_body = extract_blocks(config.expr)
-        @begin_proc = eval("proc { #{begin_body} }") if begin_body
-        @end_proc   = eval("proc { #{end_body} }")   if end_body
-        @eval_proc  = eval("proc { $_ = $F&.first; #{expr} }") if expr && !expr.strip.empty?
+        src = config.recv_expr
+        return unless src
+        expr, begin_body, end_body = extract_blocks(src)
+        @recv_begin_proc = eval("proc { #{begin_body} }") if begin_body
+        @recv_end_proc   = eval("proc { #{end_body} }")   if end_body
+        @recv_eval_proc  = eval("proc { $_ = $F&.first; #{expr} }") if expr && !expr.strip.empty?
       end
 
 
@@ -224,10 +225,10 @@ module OMQ
       end
 
 
-      def eval_expr(parts)
-        return parts unless @eval_proc
+      def eval_recv_expr(parts)
+        return parts unless @recv_eval_proc
         $F = parts
-        result = @sock.instance_exec(&@eval_proc)
+        result = @sock.instance_exec(&@recv_eval_proc)
         return nil if result.nil? || result.equal?(@sock)
         return [result] if config.format == :marshal
         case result
@@ -236,7 +237,7 @@ module OMQ
         else             [result.to_str]
         end
       rescue => e
-        $stderr.puts "omq: -e error: #{e.message} (#{e.class})"
+        $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
         exit 3
       end
 

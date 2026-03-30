@@ -2,6 +2,9 @@
 
 module OMQ
   module CLI
+    SEND_ONLY = %w[pub push scatter radio].freeze
+    RECV_ONLY = %w[sub pull gather dish].freeze
+
     Endpoint = Data.define(:url, :bind?) do
       def connect? = !bind?
     end
@@ -29,7 +32,8 @@ module OMQ
       :heartbeat_ivl,
       :conflate,
       :compress,
-      :expr,
+      :send_expr,
+      :recv_expr,
       :parallel,
       :transient,
       :verbose,
@@ -41,9 +45,6 @@ module OMQ
       :has_zstd,
       :stdin_is_tty,
     ) do
-      SEND_ONLY = %w[pub push scatter radio].freeze
-      RECV_ONLY = %w[sub pull gather dish].freeze
-
       def send_only? = SEND_ONLY.include?(type_name)
       def recv_only? = RECV_ONLY.include?(type_name)
     end

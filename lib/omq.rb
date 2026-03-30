@@ -16,6 +16,13 @@ module OMQ
   # The socket is no longer usable; the original error is available via #cause.
   #
   class SocketDeadError < RuntimeError; end
+
+  class << self
+    attr_reader :outgoing_proc, :incoming_proc
+
+    def outgoing(&block) = @outgoing_proc = block
+    def incoming(&block) = @incoming_proc = block
+  end
 end
 require_relative "omq/zmtp"
 require_relative "omq/socket"

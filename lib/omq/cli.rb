@@ -56,7 +56,7 @@ module OMQ
         └─────┘  "HELLO"    └─────┘
 
         # terminal 1: echo server
-        omq rep --bind tcp://:5555 --eval '$F.map(&:upcase)'
+        omq rep --bind tcp://:5555 --recv-eval '$F.map(&:upcase)'
 
         # terminal 2: send a request
         echo "hello" | omq req --connect tcp://localhost:5555
@@ -121,7 +121,6 @@ module OMQ
 
         # terminal 2: worker — uppercase each message
         omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
-
         # terminal 3: collector
         omq pull --bind ipc://@sink
 
@@ -136,12 +135,12 @@ module OMQ
       ── CLIENT / SERVER (draft) ──────────────────────────────────
 
         ┌────────┐  "hello"   ┌────────┐
-        │ CLIENT │───────────→│ SERVER │ --eval '$F.map(&:upcase)'
+        │ CLIENT │───────────→│ SERVER │ --recv-eval '$F.map(&:upcase)'
         │        │←───────────│        │
         └────────┘  "HELLO"   └────────┘
 
         # terminal 1: upcasing server
-        omq server --bind tcp://:5555 --eval '$F.map(&:upcase)'
+        omq server --bind tcp://:5555 --recv-eval '$F.map(&:upcase)'
 
         # terminal 2: client
         echo "hello" | omq client --connect tcp://localhost:5555
@@ -192,25 +191,49 @@ module OMQ
 
       ── Ruby Eval ────────────────────────────────────────────────
 
-        # filter: only pass messages containing "error"
+        # filter incoming: only pass messages containing "error"
         omq pull --bind tcp://:5557 \
-          --eval '$F.first.include?("error") ? $F : nil'
+          --recv-eval '$F.first.include?("error") ? $F : nil'
 
-        # transform with gems
+        # transform incoming with gems
         omq sub --connect tcp://localhost:5556 --require json \
-          --eval 'JSON.parse($F.first)["temperature"]'
+          --recv-eval 'JSON.parse($F.first)["temperature"]'
 
-        # require a local file, use its methods in --eval
+        # require a local file, use its methods
         omq rep --bind tcp://:5555 --require ./transform.rb \
-          --eval 'upcase_all($F)'
+          --recv-eval 'upcase_all($F)'
 
         # next skips, break stops — regexps match against $_
         omq pull --bind tcp://:5557 \
-          --eval 'next if /^#/; break if /quit/; $F'
+          --recv-eval 'next if /^#/; break if /quit/; $F'
 
         # BEGIN/END blocks (like awk) — accumulate and summarize
         omq pull --bind tcp://:5557 \
-          --eval 'BEGIN{ @sum = 0 } @sum += Integer($_); next END{ puts @sum }'
+          --recv-eval 'BEGIN{ @sum = 0 } @sum += Integer($_); next END{ puts @sum }'
+
+        # transform outgoing messages
+        echo hello | omq push --connect tcp://localhost:5557 \
+          --send-eval '$F.map(&:upcase)'
+
+        # REQ: transform request and reply independently
+        echo hello | omq req --connect tcp://localhost:5555 \
+          --send-eval '$F.map(&:upcase)' --recv-eval '$_'
+
+      ── Script Handlers (-r) ────────────────────────────────────
+
+        # handler.rb — register transforms from a file
+        #   db = PG.connect("dbname=app")
+        #   OMQ.incoming { db.exec($F.first).values.flatten }
+        #   at_exit { db.close }
+        omq pull --bind tcp://:5557 -r ./handler.rb
+
+        # combine script handlers with inline eval
+        omq req -c tcp://localhost:5555 -r ./handler.rb \
+          --send-eval '$F.map(&:upcase)'
+
+        # OMQ.outgoing { ... }   — registered outgoing transform
+        # OMQ.incoming { ... }   — registered incoming transform
+        # CLI flags (-e/-E) override registered handlers
     TEXT
 
     module_function
@@ -316,7 +339,8 @@ module OMQ
         heartbeat_ivl:    nil,
         conflate:         false,
         compress:         false,
-        expr:             nil,
+        send_expr:        nil,
+        recv_expr:        nil,
         parallel:         nil,
         transient:        false,
         verbose:          false,
@@ -380,9 +404,11 @@ module OMQ
         o.separator "\nCompression:"
         o.on("-z", "--compress", "Zstandard compression per frame") { opts[:compress] = true }
 
-        o.separator "\nProcessing:"
-        o.on("-e", "--eval EXPR",    "Eval Ruby for each message ($F = parts)") { |v| opts[:expr] = v }
-        o.on("-r", "--require LIB",  "Require library or file (-r./lib.rb)")    { |v|
+        o.separator "\nProcessing (-e = incoming, -E = outgoing):"
+        o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message ($F = parts)") { |v| opts[:recv_expr] = v }
+        o.on("-E", "--send-eval EXPR", "Eval Ruby for each outgoing message ($F = parts)") { |v| opts[:send_expr] = v }
+        o.on("-r", "--require LIB",  "Require lib/file; scripts can register OMQ.outgoing/incoming") { |v|
+          require_relative "../omq" unless defined?(OMQ::VERSION)
           v.start_with?("./", "../") ? require(File.expand_path(v)) : require(v)
         }
         o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers (pipe only, default: nproc)") { |v|
@@ -447,6 +473,9 @@ module OMQ
       abort "--identity is only valid for DEALER/ROUTER"      if opts[:identity] && !%w[dealer router].include?(type_name)
       abort "--target is only valid for ROUTER/SERVER/PEER"   if opts[:target] && !%w[router server peer].include?(type_name)
       abort "--conflate is only valid for PUB/RADIO"          if opts[:conflate] && !%w[pub radio].include?(type_name)
+      abort "--recv-eval is not valid for send-only sockets (use --send-eval / -E)" if opts[:recv_expr] && SEND_ONLY.include?(type_name)
+      abort "--send-eval is not valid for recv-only sockets (use --recv-eval / -e)" if opts[:send_expr] && RECV_ONLY.include?(type_name)
+      abort "--send-eval and --target are mutually exclusive"  if opts[:send_expr] && opts[:target]
 
       if opts[:parallel]
         abort "-P/--parallel is only valid for pipe"                                    unless type_name == "pipe"

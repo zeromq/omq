@@ -13,7 +13,7 @@ module OMQ
           loop do
             parts = recv_msg
             break if parts.nil?
-            parts = eval_expr(parts)
+            parts = eval_recv_expr(parts)
             output(parts)
             i += 1
             break if n && n > 0 && i >= n

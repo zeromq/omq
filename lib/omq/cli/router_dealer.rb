@@ -20,7 +20,7 @@ module OMQ
             identity = parts.shift
             parts.shift if parts.first == ""
             parts = @fmt.decompress(parts)
-            result = eval_expr([display_routing_id(identity), *parts])
+            result = eval_recv_expr([display_routing_id(identity), *parts])
             output(result)
             i += 1
             break if n && n > 0 && i >= n
@@ -35,18 +35,18 @@ module OMQ
             Async::Loop.quantized(interval: config.interval) do
               parts = read_next
               break unless parts
-              send_targeted_or_plain(parts)
+              send_targeted_or_eval(parts)
               i += 1
               break if n && n > 0 && i >= n
             end
           elsif config.data || config.file
             parts = read_next
-            send_targeted_or_plain(parts) if parts
+            send_targeted_or_eval(parts) if parts
           else
             loop do
               parts = read_next
               break unless parts
-              send_targeted_or_plain(parts)
+              send_targeted_or_eval(parts)
               i += 1
               break if n && n > 0 && i >= n
             end
@@ -57,8 +57,14 @@ module OMQ
       end
 
 
-      def send_targeted_or_plain(parts)
-        if config.target
+      def send_targeted_or_eval(parts)
+        if @send_eval_proc
+          parts = eval_send_expr(parts)
+          return unless parts
+          identity = resolve_target(parts.shift)
+          payload  = @fmt.compress(parts)
+          @sock.send([identity, "", *payload])
+        elsif config.target
           payload = @fmt.compress(parts)
           @sock.send([resolve_target(config.target), "", *payload])
         else

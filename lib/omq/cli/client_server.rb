@@ -11,7 +11,7 @@ module OMQ
 
 
       def run_loop(task)
-        if config.echo || config.expr || config.data || config.file || !config.stdin_is_tty
+        if config.echo || config.recv_expr || @recv_eval_proc || config.data || config.file || !config.stdin_is_tty
           reply_loop
         else
           monitor_loop(task)
@@ -28,8 +28,8 @@ module OMQ
           routing_id = parts.shift
           body       = @fmt.decompress(parts)
 
-          if config.expr
-            reply = eval_expr(body)
+          if config.recv_expr || @recv_eval_proc
+            reply = eval_recv_expr(body)
             output([display_routing_id(routing_id), *(reply || [""])])
             @sock.send_to(routing_id, @fmt.compress(reply || [""]).first)
           elsif config.echo
@@ -56,7 +56,7 @@ module OMQ
             break if parts.nil?
             routing_id = parts.shift
             parts      = @fmt.decompress(parts)
-            result = eval_expr([display_routing_id(routing_id), *parts])
+            result = eval_recv_expr([display_routing_id(routing_id), *parts])
             output(result)
             i += 1
             break if n && n > 0 && i >= n
@@ -71,18 +71,18 @@ module OMQ
             Async::Loop.quantized(interval: config.interval) do
               parts = read_next
               break unless parts
-              send_targeted_or_plain(parts)
+              send_targeted_or_eval(parts)
               i += 1
               break if n && n > 0 && i >= n
             end
           elsif config.data || config.file
             parts = read_next
-            send_targeted_or_plain(parts) if parts
+            send_targeted_or_eval(parts) if parts
           else
             loop do
               parts = read_next
               break unless parts
-              send_targeted_or_plain(parts)
+              send_targeted_or_eval(parts)
               i += 1
               break if n && n > 0 && i >= n
             end
@@ -93,8 +93,13 @@ module OMQ
       end
 
 
-      def send_targeted_or_plain(parts)
-        if config.target
+      def send_targeted_or_eval(parts)
+        if @send_eval_proc
+          parts = eval_send_expr(parts)
+          return unless parts
+          routing_id = resolve_target(parts.shift)
+          @sock.send_to(routing_id, @fmt.compress(parts).first || "")
+        elsif config.target
           parts = @fmt.compress(parts)
           @sock.send_to(resolve_target(config.target), parts.first || "")
         else

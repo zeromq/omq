@@ -14,10 +14,12 @@ module OMQ
           loop do
             parts = read_next
             break unless parts
+            parts = eval_send_expr(parts)
+            next unless parts
             send_msg(parts)
             reply = recv_msg
             break if reply.nil?
-            reply = eval_expr(reply)
+            reply = eval_recv_expr(reply)
             output(reply)
             i += 1
             break if n && n > 0 && i >= n
@@ -29,10 +31,12 @@ module OMQ
           loop do
             parts = read_next
             break unless parts
+            parts = eval_send_expr(parts)
+            next unless parts
             send_msg(parts)
             reply = recv_msg
             break if reply.nil?
-            reply = eval_expr(reply)
+            reply = eval_recv_expr(reply)
             output(reply)
             i += 1
             break if n && n > 0 && i >= n
@@ -53,8 +57,8 @@ module OMQ
         loop do
           msg = recv_msg
           break if msg.nil?
-          if config.expr
-            reply = eval_expr(msg)
+          if config.recv_expr || @recv_eval_proc
+            reply = eval_recv_expr(msg)
             unless reply.equal?(SENT)
               output(reply)
               send_msg(reply || [""])
