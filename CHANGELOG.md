@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.2 — 2026-03-30
+
+### Improved
+
+- **Gemspec summary** — highlights the CLI's composable pipeline
+  capabilities (pipe, filter, transform, formats, Ractor parallelism).
+- **README CLI section** — added `pipe`, `--transient`, `-P/--parallel`,
+  `BEGIN{}/END{}` blocks, `$_` variable, and `--marshal` format.
+
+### Fixed
+
+- **Flaky memory leak tests on CI** — replaced global `ObjectSpace`
+  counting with `WeakRef` tracking of specific objects, retrying GC
+  until collected. No longer depends on GC generational timing.
+
 ## 0.6.1 — 2026-03-30
 
 ### Improved
