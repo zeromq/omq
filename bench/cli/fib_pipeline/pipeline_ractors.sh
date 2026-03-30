@@ -16,8 +16,9 @@
 #
 set -u
 
-OMQ="ruby --yjit -Ilib exe/omq"
 BENCH_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT_DIR=$(cd "$BENCH_DIR/../../.." && pwd)
+OMQ="ruby --yjit -I$ROOT_DIR/lib $ROOT_DIR/exe/omq"
 N=${1:-1000}
 FIB_MAX=${2:-20}
 WORKERS=${3:-4}
