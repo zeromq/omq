@@ -237,7 +237,7 @@ module OMQ
         end
       rescue => e
         $stderr.puts "omq: -e error: #{e.message} (#{e.class})"
-        Process.exit!(3)
+        exit 3
       end
 
 
