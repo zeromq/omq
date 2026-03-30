@@ -1,7 +1,5 @@
 ## TODO
 
-* YJIT: eliminate lambda/proc dispatch in recv pump transforms (REQ, REP, ROUTER, SERVER, PEER). Inline transform logic into each routing strategy's recv pump to keep call sites monomorphic.
-* CLI pipe: multiple PULL/PUSH endpoints
 * Nuckle: pure Ruby drop-in replacement for RbNaCl (no libsodium needed), for those moments you just want it to quack securely (side-channel attacks aside)
 
 * io-endpoint integration: OMQ-aware endpoints, on Zeroids

@@ -34,8 +34,9 @@ module OMQ
           routing_id = SecureRandom.bytes(4)
           @connections_by_routing_id[routing_id] = connection
 
-          task = @engine.start_recv_pump(connection, @recv_queue,
-                   transform: ->(msg) { [routing_id, *msg] })
+          task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
+            [routing_id, *msg]
+          end
           @tasks << task if task
 
           start_send_pump unless @send_pump_started

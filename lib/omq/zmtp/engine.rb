@@ -215,29 +215,50 @@ module OMQ
       # fast path when the connection is a DirectPipe.
       #
       # @param conn [Connection, Transport::Inproc::DirectPipe]
+      # Starts a recv pump that dequeues messages from a connection
+      # and enqueues them into the routing strategy's recv queue.
+      #
+      # When a block is given, each message is yielded for transformation
+      # before enqueueing. The block is compiled at the call site, giving
+      # YJIT a monomorphic call per routing strategy instead of a shared
+      # megamorphic `transform.call` dispatch.
+      #
+      # @param conn [Connection, Transport::Inproc::DirectPipe]
       # @param recv_queue [Async::LimitedQueue] routing strategy's recv queue
-      # @param transform [#call, nil] optional message transform
+      # @yield [msg] optional per-message transform
       # @return [#stop, nil] pump task handle, or nil for DirectPipe bypass
       #
-      def start_recv_pump(conn, recv_queue, transform: nil)
+      def start_recv_pump(conn, recv_queue, &transform)
         if conn.is_a?(Transport::Inproc::DirectPipe) && conn.peer
           conn.peer.direct_recv_queue = recv_queue
           conn.peer.direct_recv_transform = transform
           return nil
         end
 
-        Reactor.spawn_pump(annotation: "recv pump") do
-          loop do
-            msg = conn.receive_message
-            msg = transform ? transform.call(msg).freeze : msg
-            recv_queue.enqueue(msg)
+        if transform
+          Reactor.spawn_pump(annotation: "recv pump") do
+            loop do
+              msg = conn.receive_message
+              msg = transform.call(msg).freeze
+              recv_queue.enqueue(msg)
+            end
+          rescue Async::Stop
+          rescue ProtocolError, *CONNECTION_LOST
+            connection_lost(conn)
+          rescue => error
+            signal_fatal_error(error)
           end
-        rescue Async::Stop
-          # normal shutdown
-        rescue ProtocolError, *CONNECTION_LOST
-          connection_lost(conn)
-        rescue => error
-          signal_fatal_error(error)
+        else
+          Reactor.spawn_pump(annotation: "recv pump") do
+            loop do
+              recv_queue.enqueue(conn.receive_message)
+            end
+          rescue Async::Stop
+          rescue ProtocolError, *CONNECTION_LOST
+            connection_lost(conn)
+          rescue => error
+            signal_fatal_error(error)
+          end
         end
       end
 

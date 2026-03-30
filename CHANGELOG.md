@@ -27,6 +27,13 @@
   Backward compatible — without `--in`/`--out`, the positional
   2-endpoint syntax works as before.
 
+### Improved
+
+- **YJIT recv pump** — replaced lambda/proc `transform:` parameter in
+  `Engine#start_recv_pump` with block captures. No-transform path
+  (PUSH/PULL, PUB/SUB) is now branch-free. ~2.5x YJIT speedup on
+  inproc, ~2x on ipc/tcp.
+
 ### Fixed
 
 - **Frozen array from `recv_msg_raw`** — ROUTER/SERVER receiver crashed

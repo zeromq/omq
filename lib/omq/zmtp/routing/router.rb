@@ -35,8 +35,9 @@ module OMQ
           identity = SecureRandom.bytes(5) if identity.nil? || identity.empty?
           @connections_by_identity[identity] = connection
 
-          task = @engine.start_recv_pump(connection, @recv_queue,
-                   transform: ->(msg) { [identity, *msg] })
+          task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
+            [identity, *msg]
+          end
           @tasks << task if task
 
           start_send_pump unless @send_pump_started

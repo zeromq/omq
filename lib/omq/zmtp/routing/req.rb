@@ -28,8 +28,9 @@ module OMQ
         def connection_added(connection)
           @connections << connection
           signal_connection_available
-          task = @engine.start_recv_pump(connection, @recv_queue,
-                   transform: method(:transform_recv))
+          task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
+            msg.first&.empty? ? msg[1..] : msg
+          end
           @tasks << task if task
           start_send_pump unless @send_pump_started
         end
@@ -58,11 +59,6 @@ module OMQ
         #
         def transform_send(parts) = ["".b, *parts]
 
-        # REQ strips the leading empty delimiter frame on receive.
-        #
-        def transform_recv(msg)
-          msg.first&.empty? ? msg[1..] : msg
-        end
       end
     end
   end

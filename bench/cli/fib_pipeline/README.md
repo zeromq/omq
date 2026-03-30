@@ -31,15 +31,17 @@ Single `omq pipe -P 4` process with 4 Ractor workers.
 
 | Mode | msg/s | Time |
 |------|------:|-----:|
-| Multi-process (4 pipes) | 55,430 | 18.0s |
-| Ractors (-P 4)          |  9,782 | 102.2s |
+| Multi-process (4 pipes) | 50,471 | 19.8s |
+| Ractors (-P 4)          |  9,635 | 103.8s |
 
 ### Heavy work: 10k messages, fib(1..29)
 
 | Mode | msg/s | Time |
 |------|------:|-----:|
-| Multi-process (4 pipes) | 1,554 | 6.4s |
-| Ractors (-P 4)          | 1,488 | 6.7s |
+| Multi-process (4 pipes) | 1,418 | 7.1s |
+| Ractors (-P 4)          | 1,739 | 5.7s |
+
+Ractors overtake multi-process when per-message CPU work dominates IPC overhead.
 
 ## Running
 

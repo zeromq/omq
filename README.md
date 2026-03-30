@@ -9,11 +9,11 @@
 
 OMQ implements the [ZMTP 3.1](https://rfc.zeromq.org/spec/23/) wire protocol from scratch using [Async](https://github.com/socketry/async) fibers. It speaks native ZeroMQ on the wire and interoperates with libzmq, pyzmq, CZMQ, and everything else in the ZMQ ecosystem.
 
-> **244k msg/s** inproc | **47k msg/s** ipc | **36k msg/s** tcp
+> **234k msg/s** inproc | **49k msg/s** ipc | **36k msg/s** tcp
 >
-> **9 µs** inproc latency | **47 µs** ipc | **61 µs** tcp
+> **12 µs** inproc latency | **51 µs** ipc | **62 µs** tcp
 >
-> Ruby 4.0 + YJIT — [~340k msg/s with io_uring](bench/README.md#io_uring)
+> Ruby 4.0 + YJIT on a Linux VM — see [`bench/`](bench/) for full results
 
 ---
 
@@ -30,7 +30,7 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for a ~30 min walkthrough of all ma
 ## Highlights
 
 - **Zero dependencies on C** — no extensions, no FFI, no libzmq. `gem install` just works everywhere
-- **Fast** — batched sends, YJIT-friendly frame encoding, 244k msg/s inproc with single-digit µs latency
+- **Fast** — YJIT-optimized hot paths, batched sends, 234k msg/s inproc with 12 µs latency
 - **`omq` CLI** — pipe, filter, and transform messages from the terminal with Ruby eval, Ractor parallelism, and [script handlers](CLI.md#script-handlers--r)
 - **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair, and all draft types
 - **Every transport** — tcp, ipc (Unix domain sockets), inproc (in-process queues)

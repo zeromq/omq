@@ -29,14 +29,13 @@ module OMQ
         # @param connection [Connection]
         #
         def connection_added(connection)
-          transform = ->(msg) {
+          task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
             delimiter = msg.index(&:empty?) || msg.size
             envelope  = msg[0, delimiter]
             body      = msg[(delimiter + 1)..] || []
             @pending_replies << { conn: connection, envelope: envelope }
             body
-          }
-          task = @engine.start_recv_pump(connection, @recv_queue, transform: transform)
+          end
           @tasks << task if task
           start_send_pump unless @send_pump_started
         end
