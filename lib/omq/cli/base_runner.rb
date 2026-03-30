@@ -370,7 +370,10 @@ module OMQ
 
       def wrap_registered_proc(block)
         return unless block
-        proc { $_ = $F&.first; block.call }
+        proc do |msg|
+          $_ = msg&.first
+          block.call(msg)
+        end
       end
 
 
@@ -431,7 +434,7 @@ module OMQ
 
       def run_eval(eval_proc, parts)
         $F = parts
-        result = @sock.instance_exec(&eval_proc)
+        result = @sock.instance_exec(parts, &eval_proc)
         return nil if result.nil?
         return SENT if result.equal?(@sock)
         return [result] if config.format == :marshal

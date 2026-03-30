@@ -17,6 +17,15 @@ require_relative "cli/peer"
 require_relative "cli/pipe"
 
 module OMQ
+
+  class << self
+    attr_reader :outgoing_proc, :incoming_proc
+
+    def outgoing(&block) = @outgoing_proc = block
+    def incoming(&block) = @incoming_proc = block
+  end
+
+
   module CLI
     SOCKET_TYPE_NAMES = %w[
       req rep pub sub push pull pair dealer router
