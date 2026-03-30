@@ -107,18 +107,18 @@ end
 
 ## Socket Types
 
-| Pattern | Classes | Direction |
-|---------|---------|-----------|
-| Request/Reply | `REQ`, `REP` | bidirectional |
-| Publish/Subscribe | `PUB`, `SUB`, `XPUB`, `XSUB` | unidirectional |
-| Pipeline | `PUSH`, `PULL` | unidirectional |
-| Routing | `DEALER`, `ROUTER` | bidirectional |
-| Exclusive pair | `PAIR` | bidirectional |
-| Client/Server | `CLIENT`, `SERVER` | bidirectional |
-| Group messaging | `RADIO`, `DISH` | unidirectional |
-| Pipeline (draft) | `SCATTER`, `GATHER` | unidirectional |
-| Peer-to-peer | `PEER` | bidirectional |
-| Channel (draft) | `CHANNEL` | bidirectional |
+| Pattern | Classes | Direction | Multipart |
+|---------|---------|-----------|-----------|
+| Request/Reply | `REQ`, `REP` | bidirectional | yes |
+| Publish/Subscribe | `PUB`, `SUB`, `XPUB`, `XSUB` | unidirectional | yes |
+| Pipeline | `PUSH`, `PULL` | unidirectional | yes |
+| Routing | `DEALER`, `ROUTER` | bidirectional | yes |
+| Exclusive pair | `PAIR` | bidirectional | yes |
+| Client/Server | `CLIENT`, `SERVER` | bidirectional | no |
+| Group messaging | `RADIO`, `DISH` | unidirectional | no |
+| Pipeline (draft) | `SCATTER`, `GATHER` | unidirectional | no |
+| Peer-to-peer | `PEER` | bidirectional | no |
+| Channel (draft) | `CHANNEL` | bidirectional | no |
 
 All classes live under `OMQ::`. For the purists, `ØMQ` is an alias:
 
