@@ -24,9 +24,22 @@ module OMQ
       private
 
 
+      def resolve_endpoints
+        if config.in_endpoints.any?
+          [config.in_endpoints, config.out_endpoints]
+        else
+          [[config.endpoints[0]], [config.endpoints[1]]]
+        end
+      end
+
+
+      def attach_endpoints(sock, endpoints)
+        endpoints.each { |ep| ep.bind? ? sock.bind(ep.url) : sock.connect(ep.url) }
+      end
+
+
       def run_sequential(task)
-        pull_ep = config.endpoints[0]
-        push_ep = config.endpoints[1]
+        in_eps, out_eps = resolve_endpoints
 
         @pull = OMQ::PULL.new(linger: config.linger, recv_timeout: config.timeout)
         @push = OMQ::PUSH.new(linger: config.linger, send_timeout: config.timeout)
@@ -35,8 +48,8 @@ module OMQ
         @pull.heartbeat_interval  = config.heartbeat_ivl if config.heartbeat_ivl
         @push.heartbeat_interval  = config.heartbeat_ivl if config.heartbeat_ivl
 
-        pull_ep.bind? ? @pull.bind(pull_ep.url) : @pull.connect(pull_ep.url)
-        push_ep.bind? ? @push.bind(push_ep.url) : @push.connect(push_ep.url)
+        attach_endpoints(@pull, in_eps)
+        attach_endpoints(@push, out_eps)
 
         compile_expr
         @sock = @pull  # for eval instance_exec
@@ -115,8 +128,10 @@ module OMQ
               push.reconnect_interval  = cfg.reconnect_ivl if cfg.reconnect_ivl
               pull.heartbeat_interval  = cfg.heartbeat_ivl if cfg.heartbeat_ivl
               push.heartbeat_interval  = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-              pull.connect(cfg.endpoints[0].url)
-              push.connect(cfg.endpoints[1].url)
+              in_eps  = cfg.in_endpoints.any? ? cfg.in_endpoints : [cfg.endpoints[0]]
+              out_eps = cfg.out_endpoints.any? ? cfg.out_endpoints : [cfg.endpoints[1]]
+              in_eps.each  { |ep| pull.connect(ep.url) }
+              out_eps.each { |ep| push.connect(ep.url) }
 
               if cfg.timeout
                 task.with_timeout(cfg.timeout) do

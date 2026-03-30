@@ -21,6 +21,11 @@
 - **[CLI.md](CLI.md)** — comprehensive CLI documentation.
 - **[GETTING_STARTED.md](GETTING_STARTED.md)** — renamed from
   `ZGUIDE_SUMMARY.md` for discoverability.
+- **Multi-peer pipe with `--in`/`--out`** — modal switches that assign
+  subsequent `-b`/`-c` to the PULL (input) or PUSH (output) side.
+  Enables fan-in, fan-out, and mixed bind/connect per side.
+  Backward compatible — without `--in`/`--out`, the positional
+  2-endpoint syntax works as before.
 
 ### Fixed
 

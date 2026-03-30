@@ -369,7 +369,7 @@ omq router -b tcp://:5555 --target 0xdeadbeef -D "reply"
 Pipe creates an in-process PULL → eval → PUSH pipeline:
 
 ```sh
-# basic pipe
+# basic pipe (positional: first = input, second = output)
 omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
 
 # parallel Ractor workers (default: all CPUs)
@@ -382,7 +382,25 @@ omq pipe -c ipc://@work -c ipc://@sink -P 4 -e '$F.map(&:upcase)'
 omq pipe -c ipc://@work -c ipc://@sink --transient -e '$F.map(&:upcase)'
 ```
 
-Both endpoints must use `--connect`. `-P`/`--parallel` requires this and must be >= 2. In parallel mode, each Ractor worker gets its own PULL/PUSH pair.
+### Multi-peer pipe with `--in`/`--out`
+
+Use `--in` and `--out` to attach multiple endpoints per side. These are modal switches — subsequent `-b`/`-c` flags attach to the current side:
+
+```sh
+# fan-in: 2 producers → 1 consumer
+omq pipe --in -c ipc://@work1 -c ipc://@work2 --out -c ipc://@sink -e '$F'
+
+# fan-out: 1 producer → 2 consumers (round-robin)
+omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e '$F'
+
+# bind on input, connect on output
+omq pipe --in -b tcp://:5555 -b tcp://:5556 --out -c tcp://sink:5557 -e '$F'
+
+# parallel workers with fan-in (all must be -c)
+omq pipe --in -c ipc://@a -c ipc://@b --out -c ipc://@sink -P 4 -e '$F'
+```
+
+`-P`/`--parallel` requires all endpoints to be `--connect`. In parallel mode, each Ractor worker gets its own PULL/PUSH pair connecting to all endpoints.
 
 Note: in Ractor workers, use `__F` instead of `$F` (global variables aren't shared across Ractors).
 

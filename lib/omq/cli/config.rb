@@ -15,6 +15,8 @@ module OMQ
       :endpoints,
       :connects,
       :binds,
+      :in_endpoints,
+      :out_endpoints,
       :data,
       :file,
       :format,

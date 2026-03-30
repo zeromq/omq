@@ -27,6 +27,8 @@ def make_config(type_name:, **overrides)
     endpoints:       [],
     connects:        [],
     binds:           [],
+    in_endpoints:    [],
+    out_endpoints:   [],
     data:            nil,
     file:            nil,
     format:          :ascii,
@@ -386,17 +388,19 @@ end
 describe "OMQ::CLI.validate!" do
   def base_opts(type_name)
     {
-      type_name:  type_name,
-      endpoints:  [OMQ::CLI::Endpoint.new("tcp://localhost:5555", false)],
-      connects:   ["tcp://localhost:5555"],
-      binds:      [],
-      data:       nil,
-      file:       nil,
-      subscribes: [],
-      joins:      [],
-      group:      nil,
-      identity:   nil,
-      target:     nil,
+      type_name:      type_name,
+      endpoints:      [OMQ::CLI::Endpoint.new("tcp://localhost:5555", false)],
+      connects:       ["tcp://localhost:5555"],
+      binds:          [],
+      in_endpoints:   [],
+      out_endpoints:  [],
+      data:           nil,
+      file:           nil,
+      subscribes:     [],
+      joins:          [],
+      group:          nil,
+      identity:       nil,
+      target:         nil,
     }
   end
 
@@ -527,6 +531,72 @@ describe "OMQ::CLI.validate!" do
       OMQ::CLI.validate!(base_opts(type).merge(send_expr: "$F", recv_expr: "$F"))
     end
   end
+
+  # ── pipe --in/--out validation ──────────────────────────────────
+
+  def pipe_opts(**overrides)
+    {
+      type_name:      "pipe",
+      endpoints:      [],
+      connects:       [],
+      binds:          [],
+      in_endpoints:   [],
+      out_endpoints:  [],
+      data:           nil,
+      file:           nil,
+      subscribes:     [],
+      joins:          [],
+      group:          nil,
+      identity:       nil,
+      target:         nil,
+    }.merge(overrides)
+  end
+
+  it "allows pipe with --in/--out endpoints" do
+    opts = pipe_opts(
+      in_endpoints:  [OMQ::CLI::Endpoint.new("ipc://@a", false)],
+      out_endpoints: [OMQ::CLI::Endpoint.new("ipc://@b", false)],
+    )
+    OMQ::CLI.validate!(opts)
+  end
+
+  it "allows pipe with multiple --in endpoints" do
+    opts = pipe_opts(
+      in_endpoints:  [OMQ::CLI::Endpoint.new("ipc://@a", false), OMQ::CLI::Endpoint.new("ipc://@b", false)],
+      out_endpoints: [OMQ::CLI::Endpoint.new("ipc://@c", false)],
+    )
+    OMQ::CLI.validate!(opts)
+  end
+
+  it "rejects pipe --in without --out" do
+    opts = pipe_opts(in_endpoints: [OMQ::CLI::Endpoint.new("ipc://@a", false)])
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "rejects pipe --out without --in" do
+    opts = pipe_opts(out_endpoints: [OMQ::CLI::Endpoint.new("ipc://@a", false)])
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "rejects pipe mixing --in/--out with bare endpoints" do
+    opts = pipe_opts(
+      in_endpoints: [OMQ::CLI::Endpoint.new("ipc://@a", false)],
+      out_endpoints: [OMQ::CLI::Endpoint.new("ipc://@b", false)],
+      endpoints: [OMQ::CLI::Endpoint.new("ipc://@c", false)],
+    )
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "rejects --in/--out on non-pipe sockets" do
+    opts = base_opts("req").merge(in_endpoints: [OMQ::CLI::Endpoint.new("ipc://@a", false)], out_endpoints: [])
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "allows legacy pipe with exactly 2 positional endpoints" do
+    eps = [OMQ::CLI::Endpoint.new("ipc://@a", false), OMQ::CLI::Endpoint.new("ipc://@b", false)]
+    opts = pipe_opts(endpoints: eps)
+    OMQ::CLI.validate!(opts)
+  end
 end
 
 # ── Option parsing ───────────────────────────────────────────────────
@@ -627,6 +697,29 @@ describe "OMQ::CLI.parse_options" do
     opts = OMQ::CLI.parse_options(["req", "-c", "tcp://x:1", "-E", "build($_)", "-e", "parse($_)"])
     assert_equal "build($_)",  opts[:send_expr]
     assert_equal "parse($_)", opts[:recv_expr]
+  end
+
+  it "parses --in/--out modal endpoints for pipe" do
+    opts = OMQ::CLI.parse_options(["pipe", "--in", "-c", "ipc://@a", "-c", "ipc://@b", "--out", "-c", "ipc://@c"])
+    assert_equal 2, opts[:in_endpoints].size
+    assert_equal 1, opts[:out_endpoints].size
+    assert_equal "ipc://@a", opts[:in_endpoints][0].url
+    assert_equal "ipc://@b", opts[:in_endpoints][1].url
+    assert_equal "ipc://@c", opts[:out_endpoints][0].url
+    assert_empty opts[:endpoints]
+  end
+
+  it "parses --in with bind and --out with connect" do
+    opts = OMQ::CLI.parse_options(["pipe", "--in", "-b", "tcp://:5555", "--out", "-c", "tcp://x:5556"])
+    assert opts[:in_endpoints][0].bind?
+    refute opts[:out_endpoints][0].bind?
+  end
+
+  it "parses legacy pipe with bare -c (no --in/--out)" do
+    opts = OMQ::CLI.parse_options(["pipe", "-c", "ipc://@a", "-c", "ipc://@b"])
+    assert_equal 2, opts[:endpoints].size
+    assert_empty opts[:in_endpoints]
+    assert_empty opts[:out_endpoints]
   end
 end
 

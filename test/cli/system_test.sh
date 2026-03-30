@@ -470,6 +470,52 @@ $OMQ pipe -c ipc://@omq_pipe_in_$$ -c ipc://@omq_pipe_out_$$ -e '$F.map(&:upcase
 wait
 check "pipe -e transforms in pipeline" "PIPED" "$(cat $TMPDIR/pipe_e_out.txt)"
 
+# ── Pipe fan-in (--in with multiple sources) ──────────────────────
+
+echo "Pipe fan-in:"
+$OMQ push -b ipc://@omq_fanin_a_$$ -D "from_a" -d 0.5 -t 3 2>>"$STDERR_LOG" &
+$OMQ push -b ipc://@omq_fanin_b_$$ -D "from_b" -d 0.5 -t 3 2>>"$STDERR_LOG" &
+$OMQ pull -b ipc://@omq_fanin_out_$$ -n 2 -t 3 > $TMPDIR/fanin_out.txt 2>>"$STDERR_LOG" &
+$OMQ pipe --in -c ipc://@omq_fanin_a_$$ -c ipc://@omq_fanin_b_$$ \
+         --out -c ipc://@omq_fanin_out_$$ -e '$F.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
+wait
+FANIN_LINES=$(wc -l < $TMPDIR/fanin_out.txt | tr -d ' ')
+FANIN_CONTENT=$(sort $TMPDIR/fanin_out.txt | tr '\n' ',')
+check "pipe fan-in receives from both sources" "2" "$FANIN_LINES"
+check "pipe fan-in content" "FROM_A,FROM_B," "$FANIN_CONTENT"
+
+# ── Pipe fan-out (--out with multiple sinks) ─────────────────────
+
+echo "Pipe fan-out:"
+$OMQ pull -b ipc://@omq_fanout_a_$$ -n 1 -t 3 > $TMPDIR/fanout_a.txt 2>>"$STDERR_LOG" &
+$OMQ pull -b ipc://@omq_fanout_b_$$ -n 1 -t 3 > $TMPDIR/fanout_b.txt 2>>"$STDERR_LOG" &
+$OMQ pipe --in -b ipc://@omq_fanout_in_$$ \
+         --out -c ipc://@omq_fanout_a_$$ -c ipc://@omq_fanout_b_$$ \
+         -e '$F.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
+sleep 0.3
+printf 'msg1\nmsg2\n' | $OMQ push -c ipc://@omq_fanout_in_$$ -t 3 2>>"$STDERR_LOG"
+wait
+FANOUT_A=$(cat $TMPDIR/fanout_a.txt 2>/dev/null)
+FANOUT_B=$(cat $TMPDIR/fanout_b.txt 2>/dev/null)
+# PUSH round-robins: each sink should get exactly 1 message
+if [ -n "$FANOUT_A" ] && [ -n "$FANOUT_B" ]; then
+  pass "pipe fan-out distributes to both sinks"
+else
+  fail "pipe fan-out distributes to both sinks" "both non-empty" "a='$FANOUT_A' b='$FANOUT_B'"
+fi
+
+# ── Pipe --in/--out validation ───────────────────────────────────
+
+echo "Pipe validation:"
+$OMQ pipe --in -c tcp://x:1 2>$TMPDIR/val_pipe1.txt && EXITCODE=0 || EXITCODE=$?
+check "pipe --in without --out errors" "1" "$EXITCODE"
+
+$OMQ pipe --out -c tcp://x:1 2>$TMPDIR/val_pipe2.txt && EXITCODE=0 || EXITCODE=$?
+check "pipe --out without --in errors" "1" "$EXITCODE"
+
+$OMQ req --in -c tcp://x:1 --out -c tcp://x:2 2>$TMPDIR/val_pipe3.txt && EXITCODE=0 || EXITCODE=$?
+check "--in/--out on non-pipe errors" "1" "$EXITCODE"
+
 # ── Summary ─────────────────────────────────────────────────────────
 
 echo

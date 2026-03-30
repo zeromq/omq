@@ -141,6 +141,14 @@ module OMQ
         omq pipe -c ipc://@work -c ipc://@sink --transient \
           -e '$F.map(&:upcase)'
 
+        # fan-in: multiple sources → one sink
+        omq pipe --in -c ipc://@work1 -c ipc://@work2 \
+          --out -c ipc://@sink -e '$F.map(&:upcase)'
+
+        # fan-out: one source → multiple sinks (round-robin)
+        omq pipe --in -b tcp://:5555 \
+          --out -c ipc://@sink1 -c ipc://@sink2 -e '$F'
+
       ── CLIENT / SERVER (draft) ──────────────────────────────────
 
         ┌────────┐  "hello"   ┌────────┐
@@ -331,6 +339,8 @@ module OMQ
         endpoints:        [],
         connects:         [],
         binds:            [],
+        in_endpoints:     [],
+        out_endpoints:    [],
         data:             nil,
         file:             nil,
         format:           :ascii,
@@ -359,6 +369,8 @@ module OMQ
         curve_server_key: nil,
       }
 
+      pipe_side = nil  # nil = legacy positional mode; :in/:out = modal
+
       parser = OptionParser.new do |o|
         o.banner = "Usage: omq TYPE [options]\n\n" \
                    "Types:    req, rep, pub, sub, push, pull, pair, dealer, router\n" \
@@ -366,8 +378,24 @@ module OMQ
                    "Virtual:  pipe (PULL → eval → PUSH)\n\n"
 
         o.separator "Connection:"
-        o.on("-c", "--connect URL", "Connect to endpoint (repeatable)")   { |v| opts[:endpoints] << Endpoint.new(v, false); opts[:connects] << v }
-        o.on("-b", "--bind URL",    "Bind to endpoint (repeatable)")      { |v| opts[:endpoints] << Endpoint.new(v, true);  opts[:binds] << v }
+        o.on("-c", "--connect URL", "Connect to endpoint (repeatable)") { |v|
+          ep = Endpoint.new(v, false)
+          case pipe_side
+          when :in  then opts[:in_endpoints] << ep
+          when :out then opts[:out_endpoints] << ep
+          else           opts[:endpoints] << ep; opts[:connects] << v
+          end
+        }
+        o.on("-b", "--bind URL", "Bind to endpoint (repeatable)") { |v|
+          ep = Endpoint.new(v, true)
+          case pipe_side
+          when :in  then opts[:in_endpoints] << ep
+          when :out then opts[:out_endpoints] << ep
+          else           opts[:endpoints] << ep; opts[:binds] << v
+          end
+        }
+        o.on("--in",  "Pipe: subsequent -b/-c attach to input (PULL) side")  { pipe_side = :in }
+        o.on("--out", "Pipe: subsequent -b/-c attach to output (PUSH) side") { pipe_side = :out }
 
         o.separator "\nData source (REP: reply source):"
         o.on(      "--echo",        "Echo received messages back (REP)")   { opts[:echo] = true }
@@ -456,10 +484,13 @@ module OMQ
 
       opts[:type_name] = type_name.downcase
 
-      normalize = ->(url) { url.sub(%r{\Atcp://\*:}, "tcp://0.0.0.0:").sub(%r{\Atcp://:}, "tcp://localhost:") }
+      normalize    = ->(url) { url.sub(%r{\Atcp://\*:}, "tcp://0.0.0.0:").sub(%r{\Atcp://:}, "tcp://localhost:") }
+      normalize_ep = ->(ep) { Endpoint.new(normalize.call(ep.url), ep.bind?) }
       opts[:binds].map!(&normalize)
       opts[:connects].map!(&normalize)
-      opts[:endpoints].map! { |ep| Endpoint.new(normalize.call(ep.url), ep.bind?) }
+      opts[:endpoints].map!(&normalize_ep)
+      opts[:in_endpoints].map!(&normalize_ep)
+      opts[:out_endpoints].map!(&normalize_ep)
 
       opts
     end
@@ -471,8 +502,16 @@ module OMQ
       type_name = opts[:type_name]
 
       if type_name == "pipe"
-        abort "pipe requires exactly 2 endpoints (pull-side and push-side)" if opts[:endpoints].size != 2
+        has_in_out = opts[:in_endpoints].any? || opts[:out_endpoints].any?
+        if has_in_out
+          abort "pipe --in requires at least one endpoint"              if opts[:in_endpoints].empty?
+          abort "pipe --out requires at least one endpoint"             if opts[:out_endpoints].empty?
+          abort "pipe: don't mix --in/--out with bare -b/-c endpoints"  unless opts[:endpoints].empty?
+        else
+          abort "pipe requires exactly 2 endpoints (pull-side and push-side), or use --in/--out" if opts[:endpoints].size != 2
+        end
       else
+        abort "--in/--out are only valid for pipe" if opts[:in_endpoints].any? || opts[:out_endpoints].any?
         abort "At least one --connect or --bind is required" if opts[:connects].empty? && opts[:binds].empty?
       end
       abort "--data and --file are mutually exclusive"        if opts[:data] && opts[:file]
@@ -489,7 +528,8 @@ module OMQ
       if opts[:parallel]
         abort "-P/--parallel is only valid for pipe"                                    unless type_name == "pipe"
         abort "-P/--parallel must be >= 2"                                              if opts[:parallel] < 2
-        abort "-P/--parallel requires both endpoints to use --connect (not --bind)" if opts[:endpoints].any?(&:bind?)
+        all_pipe_eps = opts[:in_endpoints] + opts[:out_endpoints] + opts[:endpoints]
+        abort "-P/--parallel requires all endpoints to use --connect (not --bind)" if all_pipe_eps.any?(&:bind?)
       end
 
       (opts[:connects] + opts[:binds]).each do |url|
