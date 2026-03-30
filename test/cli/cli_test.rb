@@ -579,6 +579,25 @@ describe "eval_expr" do
     assert_nil runner.send(:eval_expr, ["anything"])
   end
 
+  it "returns SENT when expression returns the socket (self <<)" do
+    Async do
+      OMQ::ZMTP::Transport::Inproc.reset!
+      push = OMQ::PUSH.bind("inproc://eval-self-send")
+      pull = OMQ::PULL.connect("inproc://eval-self-send")
+      runner = OMQ::CLI::PushRunner.new(
+        make_config(type_name: "push", expr: "self << $F"),
+        OMQ::PUSH
+      )
+      runner.send(:compile_expr)
+      runner.instance_variable_set(:@sock, push)
+      result = runner.send(:eval_expr, ["hello"])
+      assert_equal OMQ::CLI::BaseRunner::SENT, result
+    ensure
+      push&.close
+      pull&.close
+    end
+  end
+
   it "wraps string result in array" do
     runner = OMQ::CLI::PushRunner.new(
       make_config(type_name: "push", expr: "'hello'"),

@@ -396,11 +396,14 @@ module OMQ
       end
 
 
+      SENT = Object.new.freeze # sentinel: eval already sent the reply
+
       def eval_expr(parts)
         return parts unless @eval_proc
         $F = parts
         result = @sock.instance_exec(&@eval_proc)
         return nil if result.nil?
+        return SENT if result.equal?(@sock)
         return [result] if config.format == :marshal
         case result
         when Array  then result

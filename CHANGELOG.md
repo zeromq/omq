@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.3 — 2026-03-30
+
+### Fixed
+
+- **`self << msg` in REP `-e` caused double-send** — `self << $F`
+  returns the socket, which `eval_expr` tried to coerce via `to_str`.
+  Now detected via `result.equal?(@sock)` and returned as a `SENT`
+  sentinel. REP skips the auto-send when the eval already sent the reply.
+- **`eval_expr` called `to_str` on non-string results** — non-string,
+  non-array return values from `-e` now fail with a clear `NoMethodError`
+  on `to_str` (unchanged), but socket self-references are handled first.
+
 ## 0.6.2 — 2026-03-30
 
 ### Improved

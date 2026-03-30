@@ -228,7 +228,7 @@ module OMQ
         return parts unless @eval_proc
         $F = parts
         result = @sock.instance_exec(&@eval_proc)
-        return nil if result.nil?
+        return nil if result.nil? || result.equal?(@sock)
         return [result] if config.format == :marshal
         case result
         when Array  then result

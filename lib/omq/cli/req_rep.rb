@@ -55,8 +55,10 @@ module OMQ
           break if msg.nil?
           if config.expr
             reply = eval_expr(msg)
-            output(reply)
-            send_msg(reply || [""])
+            unless reply.equal?(SENT)
+              output(reply)
+              send_msg(reply || [""])
+            end
           elsif config.echo
             output(msg)
             send_msg(msg)
