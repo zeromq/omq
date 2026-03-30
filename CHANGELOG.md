@@ -11,6 +11,12 @@
   `pipeline_ractors.sh` now derive absolute paths from the script
   location instead of assuming the working directory is the project root.
 
+### Fixed
+
+- **Flaky memory leak tests on CI** — replaced global `ObjectSpace`
+  counting with `WeakRef` tracking of specific objects, retrying GC
+  until collected. No longer depends on GC generational timing.
+
 ## 0.6.0 — 2026-03-30
 
 ### Added

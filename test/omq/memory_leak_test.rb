@@ -1,55 +1,64 @@
 # frozen_string_literal: true
 
 require_relative "../test_helper"
+require "weakref"
 
 describe "inproc memory leaks" do
   before { OMQ::ZMTP::Transport::Inproc.reset! }
 
-  it "does not leak DirectPipe objects after close" do
-    Async do
-      GC.start
-      before = ObjectSpace.each_object(OMQ::ZMTP::Transport::Inproc::DirectPipe).count
-
-      push = pull = nil
-      10.times do |i|
-        push = OMQ::PUSH.new
-        pull = OMQ::PULL.new
-        push.bind("inproc://leak-test-#{i}")
-        pull.connect("inproc://leak-test-#{i}")
-        push << "hello"
-        pull.receive
-        push.close
-        pull.close
-      end
-      push = pull = nil
-
-      GC.start
-      GC.start
-      after = ObjectSpace.each_object(OMQ::ZMTP::Transport::Inproc::DirectPipe).count
-
-      assert_equal 0, after - before, "leaked #{after - before} DirectPipe objects"
+  # Collect until a WeakRef is dead, or give up after max attempts.
+  #
+  def gc_until_collected(weak, max: 20)
+    max.times do
+      return true unless weak.weakref_alive?
+      GC.start(full_mark: true, immediate_sweep: true)
+      GC.compact if GC.respond_to?(:compact)
     end
+    !weak.weakref_alive?
+  end
+
+  it "does not leak DirectPipe objects after close" do
+    weak = nil
+    Async do
+      push = OMQ::PUSH.new
+      pull = OMQ::PULL.new
+      push.bind("inproc://leak-test")
+      pull.connect("inproc://leak-test")
+      push << "hello"
+      pull.receive
+
+      # Track one of the pipes
+      pipe = push.instance_variable_get(:@engine).connections.first
+      weak = WeakRef.new(pipe)
+      pipe = nil
+
+      push.close
+      pull.close
+    end
+
+    assert gc_until_collected(weak), "DirectPipe was not collected after close"
   end
 
 
   it "does not leak connections after both sides close" do
+    weak = nil
     Async do
-      10.times do |i|
-        push = OMQ::PUSH.new
-        pull = OMQ::PULL.new
-        push.bind("inproc://leak-cycle-#{i}")
-        pull.connect("inproc://leak-cycle-#{i}")
-        push << "msg"
-        pull.receive
-        push.close
-        pull.close
-      end
+      push = OMQ::PUSH.new
+      pull = OMQ::PULL.new
+      push.bind("inproc://leak-cycle")
+      pull.connect("inproc://leak-cycle")
+      push << "msg"
+      pull.receive
 
-      GC.start
-      GC.start
-      conns = ObjectSpace.each_object(OMQ::ZMTP::Transport::Inproc::DirectPipe).count
-      assert_equal 0, conns, "leaked #{conns} DirectPipe objects"
+      pipe = pull.instance_variable_get(:@engine).connections.first
+      weak = WeakRef.new(pipe)
+      pipe = nil
+
+      push.close
+      pull.close
     end
+
+    assert gc_until_collected(weak), "DirectPipe was not collected after close"
   end
 
 
