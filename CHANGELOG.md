@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5 — 2026-03-30
+
+### Fixed
+
+- **CLI error path** — use `Kernel#exit` instead of `Process.exit!`
+
 ## 0.6.4 — 2026-03-30
 
 ### Added
