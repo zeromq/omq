@@ -110,6 +110,29 @@ module OMQ
         omq pull --bind ipc:///tmp/pipeline.sock &
         echo "task 1" | omq push --connect ipc:///tmp/pipeline.sock
 
+      ── Pipe (PULL → eval → PUSH) ────────────────────────────────
+
+        ┌──────┐         ┌──────┐         ┌──────┐
+        │ PUSH │────────→│ pipe │────────→│ PULL │
+        └──────┘         └──────┘         └──────┘
+
+        # terminal 1: producer
+        echo -e "hello\nworld" | omq push --bind ipc://@work
+
+        # terminal 2: worker — uppercase each message
+        omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
+
+        # terminal 3: collector
+        omq pull --bind ipc://@sink
+
+        # 4 Ractor workers in a single process (-P)
+        omq pipe -c ipc://@work -c ipc://@sink -P 4 \
+          -r ./fib.rb -e 'fib(Integer($_)).to_s'
+
+        # exit when producer disconnects (--transient)
+        omq pipe -c ipc://@work -c ipc://@sink --transient \
+          -e '$F.map(&:upcase)'
+
       ── CLIENT / SERVER (draft) ──────────────────────────────────
 
         ┌────────┐  "hello"   ┌────────┐
@@ -299,8 +322,9 @@ module OMQ
 
       parser = OptionParser.new do |o|
         o.banner = "Usage: omq TYPE [options]\n\n" \
-                   "Types: req, rep, pub, sub, push, pull, pair, dealer, router\n" \
-                   "Draft: client, server, radio, dish, scatter, gather, channel, peer\n\n"
+                   "Types:    req, rep, pub, sub, push, pull, pair, dealer, router\n" \
+                   "Draft:    client, server, radio, dish, scatter, gather, channel, peer\n" \
+                   "Virtual:  pipe (PULL → eval → PUSH)\n\n"
 
         o.separator "Connection:"
         o.on("-c", "--connect URL", "Connect to endpoint (repeatable)")   { |v| opts[:endpoints] << Endpoint.new(v, false); opts[:connects] << v }
