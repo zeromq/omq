@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.8.0 — 2026-03-31
+
+### Breaking
+
+- **CURVE mechanism moved to protocol-zmtp** — `OMQ::ZMTP::Mechanism::Curve`
+  is now `Protocol::ZMTP::Mechanism::Curve` with a required `crypto:` parameter.
+  Pass `crypto: RbNaCl` (libsodium) or `crypto: Nuckle` (pure Ruby). The
+  omq-curve and omq-kurve gems are superseded.
+
+  ```ruby
+  # Before (omq-curve)
+  require "omq/curve"
+  rep.mechanism = OMQ::Curve.server(pub, sec)
+
+  # After (protocol-zmtp + any NaCl backend)
+  require "protocol/zmtp/mechanism/curve"
+  require "nuckle"  # or: require "rbnacl"
+  rep.mechanism = Protocol::ZMTP::Mechanism::Curve.server(pub, sec, crypto: Nuckle)
+  ```
+
+### Changed
+
+- **Protocol layer extracted into protocol-zmtp gem** — Codec (Frame,
+  Greeting, Command), Connection, Mechanism::Null, Mechanism::Curve,
+  ValidPeers, and Z85 now live in the
+  [protocol-zmtp](https://github.com/paddor/protocol-zmtp) gem. OMQ
+  re-exports them under `OMQ::ZMTP::` for backwards compatibility.
+  protocol-zmtp has zero runtime dependencies.
+- **Unified CURVE mechanism** — one implementation with a pluggable
+  `crypto:` backend replaces the two near-identical copies in omq-curve
+  (RbNaCl) and omq-kurve (Nuckle). 1,088 → 467 lines (57% reduction).
+- **Heartbeat ownership** — `Connection#start_heartbeat` removed.
+  Connection tracks timestamps only; the engine drives the PING/PONG loop.
+- **CI no longer needs libsodium** — CURVE tests use
+  [nuckle](https://github.com/paddor/nuckle) (pure Ruby) by default.
+  Cross-backend interop tests run when rbnacl is available.
+
 ## 0.7.0 — 2026-03-30
 
 ### Breaking
@@ -502,4 +539,4 @@ Initial release. Pure Ruby implementation of ZMTP 3.1 (ZeroMQ) using Async.
 - Linger on close (drain send queue before closing)
 - `max_message_size` enforcement
 - Works inside Async reactors or standalone (shared IO thread)
-- Optional CURVE encryption via the [omq-curve](https://github.com/zeromq/omq-curve) gem
+- Optional CURVE encryption via the [protocol-zmtp](https://github.com/paddor/protocol-zmtp) gem
