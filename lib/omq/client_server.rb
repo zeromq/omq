@@ -2,9 +2,9 @@
 
 module OMQ
   class CLIENT < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
-    include ZMTP::SingleFrame
+    include Readable
+    include Writable
+    include SingleFrame
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:CLIENT, linger: linger)
@@ -13,9 +13,9 @@ module OMQ
   end
 
   class SERVER < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
-    include ZMTP::SingleFrame
+    include Readable
+    include Writable
+    include SingleFrame
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:SERVER, linger: linger)

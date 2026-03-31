@@ -2,7 +2,7 @@
 
 module OMQ
   class RADIO < Socket
-    include ZMTP::Writable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0, conflate: false)
       _init_engine(:RADIO, linger: linger, conflate: conflate)
@@ -45,7 +45,7 @@ module OMQ
   end
 
   class DISH < Socket
-    include ZMTP::Readable
+    include Readable
 
     def initialize(endpoints = nil, linger: 0, group: nil)
       _init_engine(:DISH, linger: linger)

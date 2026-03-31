@@ -5,9 +5,9 @@
 # Socket types live directly under OMQ:: for a clean API:
 #   OMQ::PUSH, OMQ::PULL, OMQ::PUB, OMQ::SUB, etc.
 #
-# Protocol internals live under OMQ::ZMTP:: and are not part
-# of the public API.
-#
+
+require "protocol/zmtp"
+require "io/stream"
 
 require_relative "omq/version"
 
@@ -16,9 +16,65 @@ module OMQ
   # The socket is no longer usable; the original error is available via #cause.
   #
   class SocketDeadError < RuntimeError; end
+
+  # Errors raised when a peer disconnects or resets the connection.
+  CONNECTION_LOST = [
+    EOFError,
+    IOError,
+    Errno::EPIPE,
+    Errno::ECONNRESET,
+    Errno::ECONNABORTED,
+    Errno::ENOTCONN,
+    IO::Stream::ConnectionResetError,
+  ].freeze
+
+  # Errors raised when a peer cannot be reached.
+  CONNECTION_FAILED = [
+    Errno::ECONNREFUSED,
+    Errno::ENOENT,
+    Errno::ETIMEDOUT,
+    Errno::EHOSTUNREACH,
+    Errno::ENETUNREACH,
+    Socket::ResolutionError,
+  ].freeze
 end
 
-require_relative "omq/zmtp"
+# Transport
+require_relative "omq/transport/inproc"
+require_relative "omq/transport/tcp"
+require_relative "omq/transport/ipc"
+
+# Core
+require_relative "omq/reactor"
+require_relative "omq/options"
+require_relative "omq/routing"
+require_relative "omq/routing/round_robin"
+require_relative "omq/routing/fan_out"
+require_relative "omq/routing/pair"
+require_relative "omq/routing/req"
+require_relative "omq/routing/rep"
+require_relative "omq/routing/dealer"
+require_relative "omq/routing/router"
+require_relative "omq/routing/pub"
+require_relative "omq/routing/sub"
+require_relative "omq/routing/xpub"
+require_relative "omq/routing/xsub"
+require_relative "omq/routing/push"
+require_relative "omq/routing/pull"
+require_relative "omq/routing/scatter"
+require_relative "omq/routing/gather"
+require_relative "omq/routing/channel"
+require_relative "omq/routing/client"
+require_relative "omq/routing/server"
+require_relative "omq/routing/radio"
+require_relative "omq/routing/dish"
+require_relative "omq/routing/peer"
+require_relative "omq/single_frame"
+require_relative "omq/engine"
+require_relative "omq/readable"
+require_relative "omq/writable"
+
+# Socket types
 require_relative "omq/socket"
 require_relative "omq/req_rep"
 require_relative "omq/router_dealer"

@@ -18,7 +18,7 @@ SUBSCRIBER_COUNTS = [1, 5, 10]
 
 SUBSCRIBER_COUNTS.each do |n_subs|
   Async do
-    OMQ::ZMTP::Transport::Inproc.reset!
+    OMQ::Transport::Inproc.reset!
 
     pub = OMQ::PUB.bind("inproc://bench_fanout_#{n_subs}")
     subs = n_subs.times.map { OMQ::SUB.connect("inproc://bench_fanout_#{n_subs}", prefix: "") }

@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "PUB/SUB" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "delivers messages matching subscription" do
     Async do
@@ -25,7 +25,7 @@ describe "PUB/SUB" do
 end
 
 describe "XPUB/XSUB" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "XPUB receives subscription notifications" do
     Async do

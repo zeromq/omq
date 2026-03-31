@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "disconnect / unbind" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "#disconnect closes only connections to that endpoint" do
     Async do

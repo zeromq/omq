@@ -2,7 +2,7 @@
 
 module OMQ
   class PUB < Socket
-    include ZMTP::Writable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0, conflate: false)
       _init_engine(:PUB, linger: linger, conflate: conflate)
@@ -13,7 +13,7 @@ module OMQ
   # SUB socket.
   #
   class SUB < Socket
-    include ZMTP::Readable
+    include Readable
 
     # @return [String] subscription prefix to subscribe to everything
     #
@@ -50,8 +50,8 @@ module OMQ
   end
 
   class XPUB < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
+    include Readable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:XPUB, linger: linger)
@@ -60,8 +60,8 @@ module OMQ
   end
 
   class XSUB < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
+    include Readable
+    include Writable
 
     # @param endpoints [String, nil]
     # @param linger [Integer]

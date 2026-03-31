@@ -2,8 +2,8 @@
 
 require_relative "../../../test_helper"
 
-describe OMQ::ZMTP::Transport::Inproc do
-  Inproc = OMQ::ZMTP::Transport::Inproc
+describe OMQ::Transport::Inproc do
+  Inproc = OMQ::Transport::Inproc
 
   before { Inproc.reset! }
 

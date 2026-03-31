@@ -2,9 +2,9 @@
 
 module OMQ
   class PEER < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
-    include ZMTP::SingleFrame
+    include Readable
+    include Writable
+    include SingleFrame
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:PEER, linger: linger)

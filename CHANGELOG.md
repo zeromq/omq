@@ -16,6 +16,13 @@
   already a frozen binary string.
 - **Pre-frozen empty frame constants** for REQ/REP delimiter frames.
 
+### Changed
+
+- **Flatten `OMQ::ZMTP` namespace into `OMQ`** — with the ZMTP protocol
+  layer extracted to `protocol-zmtp`, the `ZMTP` sub-namespace no longer
+  makes sense. Engine, routing, transport, and mixins now live directly
+  under `OMQ::`. Protocol-zmtp types are referenced as `Protocol::ZMTP::*`.
+
 ### Fixed
 
 - **Remove redundant `respond_to?` guard in `drain_send_queues`** —

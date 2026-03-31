@@ -4,7 +4,7 @@ require_relative "../test_helper"
 require "weakref"
 
 describe "inproc memory leaks" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   # Collect until a WeakRef is dead, or give up after max attempts.
   #
@@ -71,7 +71,7 @@ describe "inproc memory leaks" do
         push.close
       end
 
-      registry = OMQ::ZMTP::Transport::Inproc.instance_variable_get(:@registry)
+      registry = OMQ::Transport::Inproc.instance_variable_get(:@registry)
       assert_equal 0, registry.size, "leaked #{registry.size} registry entries"
     end
   end

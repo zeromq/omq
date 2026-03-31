@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "ROUTER/DEALER broker over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   # Helper: sets up a ROUTER→DEALER broker with N workers, yields
   # a connected REQ client. All sockets are cleaned up after the block.

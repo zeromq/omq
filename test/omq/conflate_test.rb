@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "PUB conflate" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "delivers only the latest message when conflate is enabled" do
     Async do
@@ -55,7 +55,7 @@ describe "PUB conflate" do
 end
 
 describe "RADIO conflate" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "delivers only the latest message when conflate is enabled" do
     Async do

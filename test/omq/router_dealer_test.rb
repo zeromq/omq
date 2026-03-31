@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "DEALER/ROUTER over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "routes messages by identity" do
     Async do

@@ -2,8 +2,8 @@
 
 require_relative "../../../test_helper"
 
-describe OMQ::ZMTP::Codec::Greeting do
-  Greeting = OMQ::ZMTP::Codec::Greeting
+describe Protocol::ZMTP::Codec::Greeting do
+  Greeting = Protocol::ZMTP::Codec::Greeting
 
   describe ".encode" do
     it "produces a 64-byte string" do
@@ -64,19 +64,19 @@ describe OMQ::ZMTP::Codec::Greeting do
     end
 
     it "raises on short data" do
-      assert_raises(OMQ::ZMTP::ProtocolError) { Greeting.decode("short") }
+      assert_raises(Protocol::ZMTP::Error) { Greeting.decode("short") }
     end
 
     it "raises on bad signature" do
       bad = Greeting.encode
       bad.setbyte(0, 0x00)
-      assert_raises(OMQ::ZMTP::ProtocolError) { Greeting.decode(bad) }
+      assert_raises(Protocol::ZMTP::Error) { Greeting.decode(bad) }
     end
 
     it "raises on ZMTP version < 3.0" do
       old = Greeting.encode
       old.setbyte(10, 2) # major = 2
-      assert_raises(OMQ::ZMTP::ProtocolError) { Greeting.decode(old) }
+      assert_raises(Protocol::ZMTP::Error) { Greeting.decode(old) }
     end
 
     it "accepts ZMTP version 3.0" do

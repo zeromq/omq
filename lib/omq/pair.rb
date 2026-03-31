@@ -2,8 +2,8 @@
 
 module OMQ
   class PAIR < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
+    include Readable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:PAIR, linger: linger)

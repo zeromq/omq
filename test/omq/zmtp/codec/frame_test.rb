@@ -4,8 +4,8 @@ require_relative "../../../test_helper"
 require "stringio"
 require "io/stream"
 
-describe OMQ::ZMTP::Codec::Frame do
-  Frame = OMQ::ZMTP::Codec::Frame
+describe Protocol::ZMTP::Codec::Frame do
+  Frame = Protocol::ZMTP::Codec::Frame
 
   def stream(data)
     IO::Stream::Buffered.new(StringIO.new(data))

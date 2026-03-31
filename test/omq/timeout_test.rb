@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "send_timeout" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "raises IO::TimeoutError when send blocks longer than send_timeout" do
     Async do
@@ -38,7 +38,7 @@ end
 
 
 describe "recv_timeout" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "raises IO::TimeoutError when recv blocks longer than recv_timeout" do
     Async do
@@ -75,7 +75,7 @@ describe "recv_timeout" do
 end
 
 describe "recv_timeout on other socket types" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "works on SUB" do
     Async do

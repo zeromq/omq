@@ -21,7 +21,7 @@ N_WORKERS = 4
 PAYLOAD   = ("x" * 64).freeze
 
 Async do |task|
-  OMQ::ZMTP::Transport::Inproc.reset!
+  OMQ::Transport::Inproc.reset!
 
   # Broker sockets
   frontend = OMQ::ROUTER.bind("inproc://broker_fe")

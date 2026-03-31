@@ -14,7 +14,7 @@ describe "received messages are deep-frozen" do
   # -- send-side freezing -----------------------------------------------------
 
   describe "send freezes the caller's message" do
-    before { OMQ::ZMTP::Transport::Inproc.reset! }
+    before { OMQ::Transport::Inproc.reset! }
 
     it "does not freeze the original bare string (a binary copy is made)" do
       Async do
@@ -69,7 +69,7 @@ describe "received messages are deep-frozen" do
   # -- inproc ----------------------------------------------------------------
 
   describe "inproc" do
-    before { OMQ::ZMTP::Transport::Inproc.reset! }
+    before { OMQ::Transport::Inproc.reset! }
 
     it "PUSH/PULL" do
       Async do

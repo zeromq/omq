@@ -4,8 +4,8 @@ require_relative "../../test_helper"
 require "socket"
 require "io/stream"
 
-describe OMQ::ZMTP::Connection do
-  Connection = OMQ::ZMTP::Connection
+describe Protocol::ZMTP::Connection do
+  Connection = Protocol::ZMTP::Connection
 
   # Use a Unix socket pair for testing ZMTP framing (no inproc pipe needed)
   def make_socketpair
@@ -70,12 +70,12 @@ describe OMQ::ZMTP::Connection do
         errors = []
         begin
           client_task.wait
-        rescue OMQ::ZMTP::ProtocolError => e
+        rescue Protocol::ZMTP::Error => e
           errors << e
         end
         begin
           server_task.wait
-        rescue OMQ::ZMTP::ProtocolError => e
+        rescue Protocol::ZMTP::Error => e
           errors << e
         end
 

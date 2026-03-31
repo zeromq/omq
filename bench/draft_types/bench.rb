@@ -25,7 +25,7 @@ PAYLOAD = ("x" * 64).freeze
 puts "--- Pipeline: PUSH/PULL vs SCATTER/GATHER ---"
 
 Async do
-  OMQ::ZMTP::Transport::Inproc.reset!
+  OMQ::Transport::Inproc.reset!
 
   pull = OMQ::PULL.bind("inproc://bench_push")
   push = OMQ::PUSH.connect("inproc://bench_push")
@@ -53,7 +53,7 @@ puts
 puts "--- Request/Reply: REQ/REP vs CLIENT/SERVER ---"
 
 Async do |task|
-  OMQ::ZMTP::Transport::Inproc.reset!
+  OMQ::Transport::Inproc.reset!
 
   rep = OMQ::REP.bind("inproc://bench_rep")
   req = OMQ::REQ.connect("inproc://bench_rep")
@@ -91,7 +91,7 @@ puts
 puts "--- Publish: PUB/SUB vs RADIO/DISH ---"
 
 Async do
-  OMQ::ZMTP::Transport::Inproc.reset!
+  OMQ::Transport::Inproc.reset!
 
   pub = OMQ::PUB.bind("inproc://bench_pub")
   sub = OMQ::SUB.connect("inproc://bench_pub", prefix: "t.")

@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "Error paths" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   describe "bind to invalid transport" do
     it "raises ArgumentError" do

@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "REQ/REP over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "completes a request-reply cycle" do
     Async do

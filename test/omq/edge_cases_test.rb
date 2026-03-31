@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "Edge cases" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   describe "large identity" do
     it "DEALER with 255-byte identity connects to ROUTER" do

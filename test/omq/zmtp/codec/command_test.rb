@@ -2,8 +2,8 @@
 
 require_relative "../../../test_helper"
 
-describe OMQ::ZMTP::Codec::Command do
-  Command = OMQ::ZMTP::Codec::Command
+describe Protocol::ZMTP::Codec::Command do
+  Command = Protocol::ZMTP::Codec::Command
 
   describe ".ready" do
     it "creates a READY command with socket type" do
@@ -76,12 +76,12 @@ describe OMQ::ZMTP::Codec::Command do
 
   describe ".from_body" do
     it "raises on empty body" do
-      assert_raises(OMQ::ZMTP::ProtocolError) { Command.from_body("".b) }
+      assert_raises(Protocol::ZMTP::Error) { Command.from_body("".b) }
     end
 
     it "raises on truncated name" do
       # name_len says 10 but only 3 bytes follow
-      assert_raises(OMQ::ZMTP::ProtocolError) { Command.from_body("\x0Aabc".b) }
+      assert_raises(Protocol::ZMTP::Error) { Command.from_body("\x0Aabc".b) }
     end
   end
 
@@ -98,14 +98,14 @@ describe OMQ::ZMTP::Codec::Command do
       # Valid name-len but truncated data
       bad_data = "\x05AB".b # name_len=5 but only 2 bytes
       cmd = Command.new("READY", bad_data)
-      assert_raises(OMQ::ZMTP::ProtocolError) { cmd.properties }
+      assert_raises(Protocol::ZMTP::Error) { cmd.properties }
     end
 
     it "raises on truncated property value length" do
       # Valid name but truncated value length field
       bad_data = "\x01X\x00".b # name_len=1, name="X", only 1 byte of value_len
       cmd = Command.new("READY", bad_data)
-      assert_raises(OMQ::ZMTP::ProtocolError) { cmd.properties }
+      assert_raises(Protocol::ZMTP::Error) { cmd.properties }
     end
   end
 end

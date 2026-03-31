@@ -4,7 +4,7 @@ require_relative "../test_helper"
 require "pathname"
 
 describe "PUSH/PULL over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "sends and receives messages" do
     Async do
@@ -71,7 +71,7 @@ end
 
 
 describe "PUSH/PULL delivery guarantees" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   # -- connect before bind (inproc) ----------------------------------------
 

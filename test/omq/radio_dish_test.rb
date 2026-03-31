@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "RADIO/DISH over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "delivers messages to joined groups" do
     Async do

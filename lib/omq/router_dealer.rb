@@ -2,8 +2,8 @@
 
 module OMQ
   class DEALER < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
+    include Readable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:DEALER, linger: linger)
@@ -14,8 +14,8 @@ module OMQ
   # ROUTER socket.
   #
   class ROUTER < Socket
-    include ZMTP::Readable
-    include ZMTP::Writable
+    include Readable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0)
       _init_engine(:ROUTER, linger: linger)

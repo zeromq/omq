@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "SCATTER/GATHER over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "sends and receives messages" do
     Async do

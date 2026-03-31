@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "PEER over inproc" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "routes messages by routing ID" do
     Async do |task|

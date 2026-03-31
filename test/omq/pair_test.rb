@@ -4,7 +4,7 @@ require_relative "../test_helper"
 
 describe OMQ::PAIR do
   before do
-    OMQ::ZMTP::Transport::Inproc.reset!
+    OMQ::Transport::Inproc.reset!
   end
 
   it "sends and receives a message over inproc" do

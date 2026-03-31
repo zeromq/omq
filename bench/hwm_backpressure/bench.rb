@@ -23,7 +23,7 @@ PAYLOAD    = ("x" * 64).freeze
   label = hwm == 0 ? "unbounded" : "HWM=#{hwm}"
 
   Async do |task|
-    OMQ::ZMTP::Transport::Inproc.reset!
+    OMQ::Transport::Inproc.reset!
 
     pull = OMQ::PULL.bind("inproc://bench_hwm_#{hwm}", recv_hwm: hwm)
     push = OMQ::PUSH.connect("inproc://bench_hwm_#{hwm}", send_hwm: hwm)

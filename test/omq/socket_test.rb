@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe OMQ::Socket do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   describe "#inspect" do
     it "includes class name and last_endpoint" do

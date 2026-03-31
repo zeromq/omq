@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 
 describe "Stress tests" do
-  before { OMQ::ZMTP::Transport::Inproc.reset! }
+  before { OMQ::Transport::Inproc.reset! }
 
   it "handles 10k messages through PUSH/PULL inproc" do
     n = 10_000

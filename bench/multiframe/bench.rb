@@ -20,7 +20,7 @@ FRAME_COUNTS.each do |n_frames|
   payload = n_frames.times.map { "x" * 64 }
 
   Async do
-    OMQ::ZMTP::Transport::Inproc.reset!
+    OMQ::Transport::Inproc.reset!
 
     pull = OMQ::PULL.bind("inproc://bench_mf_#{n_frames}")
     push = OMQ::PUSH.connect("inproc://bench_mf_#{n_frames}")

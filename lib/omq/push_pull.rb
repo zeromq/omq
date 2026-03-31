@@ -2,7 +2,7 @@
 
 module OMQ
   class PUSH < Socket
-    include ZMTP::Writable
+    include Writable
 
     def initialize(endpoints = nil, linger: 0, send_hwm: nil, send_timeout: nil)
       _init_engine(:PUSH, linger: linger, send_hwm: send_hwm, send_timeout: send_timeout)
@@ -11,7 +11,7 @@ module OMQ
   end
 
   class PULL < Socket
-    include ZMTP::Readable
+    include Readable
 
     def initialize(endpoints = nil, linger: 0, recv_hwm: nil, recv_timeout: nil)
       _init_engine(:PULL, linger: linger, recv_hwm: recv_hwm, recv_timeout: recv_timeout)
