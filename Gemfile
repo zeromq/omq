@@ -6,10 +6,14 @@ gemspec
 
 gem "minitest"
 gem "rake"
-gem "benchmark-ips"
+
+# CURVE tests use Nuckle (pure Ruby, no libsodium).
+# Cross-backend interop tests also use rbnacl when available.
+gem "nuckle",        path: ENV["OMQ_DEV"] ? "../nuckle" : nil
+gem "protocol-zmtp", path: ENV["OMQ_DEV"] ? "../protocol-zmtp" : nil
 
 if ENV["OMQ_DEV"]
-  gem "cztop",     require: false
-  gem "zstd-ruby", require: false
-  gem "omq-curve", require: false, path: '../omq-curve'
+  gem "benchmark-ips"
+  gem "rbnacl", "~> 7.0"
+  gem "cztop",  require: false, path: "../cztop"
 end

@@ -432,17 +432,14 @@ module OMQ
       def setup_connection(io, as_server:, endpoint: nil, done: nil)
         conn = Connection.new(
           io,
-          socket_type:        @socket_type.to_s,
-          identity:           @options.identity,
-          as_server:          as_server,
-          mechanism:          @options.mechanism&.dup,
-          heartbeat_interval: @options.heartbeat_interval,
-          heartbeat_ttl:      @options.heartbeat_ttl,
-          heartbeat_timeout:  @options.heartbeat_timeout,
-          max_message_size:   @options.max_message_size,
+          socket_type:      @socket_type.to_s,
+          identity:         @options.identity,
+          as_server:        as_server,
+          mechanism:        @options.mechanism&.dup,
+          max_message_size: @options.max_message_size,
         )
         conn.handshake!
-        conn.start_heartbeat
+        start_heartbeat(conn)
         @connections << conn
         @connection_endpoints[conn] = endpoint if endpoint
         @connection_promises[conn]  = done if done
@@ -451,6 +448,35 @@ module OMQ
       rescue ProtocolError, *CONNECTION_LOST
         conn&.close
         raise
+      end
+
+
+      # Spawns a heartbeat task for the connection.
+      # The connection only tracks timestamps — the engine drives the loop.
+      #
+      # @param conn [Connection]
+      # @return [void]
+      #
+      def start_heartbeat(conn)
+        interval = @options.heartbeat_interval
+        return unless interval
+
+        ttl     = @options.heartbeat_ttl || interval
+        timeout = @options.heartbeat_timeout || interval
+        conn.touch_heartbeat
+
+        @tasks << Reactor.spawn_pump(annotation: "heartbeat") do
+          loop do
+            sleep interval
+            conn.send_command(Codec::Command.ping(ttl: ttl, context: "".b))
+            if conn.heartbeat_expired?(timeout)
+              conn.close
+              break
+            end
+          end
+        rescue *CONNECTION_LOST
+          # connection closed
+        end
       end
 
 

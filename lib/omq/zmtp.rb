@@ -1,13 +1,26 @@
 # frozen_string_literal: true
 
+require "protocol/zmtp"
+require "io/stream"
+
 module OMQ
   # ZMTP 3.1 protocol internals.
   #
-  # These classes implement the wire protocol, transports, and routing
-  # strategies. They are not part of the public API.
+  # The wire protocol (codec, connection, mechanisms) lives in the
+  # protocol-zmtp gem. This module re-exports those classes under the
+  # OMQ::ZMTP namespace and adds the transport/routing/engine layers.
   #
   module ZMTP
-    require "io/stream"
+    # Re-export protocol-zmtp classes
+    Codec         = Protocol::ZMTP::Codec
+    Connection    = Protocol::ZMTP::Connection
+    ProtocolError = Protocol::ZMTP::Error
+    VALID_PEERS   = Protocol::ZMTP::VALID_PEERS
+
+    module Mechanism
+      Null  = Protocol::ZMTP::Mechanism::Null
+      Curve = Protocol::ZMTP::Mechanism::Curve if defined?(Protocol::ZMTP::Mechanism::Curve)
+    end
 
     # Errors raised when a peer disconnects or resets the connection.
     CONNECTION_LOST = [
@@ -32,24 +45,14 @@ module OMQ
   end
 end
 
-# Constants
-require_relative "zmtp/valid_peers"
-
-# Codec
-require_relative "zmtp/codec"
-
 # Transport
 require_relative "zmtp/transport/inproc"
 require_relative "zmtp/transport/tcp"
 require_relative "zmtp/transport/ipc"
 
-# Mechanisms
-require_relative "zmtp/mechanism/null"
-
 # Core
 require_relative "zmtp/reactor"
 require_relative "zmtp/options"
-require_relative "zmtp/connection"
 require_relative "zmtp/routing"
 require_relative "zmtp/routing/round_robin"
 require_relative "zmtp/routing/fan_out"

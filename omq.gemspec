@@ -24,6 +24,7 @@ Gem::Specification.new do |s|
   s.bindir     = "exe"
   s.executables = ["omq"]
 
+  s.add_dependency "protocol-zmtp"
   s.add_dependency "async", "~> 2.38"
   s.add_dependency "io-stream", "~> 0.11"
 end
