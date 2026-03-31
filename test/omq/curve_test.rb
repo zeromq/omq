@@ -76,8 +76,7 @@ describe "CURVE encryption (socket-level)" do
         sub.mechanism = curve_client(client_pub, client_sec, server_key: server_pub)
         sub.connect(addr)
         sub.subscribe("")
-
-        sleep 0.1
+        pub.subscriber_joined.wait
 
         task.async { pub << "encrypted news" }
         msg = sub.receive
@@ -259,13 +258,14 @@ describe "CURVE encryption (socket-level)" do
 
         req = OMQ::REQ.new
         req.mechanism = curve_client(client_pub, client_sec, server_key: server_pub)
-        req.reconnect_interval = 0.1
+        req.reconnect_interval = RECONNECT_INTERVAL
         req.connect("tcp://127.0.0.1:#{port}")
 
         req << "first"
         assert_equal ["FIRST"], req.receive
 
         rep.close
+        sleep 0.02
 
         rep2 = OMQ::REP.new
         rep2.mechanism = curve_server(server_pub, server_sec)
@@ -276,7 +276,7 @@ describe "CURVE encryption (socket-level)" do
           rep2 << msg.map(&:upcase)
         end
 
-        sleep 0.3
+        wait_connected(req, rep2)
         req << "second"
         assert_equal ["SECOND"], req.receive
       ensure

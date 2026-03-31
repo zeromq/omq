@@ -78,7 +78,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(push)
         push.send("omq message")
         msg = pull.receive
         assert_equal ["omq message"], msg.to_a
@@ -96,7 +96,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
         push = CZTop::Socket::PUSH.new(">tcp://127.0.0.1:#{port}")
         push.linger = 0
-        sleep 0.05
+        wait_connected(pull)
         push << "cztop message"
         msg = pull.receive
         assert_equal ["cztop message"], msg
@@ -120,7 +120,7 @@ describe "Interop: OMQ ↔ CZTop" do
         port = pub.last_tcp_port
 
         sub.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.1
+        pub.subscriber_joined.wait
 
         pub.send("sports.score")
         pub.send("weather.nyc 72F")
@@ -141,7 +141,8 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         sub = OMQ::SUB.connect("tcp://127.0.0.1:#{port}", prefix: "alert.")
-        sleep 0.1
+        wait_connected(sub)
+        sleep 0.02 # subscription propagation to CZTop PUB
 
         pub << "noise.data"
         pub << "alert.fire"
@@ -166,7 +167,7 @@ describe "Interop: OMQ ↔ CZTop" do
         dealer = OMQ::DEALER.new
         dealer.identity = "omq-dealer"
         dealer.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(dealer)
 
         dealer.send("hello")
         msg = router.receive
@@ -189,7 +190,7 @@ describe "Interop: OMQ ↔ CZTop" do
         dealer.linger = 0
         dealer.identity = "cztop-dealer"
         dealer.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(router)
 
         dealer << "from cztop"
         msg = router.receive
@@ -210,7 +211,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         omq_pair = OMQ::PAIR.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(omq_pair)
 
         omq_pair.send("from omq")
         msg = cztop_pair.receive
@@ -235,7 +236,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(push)
         push.send(["frame1", "frame2", "frame3"])
         msg = pull.receive
         assert_equal ["frame1", "frame2", "frame3"], msg.to_a
@@ -253,7 +254,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
         push = CZTop::Socket::PUSH.new(">tcp://127.0.0.1:#{port}")
         push.linger = 0
-        sleep 0.05
+        wait_connected(pull)
         push << CZTop::Message.new("part1", "part2", "part3")
         msg = pull.receive
         assert_equal ["part1", "part2", "part3"], msg
@@ -268,7 +269,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(push)
         big = "x" * 1_000_000
         push.send(big)
         msg = pull.receive
@@ -287,7 +288,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
         push = CZTop::Socket::PUSH.new(">tcp://127.0.0.1:#{port}")
         push.linger = 0
-        sleep 0.05
+        wait_connected(pull)
         push << ("y" * 1_000_000)
         msg = pull.receive
         assert_equal 1_000_000, msg.first.bytesize
@@ -302,7 +303,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(push)
         binary = (0..255).map(&:chr).join.b
         push.send(binary)
         msg = pull.receive
@@ -321,7 +322,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
         push = CZTop::Socket::PUSH.new(">tcp://127.0.0.1:#{port}")
         push.linger = 0
-        sleep 0.05
+        wait_connected(pull)
         binary = (0..255).map(&:chr).join.b
         push << binary
         msg = pull.receive
@@ -337,7 +338,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
       Async do
         push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
-        sleep 0.05
+        wait_connected(push)
         push.send("")
         msg = pull.receive
         assert_equal [""], msg.to_a
@@ -355,7 +356,7 @@ describe "Interop: OMQ ↔ CZTop" do
 
         push = CZTop::Socket::PUSH.new(">tcp://127.0.0.1:#{port}")
         push.linger = 0
-        sleep 0.05
+        wait_connected(pull)
         push << ""
         msg = pull.receive
         assert_equal [""], msg
