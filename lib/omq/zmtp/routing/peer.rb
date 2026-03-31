@@ -19,9 +19,11 @@ module OMQ
           @recv_queue                 = Async::LimitedQueue.new(engine.options.recv_hwm)
           @send_queue                 = Async::LimitedQueue.new(engine.options.send_hwm)
           @connections_by_routing_id  = {}
+          @routing_id_by_connection   = {}
           @tasks                      = []
           @send_pump_started          = false
           @send_pump_idle             = true
+          @written                    = Set.new
         end
 
         # @return [Async::LimitedQueue]
@@ -33,6 +35,7 @@ module OMQ
         def connection_added(connection)
           routing_id = SecureRandom.bytes(4)
           @connections_by_routing_id[routing_id] = connection
+          @routing_id_by_connection[connection]  = routing_id
 
           task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
             [routing_id, *msg]
@@ -45,7 +48,8 @@ module OMQ
         # @param connection [Connection]
         #
         def connection_removed(connection)
-          @connections_by_routing_id.reject! { |_, c| c == connection }
+          routing_id = @routing_id_by_connection.delete(connection)
+          @connections_by_routing_id.delete(routing_id) if routing_id
         end
 
         # @param parts [Array<String>]
@@ -73,20 +77,20 @@ module OMQ
               @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
-              written = Set.new
+              @written.clear
               batch.each do |parts|
                 routing_id = parts.first
                 conn       = @connections_by_routing_id[routing_id]
                 next unless conn # silently drop if peer gone
                 begin
                   conn.write_message(parts[1..])
-                  written << conn
+                  @written << conn
                 rescue *ZMTP::CONNECTION_LOST
                   # will be cleaned up
                 end
               end
 
-              written.each do |conn|
+              @written.each do |conn|
                 conn.flush
               rescue *ZMTP::CONNECTION_LOST
                 # will be cleaned up

@@ -57,7 +57,7 @@ module OMQ
 
         # REQ prepends empty delimiter frame on the wire.
         #
-        def transform_send(parts) = ["".b, *parts]
+        def transform_send(parts) = [EMPTY_BINARY, *parts]
 
       end
     end

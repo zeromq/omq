@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Performance
+
+- **Remove `.b` allocations from PUB/SUB subscription matching** —
+  `FanOut#subscribed?` no longer creates temporary binary strings per
+  comparison; both topic and prefix are guaranteed binary at rest.
+- **Reuse `written` Set and `latest` Hash across batches** in all send
+  pumps (fan-out, round-robin, router, server, peer, rep, radio),
+  eliminating per-batch object allocation.
+- **O(1) `connection_removed` for identity-routed sockets** — Router,
+  Server, and Peer now maintain a reverse index instead of scanning.
+- **`freeze_message` fast path** — skip `.b.freeze` when the string is
+  already a frozen binary string.
+- **Pre-frozen empty frame constants** for REQ/REP delimiter frames.
+
 ## 0.9.0 — 2026-03-31
 
 ### Breaking

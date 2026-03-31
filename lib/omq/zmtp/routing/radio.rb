@@ -23,6 +23,8 @@ module OMQ
           @send_pump_started = false
           @conflate          = engine.options.conflate
           @tasks             = []
+          @written           = Set.new
+          @latest            = {} if @conflate
         end
 
         # @return [Async::LimitedQueue]
@@ -75,42 +77,42 @@ module OMQ
               @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
-              written = Set.new
+              @written.clear
 
               if @conflate
                 # Keep only the last matching message per connection.
-                latest = {} # conn => [group, body]
+                @latest.clear
                 batch.each do |parts|
                   group = parts[0]
-                  body  = parts[1] || "".b
+                  body  = parts[1] || EMPTY_BINARY
                   @connections.each do |conn|
                     next unless @groups[conn]&.include?(group)
-                    latest[conn] = [group, body]
+                    @latest[conn] = [group, body]
                   end
                 end
-                latest.each do |conn, msg|
+                @latest.each do |conn, msg|
                   begin
                     conn.write_message(msg)
-                    written << conn
+                    @written << conn
                   rescue *ZMTP::CONNECTION_LOST
                   end
                 end
               else
                 batch.each do |parts|
                   group = parts[0]
-                  body  = parts[1] || "".b
+                  body  = parts[1] || EMPTY_BINARY
                   @connections.each do |conn|
                     next unless @groups[conn]&.include?(group)
                     begin
                       conn.write_message([group, body])
-                      written << conn
+                      @written << conn
                     rescue *ZMTP::CONNECTION_LOST
                     end
                   end
                 end
               end
 
-              written.each do |conn|
+              @written.each do |conn|
                 conn.flush
               rescue *ZMTP::CONNECTION_LOST
               end

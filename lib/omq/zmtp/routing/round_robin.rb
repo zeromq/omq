@@ -27,6 +27,7 @@ module OMQ
           @send_queue           = Async::LimitedQueue.new(engine.options.send_hwm)
           @send_pump_started    = false
           @send_pump_idle       = true
+          @written              = Set.new
         end
 
 
@@ -110,28 +111,28 @@ module OMQ
         # @param batch [Array<Array<String>>]
         #
         def send_batch(batch)
-          written = Set.new
+          @written.clear
           batch.each_with_index do |parts, i|
             conn = next_connection
             begin
               conn.write_message(transform_send(parts))
-              written << conn
+              @written << conn
             rescue *ZMTP::CONNECTION_LOST
               @engine.connection_lost(conn)
               # Flush what we've written so far
-              written.each do |c|
+              @written.each do |c|
                 c.flush
               rescue *ZMTP::CONNECTION_LOST
                 # will be cleaned up
               end
-              written.clear
+              @written.clear
               # Fall back to send_with_retry for this and remaining
               send_with_retry(parts)
               batch[(i + 1)..].each { |p| send_with_retry(p) }
               return
             end
           end
-          written.each do |conn|
+          @written.each do |conn|
             conn.flush
           rescue *ZMTP::CONNECTION_LOST
             # will be cleaned up

@@ -15,6 +15,9 @@ module OMQ
       # Maximum messages to drain from the send queue per flush cycle.
       MAX_SEND_BATCH = 64
 
+      # Shared frozen empty binary string to avoid repeated allocations.
+      EMPTY_BINARY = "".b.freeze
+
       # Drains up to +max+ additional messages from +queue+ into +batch+
       # without blocking. Call after the initial blocking dequeue.
       #

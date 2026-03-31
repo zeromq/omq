@@ -12,6 +12,8 @@ module OMQ
       class Rep
         # @param engine [Engine]
         #
+        EMPTY_FRAME = "".b.freeze
+
         def initialize(engine)
           @engine            = engine
           @recv_queue        = Async::LimitedQueue.new(engine.options.recv_hwm)
@@ -20,6 +22,7 @@ module OMQ
           @tasks             = []
           @send_pump_started = false
           @send_pump_idle    = true
+          @written           = Set.new
         end
 
         # @return [Async::LimitedQueue]
@@ -74,20 +77,20 @@ module OMQ
               @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
-              written = Set.new
+              @written.clear
               batch.each do |parts|
                 reply_info = @pending_replies.shift
                 next unless reply_info
                 conn = reply_info[:conn]
                 begin
-                  conn.write_message([*reply_info[:envelope], "".b, *parts])
-                  written << conn
+                  conn.write_message([*reply_info[:envelope], EMPTY_FRAME, *parts])
+                  @written << conn
                 rescue *ZMTP::CONNECTION_LOST
                   # connection lost mid-write
                 end
               end
 
-              written.each do |conn|
+              @written.each do |conn|
                 conn.flush
               rescue *ZMTP::CONNECTION_LOST
                 # connection lost mid-flush

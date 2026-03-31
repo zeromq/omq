@@ -24,6 +24,8 @@ module OMQ
           @send_pump_idle     = true
           @conflate           = engine.options.conflate
           @subscriber_joined  = Async::Promise.new
+          @written            = Set.new
+          @latest             = {} if @conflate
         end
 
         # @return [Boolean] whether the connection is subscribed to the topic
@@ -31,7 +33,7 @@ module OMQ
         def subscribed?(conn, topic)
           subs = @subscriptions[conn]
           return false unless subs
-          subs.any? { |prefix| topic.b.start_with?(prefix.b) }
+          subs.any? { |prefix| topic.start_with?(prefix) }
         end
 
         # Called when a subscription command is received from a peer.
@@ -42,7 +44,7 @@ module OMQ
         # @param prefix [String]
         #
         def on_subscribe(conn, prefix)
-          @subscriptions[conn] << prefix
+          @subscriptions[conn] << prefix.b.freeze
           @subscriber_joined.resolve(conn) unless @subscriber_joined.resolved?
         end
 
@@ -69,40 +71,40 @@ module OMQ
               @send_pump_idle = false
               Routing.drain_send_queue(@send_queue, batch)
 
-              written = Set.new
+              @written.clear
 
               if @conflate
                 # Keep only the last matching message per connection.
-                latest = {} # conn => parts
+                @latest.clear
                 batch.each do |parts|
-                  topic = parts.first || "".b
+                  topic = parts.first || EMPTY_BINARY
                   @connections.each do |conn|
                     next unless subscribed?(conn, topic)
-                    latest[conn] = parts
+                    @latest[conn] = parts
                   end
                 end
-                latest.each do |conn, parts|
+                @latest.each do |conn, parts|
                   begin
                     conn.write_message(parts)
-                    written << conn
+                    @written << conn
                   rescue *ZMTP::CONNECTION_LOST
                   end
                 end
               else
                 batch.each do |parts|
-                  topic = parts.first || "".b
+                  topic = parts.first || EMPTY_BINARY
                   @connections.each do |conn|
                     next unless subscribed?(conn, topic)
                     begin
                       conn.write_message(parts)
-                      written << conn
+                      @written << conn
                     rescue *ZMTP::CONNECTION_LOST
                     end
                   end
                 end
               end
 
-              written.each do |conn|
+              @written.each do |conn|
                 conn.flush
               rescue *ZMTP::CONNECTION_LOST
               end
