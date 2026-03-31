@@ -435,7 +435,7 @@ module OMQ
           socket_type:        @socket_type.to_s,
           identity:           @options.identity,
           as_server:          as_server,
-          mechanism:          @options.mechanism,
+          mechanism:          @options.mechanism&.dup,
           heartbeat_interval: @options.heartbeat_interval,
           heartbeat_ttl:      @options.heartbeat_ttl,
           heartbeat_timeout:  @options.heartbeat_timeout,
