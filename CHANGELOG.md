@@ -33,6 +33,10 @@
 
 ### Performance
 
+- **Uncapped send queue drain** — the send pump now drains the entire
+  queue per cycle instead of capping at 64 messages. IO::Stream
+  auto-flushes at 64 KB, so writes hit the wire naturally under load.
+  IPC latency −12%, TCP latency −10%.
 - **Remove `.b` allocations from PUB/SUB subscription matching** —
   `FanOut#subscribed?` no longer creates temporary binary strings per
   comparison; both topic and prefix are guaranteed binary at rest.
