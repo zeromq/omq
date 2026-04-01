@@ -32,7 +32,7 @@ module OMQ
         @connection = connection
         task = @engine.start_recv_pump(connection, @recv_queue)
         @tasks << task if task
-        start_send_pump(connection)
+        start_send_pump(connection) unless connection.is_a?(Transport::Inproc::DirectPipe)
       end
 
       # @param connection [Connection]
@@ -48,7 +48,12 @@ module OMQ
       # @param parts [Array<String>]
       #
       def enqueue(parts)
-        @send_queue.enqueue(parts)
+        conn = @connection
+        if conn.is_a?(Transport::Inproc::DirectPipe) && conn.direct_recv_queue
+          conn.send_message(parts)
+        else
+          @send_queue.enqueue(parts)
+        end
       end
 
       #
