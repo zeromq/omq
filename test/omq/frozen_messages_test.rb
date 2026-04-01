@@ -66,6 +66,25 @@ describe "received messages are deep-frozen" do
       end
     end
 
+    it "round-trips mutable UTF-8 through REQ/REP with transformation" do
+      Async do
+        rep = ØMQ::REP.bind("inproc://frozen-utf8-reqrep")
+        req = ØMQ::REQ.connect("inproc://frozen-utf8-reqrep")
+
+        req << "café résumé naïve"
+        msg = rep.receive.first
+        stripped = msg.encode("UTF-8").unicode_normalize(:nfkd).gsub(/\p{Mn}/, "")
+        rep << stripped
+
+        reply = req.receive
+        assert_equal ["cafe resume naive"], reply
+        assert_deep_frozen reply
+      ensure
+        req&.close
+        rep&.close
+      end
+    end
+
     it "handles already-frozen input" do
       Async do
         push = OMQ::PUSH.bind("inproc://frozen-send-prefrozen")
