@@ -204,6 +204,27 @@ module OMQ
     end
 
 
+    # Dequeues up to +max+ messages. Blocks on the first, then
+    # drains non-blocking.
+    #
+    # @param max [Integer]
+    # @return [Array<Array<String>>]
+    #
+    def dequeue_recv_batch(max)
+      raise @fatal_error if @fatal_error
+      queue = @routing.recv_queue
+      msg   = queue.dequeue
+      raise @fatal_error if msg.nil? && @fatal_error
+      batch = [msg]
+      while batch.size < max
+        msg = queue.dequeue(timeout: 0)
+        break unless msg
+        batch << msg
+      end
+      batch
+    end
+
+
     # Pushes a nil sentinel into the recv queue, unblocking a
     # pending {#dequeue_recv} with a nil return value.
     #
