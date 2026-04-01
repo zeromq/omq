@@ -9,9 +9,9 @@
 
 OMQ builds ZeroMQ socket patterns on top of [protocol-zmtp](https://github.com/paddor/protocol-zmtp) (a pure Ruby [ZMTP 3.1](https://rfc.zeromq.org/spec/23/) codec) using [Async](https://github.com/socketry/async) fibers. It speaks native ZeroMQ on the wire and interoperates with libzmq, pyzmq, CZMQ, and everything else in the ZMQ ecosystem.
 
-> **234k msg/s** inproc | **49k msg/s** ipc | **36k msg/s** tcp
+> **980k msg/s** inproc | **38k msg/s** ipc | **31k msg/s** tcp
 >
-> **12 µs** inproc latency | **51 µs** ipc | **62 µs** tcp
+> **10 µs** inproc latency | **71 µs** ipc | **82 µs** tcp
 >
 > Ruby 4.0 + YJIT on a Linux VM — see [`bench/`](bench/) for full results
 
@@ -30,7 +30,7 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for a ~30 min walkthrough of all ma
 ## Highlights
 
 - **Zero dependencies on C** — no extensions, no FFI, no libzmq. `gem install` just works everywhere
-- **Fast** — YJIT-optimized hot paths, batched sends, 234k msg/s inproc with 12 µs latency
+- **Fast** — YJIT-optimized hot paths, batched sends, recv prefetching, direct-pipe inproc bypass. 980k msg/s inproc, 10 µs latency
 - **[`omq` CLI](https://github.com/paddor/omq-cli)** — `gem install omq-cli` for a command-line tool with Ruby eval, Ractor parallelism, and script handlers
 - **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair, and all draft types
 - **Every transport** — tcp, ipc (Unix domain sockets), inproc (in-process queues)
