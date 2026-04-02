@@ -5,10 +5,14 @@
 require_relative "../bench_helper"
 
 BenchHelper.run("PAIR", dir: __dir__, peer_counts: [1]) do |transport, ep, _peers, payload, n|
-  receiver = OMQ::PAIR.bind(ep)
-  ep       = "tcp://127.0.0.1:#{receiver.last_tcp_port}" if transport == "tcp"
+  receiver = OMQ::PAIR.new
+  BenchHelper.apply_security(receiver, transport, role: :server)
+  receiver.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, receiver)
 
-  sender = OMQ::PAIR.connect(ep)
+  sender = OMQ::PAIR.new
+  BenchHelper.apply_security(sender, transport, role: :client)
+  sender.connect(ep)
   BenchHelper.wait_connected(sender) unless transport == "inproc"
 
   begin

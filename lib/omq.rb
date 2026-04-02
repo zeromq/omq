@@ -8,6 +8,7 @@
 
 require "protocol/zmtp"
 require "io/stream"
+require "openssl"
 
 require_relative "omq/version"
 
@@ -26,6 +27,7 @@ module OMQ
     Errno::ECONNABORTED,
     Errno::ENOTCONN,
     IO::Stream::ConnectionResetError,
+    OpenSSL::SSL::SSLError,
   ].freeze
 
   # Errors raised when a peer cannot be reached.
@@ -42,6 +44,7 @@ end
 # Transport
 require_relative "omq/transport/inproc"
 require_relative "omq/transport/tcp"
+require_relative "omq/transport/tls"
 require_relative "omq/transport/ipc"
 
 # Core

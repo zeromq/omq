@@ -7,10 +7,17 @@
 require_relative "../bench_helper"
 
 BenchHelper.run("PUB/SUB", dir: __dir__) do |transport, ep, peers, payload, n|
-  pub = OMQ::PUB.bind(ep)
-  ep  = "tcp://127.0.0.1:#{pub.last_tcp_port}" if transport == "tcp"
+  pub = OMQ::PUB.new
+  BenchHelper.apply_security(pub, transport, role: :server)
+  pub.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, pub)
 
-  subs = peers.times.map { OMQ::SUB.connect(ep, subscribe: "") }
+  subs = peers.times.map do
+    sub = OMQ::SUB.new(subscribe: "")
+    BenchHelper.apply_security(sub, transport, role: :client)
+    sub.connect(ep)
+    sub
+  end
   BenchHelper.wait_connected(subs) unless transport == "inproc"
 
   # Warm up (ensure subscriptions are active)

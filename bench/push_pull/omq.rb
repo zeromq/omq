@@ -5,10 +5,17 @@
 require_relative "../bench_helper"
 
 BenchHelper.run("PUSH/PULL", dir: __dir__) do |transport, ep, peers, payload, n|
-  pull = OMQ::PULL.bind(ep)
-  ep   = "tcp://127.0.0.1:#{pull.last_tcp_port}" if transport == "tcp"
+  pull = OMQ::PULL.new
+  BenchHelper.apply_security(pull, transport, role: :server)
+  pull.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, pull)
 
-  pushes = peers.times.map { OMQ::PUSH.connect(ep) }
+  pushes = peers.times.map do
+    push = OMQ::PUSH.new
+    BenchHelper.apply_security(push, transport, role: :client)
+    push.connect(ep)
+    push
+  end
   BenchHelper.wait_connected(pushes) unless transport == "inproc"
 
   begin

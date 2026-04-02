@@ -14,22 +14,27 @@ $stdout.sync = true
 require_relative '../lib/omq'
 require 'async'
 require 'console'
+require 'rbnacl'
+require 'protocol/zmtp/mechanism/curve'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
-  # Message count per size, tuned so each benchmark finishes in ~10s.
+  # Message count per size, tuned so the full 6-script benchmark suite
+  # finishes in ~120s total with YJIT (5 transports × 2 peer counts).
   RUNS = {
-    64     => 125_000,
-    256    => 100_000,
-    1024   =>  75_000,
-    4096   =>  50_000,
-    65_536 =>   8_000,
+    64     => 20_000,
+    256    => 16_000,
+    1024   => 12_000,
+    4096   =>  8_000,
+    65_536 =>  3_000,
   }.freeze
   SIZES = RUNS.keys.freeze
 
   module_function
 
   KERNEL = `uname -r`.strip.freeze
+
+  TRANSPORTS = %w[inproc ipc tcp tls curve].freeze
 
   def run(label, dir:, peer_counts: [1, 3], &block)
     jit = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "+YJIT" : "no JIT"
@@ -39,7 +44,7 @@ module BenchHelper
     results = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = [] } }
     seq     = 0
 
-    %w[inproc ipc tcp].each do |transport|
+    TRANSPORTS.each do |transport|
       peer_counts.each do |peers|
         puts "--- #{transport} (#{peers} peer#{'s' if peers > 1}) ---"
         SIZES.each do |size|
@@ -66,6 +71,58 @@ module BenchHelper
     when "inproc" then "inproc://bench-#{seq}"
     when "ipc"    then "ipc://@omq-bench-#{seq}"
     when "tcp"    then "tcp://127.0.0.1:0"
+    when "tls"    then "tls+tcp://localhost:0"
+    when "curve"  then "tcp://127.0.0.1:0"
+    end
+  end
+
+  # Returns the resolved endpoint after bind (handles port auto-selection).
+  #
+  def resolve_endpoint(transport, socket)
+    case transport
+    when "tcp", "curve" then "tcp://127.0.0.1:#{socket.last_tcp_port}"
+    when "tls"          then "tls+tcp://localhost:#{socket.last_tcp_port}"
+    else socket.last_endpoint
+    end
+  end
+
+  # Applies transport-specific security (TLS context or CURVE mechanism).
+  #
+  def apply_security(socket, transport, role:)
+    case transport
+    when "tls"
+      socket.tls_context = tls_context(role)
+    when "curve"
+      socket.mechanism = curve_mechanism(role)
+    end
+  end
+
+  def tls_context(role)
+    @tls_contexts ||= begin
+      require "localhost"
+      authority = Localhost::Authority.fetch
+      {
+        server: authority.server_context.tap { |c| c.min_version = OpenSSL::SSL::TLS1_3_VERSION },
+        client: authority.client_context.tap { |c| c.min_version = OpenSSL::SSL::TLS1_3_VERSION },
+      }
+    end
+    @tls_contexts[role]
+  end
+
+  def curve_mechanism(role)
+    @curve_keys ||= begin
+      server_sec = RbNaCl::PrivateKey.generate
+      client_sec = RbNaCl::PrivateKey.generate
+      { server_pub: server_sec.public_key.to_s, server_sec: server_sec.to_s,
+        client_pub: client_sec.public_key.to_s, client_sec: client_sec.to_s }
+    end
+    k = @curve_keys
+    case role
+    when :server
+      Protocol::ZMTP::Mechanism::Curve.server(k[:server_pub], k[:server_sec], crypto: RbNaCl)
+    when :client
+      Protocol::ZMTP::Mechanism::Curve.client(k[:client_pub], k[:client_sec],
+                                              server_key: k[:server_pub], crypto: RbNaCl)
     end
   end
 

@@ -6,6 +6,7 @@ gemspec
 
 gem "minitest"
 gem "rake"
+gem "localhost"
 
 # CURVE tests use Nuckle (pure Ruby, no libsodium).
 # Cross-backend interop tests also use rbnacl when available.

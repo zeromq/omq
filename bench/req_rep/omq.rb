@@ -6,9 +6,14 @@ require_relative "../bench_helper"
 
 BenchHelper.run("REQ/REP", dir: __dir__) do |transport, ep, peers, payload, n|
   Async do |task|
-    rep = OMQ::REP.bind(ep)
-    ep  = "tcp://127.0.0.1:#{rep.last_tcp_port}" if transport == "tcp"
-    req = OMQ::REQ.connect(ep)
+    rep = OMQ::REP.new
+    BenchHelper.apply_security(rep, transport, role: :server)
+    rep.bind(ep)
+    ep = BenchHelper.resolve_endpoint(transport, rep)
+
+    req = OMQ::REQ.new
+    BenchHelper.apply_security(req, transport, role: :client)
+    req.connect(ep)
 
     responder = task.async do
       loop do

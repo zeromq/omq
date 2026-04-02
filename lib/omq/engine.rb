@@ -601,24 +601,31 @@ module OMQ
     # resolution failures during reconnect are retried with backoff.
     #
     def validate_endpoint!(endpoint)
-      return unless endpoint.start_with?("tcp://")
-      host = URI.parse(endpoint.sub("tcp://", "http://")).hostname
+      case endpoint
+      when /\Atcp:\/\//
+        host = URI.parse(endpoint.sub("tcp://", "http://")).hostname
+      when /\Atls\+tcp:\/\//
+        host = URI.parse("http://#{endpoint.delete_prefix("tls+tcp://")}").hostname
+      else
+        return
+      end
       Addrinfo.getaddrinfo(host, nil, nil, :STREAM) if host
     end
 
 
     def transport_for(endpoint)
       case endpoint
-      when /\Atcp:\/\//    then Transport::TCP
-      when /\Aipc:\/\//    then Transport::IPC
-      when /\Ainproc:\/\// then Transport::Inproc
+      when /\Atls\+tcp:\/\// then Transport::TLS
+      when /\Atcp:\/\//      then Transport::TCP
+      when /\Aipc:\/\//      then Transport::IPC
+      when /\Ainproc:\/\//   then Transport::Inproc
       else raise ArgumentError, "unsupported transport: #{endpoint}"
       end
     end
 
 
     def extract_tcp_port(endpoint)
-      return nil unless endpoint&.start_with?("tcp://")
+      return nil unless endpoint&.start_with?("tcp://") || endpoint&.start_with?("tls+tcp://")
       port = endpoint.split(":").last.to_i
       port.positive? ? port : nil
     end
@@ -631,6 +638,31 @@ module OMQ
     #
     def start_accept_loops(listener)
       case listener
+      when Transport::TLS::Listener
+        tasks = listener.servers.map do |server|
+          @parent_task.async(transient: true, annotation: "tls accept #{listener.endpoint}") do
+            loop do
+              client = server.accept
+              Async::Task.current.defer_stop do
+                ssl            = OpenSSL::SSL::SSLSocket.new(client, listener.ssl_context)
+                ssl.sync_close = true
+                ssl.accept
+                handle_accepted(IO::Stream::Buffered.wrap(ssl), endpoint: listener.endpoint)
+              rescue OpenSSL::SSL::SSLError
+                # Bad certificate, protocol mismatch, etc. — drop this
+                # connection but keep the accept loop running.
+                ssl&.close rescue nil
+              end
+            end
+          rescue Async::Stop
+          rescue IOError
+            # server closed
+          ensure
+            server.close rescue nil
+          end
+        end
+        listener.accept_tasks = tasks
+
       when Transport::TCP::Listener
         tasks = listener.servers.map do |server|
           @parent_task.async(transient: true, annotation: "tcp accept #{listener.endpoint}") do

@@ -4,6 +4,16 @@
 
 ### Added
 
+- **TLS transport (`tls+tcp://`)** — TLS v1.3 on top of TCP using Ruby's
+  stdlib `openssl`. Set `socket.tls_context` to an `OpenSSL::SSL::SSLContext`
+  before bind/connect. Per-socket (not per-endpoint), frozen on first use.
+  SNI set automatically from the endpoint hostname. Bad TLS handshakes are
+  dropped without killing the accept loop. `OpenSSL::SSL::SSLError` added
+  to `CONNECTION_LOST` for automatic reconnection on TLS failures.
+  Accompanied by a draft RFC (`rfc/zmtp-tls.md`) defining the transport
+  mapping for ZMTP 3.1 over TLS.
+- **CURVE benchmarks** — all per-pattern benchmarks now include CURVE
+  (via rbnacl) alongside inproc, ipc, tcp, and tls transports.
 - **Engine `connection_wrapper` hook** — optional proc on Engine that wraps
   new connections (both inproc and tcp/ipc) at creation time. Used by the
   omq-ractor gem for per-connection serialization (Marshal for tcp/ipc,
@@ -20,8 +30,8 @@
 - **Per-pattern benchmark suite** — `bench/{push_pull,req_rep,router_dealer,dealer_dealer,pub_sub,pair}/omq.rb`
   with shared helpers (`bench_helper.rb`) and UnicodePlot braille line
   charts (`plot.rb`). Each benchmark measures throughput (msg/s) and
-  bandwidth (MB/s) across transports (inproc, ipc, tcp), message sizes
-  (64 B–64 KB), and peer counts (1, 3). Plots are written to per-directory
+  bandwidth (MB/s) across transports (inproc, ipc, tcp, tls, curve),
+  message sizes (64 B–64 KB), and peer counts (1, 3). Plots are written to per-directory
   `README.md` files for easy diffing across versions.
 
 ### Changed

@@ -6,11 +6,11 @@ module OMQ
   module Bench
     module Plot
       GROUPS = {
-        "inproc"    => %w[inproc],
-        "ipc + tcp" => %w[ipc tcp],
+        "inproc"                  => %w[inproc],
+        "ipc + tcp + tls + curve" => %w[ipc tcp tls curve],
       }.freeze
 
-      LABEL_BULLETS = %w[▪ ▫ ▴].freeze
+      LABEL_BULLETS = %w[▪ ▫ ▴ ▾ ◆].freeze
 
       module_function
 
