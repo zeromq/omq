@@ -262,6 +262,13 @@ module OMQ
     # @yield [msg] optional per-message transform
     # @return [#stop, nil] pump task handle, or nil for DirectPipe bypass
     #
+    # Fairness limits for the recv pump. Yield to the scheduler
+    # after reading this many messages or bytes from one connection,
+    # whichever comes first. Prevents a fast or large-message
+    # connection from starving slower peers.
+    RECV_FAIRNESS_MESSAGES = 64
+    RECV_FAIRNESS_BYTES    = 1 << 20 # 1 MB
+
     def start_recv_pump(conn, recv_queue, &transform)
       if conn.is_a?(Transport::Inproc::DirectPipe) && conn.peer
         conn.peer.direct_recv_queue = recv_queue
@@ -270,11 +277,18 @@ module OMQ
       end
 
       if transform
-        @parent_task.async(transient: true, annotation: "recv pump") do
+        @parent_task.async(transient: true, annotation: "recv pump") do |task|
           loop do
-            msg = conn.receive_message
-            msg = transform.call(msg).freeze
-            recv_queue.enqueue(msg)
+            count = 0
+            bytes = 0
+            while count < RECV_FAIRNESS_MESSAGES && bytes < RECV_FAIRNESS_BYTES
+              msg = conn.receive_message
+              msg = transform.call(msg).freeze
+              recv_queue.enqueue(msg)
+              count += 1
+              bytes += msg.sum(&:bytesize)
+            end
+            task.yield
           end
         rescue Async::Stop
         rescue Protocol::ZMTP::Error, *CONNECTION_LOST
@@ -283,9 +297,17 @@ module OMQ
           signal_fatal_error(error)
         end
       else
-        @parent_task.async(transient: true, annotation: "recv pump") do
+        @parent_task.async(transient: true, annotation: "recv pump") do |task|
           loop do
-            recv_queue.enqueue(conn.receive_message)
+            count = 0
+            bytes = 0
+            while count < RECV_FAIRNESS_MESSAGES && bytes < RECV_FAIRNESS_BYTES
+              msg = conn.receive_message
+              recv_queue.enqueue(msg)
+              count += 1
+              bytes += msg.sum(&:bytesize)
+            end
+            task.yield
           end
         rescue Async::Stop
         rescue Protocol::ZMTP::Error, *CONNECTION_LOST

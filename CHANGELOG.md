@@ -8,6 +8,10 @@
   `#pop`, `#wait`, and `#each`; writable sockets gain `#enqueue` and
   `#push`. Inspired by `Async::Queue`. `#wait` blocks indefinitely
   (ignores `read_timeout`); `#each` returns gracefully on timeout.
+- **Recv pump fairness** — each connection yields to the fiber scheduler
+  after 64 messages or 1 MB (whichever comes first). Prevents a fast or
+  large-message connection from starving slower peers when the consumer
+  keeps up.
 - **Per-pattern benchmark suite** — `bench/{push_pull,req_rep,router_dealer,dealer_dealer,pub_sub,pair}/omq.rb`
   with shared helpers (`bench_helper.rb`) and UnicodePlot braille line
   charts (`plot.rb`). Each benchmark measures throughput (msg/s) and
