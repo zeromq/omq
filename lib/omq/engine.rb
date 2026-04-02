@@ -64,6 +64,11 @@ module OMQ
 
     attr_writer :reconnect_enabled
 
+    # Optional proc that wraps new connections (e.g. for serialization).
+    # Called with the raw connection; must return the (possibly wrapped) connection.
+    #
+    attr_accessor :connection_wrapper
+
 
     # Spawns an inproc reconnect retry task under @parent_task.
     #
@@ -184,6 +189,7 @@ module OMQ
     # @return [void]
     #
     def connection_ready(pipe, endpoint: nil)
+      pipe = @connection_wrapper.call(pipe) if @connection_wrapper
       @connections << pipe
       @connection_endpoints[pipe] = endpoint if endpoint
       @routing.connection_added(pipe)
@@ -286,7 +292,7 @@ module OMQ
               msg = transform.call(msg).freeze
               recv_queue.enqueue(msg)
               count += 1
-              bytes += msg.sum(&:bytesize)
+              bytes += msg.is_a?(Array) && msg.first.is_a?(String) ? msg.sum(&:bytesize) : 0
             end
             task.yield
           end
@@ -305,7 +311,7 @@ module OMQ
               msg = conn.receive_message
               recv_queue.enqueue(msg)
               count += 1
-              bytes += msg.sum(&:bytesize)
+              bytes += msg.is_a?(Array) && msg.first.is_a?(String) ? msg.sum(&:bytesize) : 0
             end
             task.yield
           end
@@ -507,6 +513,7 @@ module OMQ
       )
       conn.handshake!
       start_heartbeat(conn)
+      conn = @connection_wrapper.call(conn) if @connection_wrapper
       @connections << conn
       @connection_endpoints[conn] = endpoint if endpoint
       @connection_promises[conn]  = done if done

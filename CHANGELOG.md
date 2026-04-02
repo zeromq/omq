@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Engine `connection_wrapper` hook** — optional proc on Engine that wraps
+  new connections (both inproc and tcp/ipc) at creation time. Used by the
+  omq-ractor gem for per-connection serialization (Marshal for tcp/ipc,
+  `Ractor.make_shareable` for inproc).
 - **Queue-style interface** — readable sockets gain `#dequeue(timeout:)`,
   `#pop`, `#wait`, and `#each`; writable sockets gain `#enqueue` and
   `#push`. Inspired by `Async::Queue`. `#wait` blocks indefinitely
@@ -11,7 +15,8 @@
 - **Recv pump fairness** — each connection yields to the fiber scheduler
   after 64 messages or 1 MB (whichever comes first). Prevents a fast or
   large-message connection from starving slower peers when the consumer
-  keeps up.
+  keeps up. Byte counting gracefully handles non-string messages (e.g.
+  deserialized objects from connection wrappers).
 - **Per-pattern benchmark suite** — `bench/{push_pull,req_rep,router_dealer,dealer_dealer,pub_sub,pair}/omq.rb`
   with shared helpers (`bench_helper.rb`) and UnicodePlot braille line
   charts (`plot.rb`). Each benchmark measures throughput (msg/s) and
