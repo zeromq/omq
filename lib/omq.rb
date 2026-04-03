@@ -11,6 +11,7 @@ require "io/stream"
 require "openssl"
 
 require_relative "omq/version"
+require_relative "omq/monitor_event"
 
 module OMQ
   # Raised when an internal pump task crashes unexpectedly.

@@ -57,12 +57,13 @@ module OMQ
       @on_io_thread         = false
       @connection_promises  = {} # connection => Async::Promise
       @fatal_error          = nil
+      @monitor_queue        = nil
     end
 
 
     attr_reader :peer_connected, :all_peers_gone, :connections, :parent_task
 
-    attr_writer :reconnect_enabled
+    attr_writer :reconnect_enabled, :monitor_queue
 
     # Optional proc that wraps new connections (e.g. for serialization).
     # Called with the raw connection; must return the (possibly wrapped) connection.
@@ -98,6 +99,10 @@ module OMQ
       @listeners << listener
       @last_endpoint = listener.endpoint
       @last_tcp_port = extract_tcp_port(listener.endpoint)
+      emit_monitor_event(:listening, endpoint: listener.endpoint)
+    rescue => error
+      emit_monitor_event(:bind_failed, endpoint: endpoint, detail: { error: error })
+      raise
     end
 
 
@@ -115,6 +120,7 @@ module OMQ
         transport.connect(endpoint, self)
       else
         # TCP/IPC connect in background — never blocks the caller
+        emit_monitor_event(:connect_delayed, endpoint: endpoint)
         schedule_reconnect(endpoint, delay: 0)
       end
     end
@@ -168,6 +174,7 @@ module OMQ
     # @return [void]
     #
     def handle_accepted(io, endpoint: nil)
+      emit_monitor_event(:accepted, endpoint: endpoint)
       spawn_connection(io, as_server: true, endpoint: endpoint)
     end
 
@@ -178,6 +185,7 @@ module OMQ
     # @return [void]
     #
     def handle_connected(io, endpoint: nil)
+      emit_monitor_event(:connected, endpoint: endpoint)
       spawn_connection(io, as_server: false, endpoint: endpoint)
     end
 
@@ -194,6 +202,7 @@ module OMQ
       @connection_endpoints[pipe] = endpoint if endpoint
       @routing.connection_added(pipe)
       @peer_connected.resolve(pipe)
+      emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
     end
 
 
@@ -335,6 +344,7 @@ module OMQ
       @connections.delete(connection)
       @routing.connection_removed(connection)
       connection.close
+      emit_monitor_event(:disconnected, endpoint: endpoint)
 
       # Signal the connection task to exit.
       done = @connection_promises.delete(connection)
@@ -393,6 +403,8 @@ module OMQ
       @routing.stop rescue nil
       @tasks.each { |t| t.stop rescue nil }
       @tasks.clear
+      emit_monitor_event(:closed)
+      close_monitor_queue
     end
 
 
@@ -519,8 +531,10 @@ module OMQ
       @connection_promises[conn]  = done if done
       @routing.connection_added(conn)
       @peer_connected.resolve(conn)
+      emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
       conn
-    rescue Protocol::ZMTP::Error, *CONNECTION_LOST
+    rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
+      emit_monitor_event(:handshake_failed, endpoint: endpoint, detail: { error: error })
       conn&.close
       raise
     end
@@ -585,6 +599,7 @@ module OMQ
             delay = [delay * 2, max_delay].min if max_delay
             # After first attempt with delay: 0, use the configured interval
             delay = ri.is_a?(Range) ? ri.begin : ri if delay == 0
+            emit_monitor_event(:connect_retried, endpoint: endpoint, detail: { interval: delay })
           end
         end
       rescue Async::Stop
@@ -648,9 +663,10 @@ module OMQ
                 ssl.sync_close = true
                 ssl.accept
                 handle_accepted(IO::Stream::Buffered.wrap(ssl), endpoint: listener.endpoint)
-              rescue OpenSSL::SSL::SSLError
+              rescue OpenSSL::SSL::SSLError => error
                 # Bad certificate, protocol mismatch, etc. — drop this
                 # connection but keep the accept loop running.
+                emit_monitor_event(:accept_failed, endpoint: listener.endpoint, detail: { error: error })
                 ssl&.close rescue nil
               end
             end
@@ -697,6 +713,19 @@ module OMQ
         end
         listener.accept_task = task
       end
+    end
+
+
+    def emit_monitor_event(type, endpoint: nil, detail: nil)
+      return unless @monitor_queue
+      @monitor_queue.push(MonitorEvent.new(type: type, endpoint: endpoint, detail: detail))
+    rescue Async::Stop, ClosedQueueError
+    end
+
+
+    def close_monitor_queue
+      return unless @monitor_queue
+      @monitor_queue.push(nil)
     end
   end
 end

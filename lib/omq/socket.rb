@@ -141,6 +141,46 @@ module OMQ
     end
 
 
+    # Yields lifecycle events for this socket.
+    #
+    # Spawns a background fiber that reads from an internal event queue.
+    # The block receives {MonitorEvent} instances until the socket is
+    # closed or the returned task is stopped.
+    #
+    # @yield [event] called for each lifecycle event
+    # @yieldparam event [MonitorEvent]
+    # @return [Async::Task] the monitor task (call +#stop+ to end early)
+    #
+    # @example
+    #   task = socket.monitor do |event|
+    #     case event
+    #     in type: :connected, endpoint:
+    #       puts "peer up: #{endpoint}"
+    #     in type: :disconnected, endpoint:
+    #       puts "peer down: #{endpoint}"
+    #     end
+    #   end
+    #   # later:
+    #   task.stop
+    #
+    def monitor(&block)
+      ensure_parent_task
+      queue = Async::Queue.new
+      @engine.monitor_queue = queue
+      Reactor.run do
+        @engine.parent_task.async(transient: true, annotation: "monitor") do
+          while (event = queue.dequeue)
+            block.call(event)
+          end
+        rescue Async::Stop
+        ensure
+          @engine.monitor_queue = nil
+          block.call(MonitorEvent.new(type: :monitor_stopped))
+        end
+      end
+    end
+
+
     # Disable auto-reconnect for connected endpoints.
     def reconnect_enabled=(val)
       @engine.reconnect_enabled = val

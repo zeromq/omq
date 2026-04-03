@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`Socket#monitor`** — observe connection lifecycle events via a
+  block-based API. Returns an `Async::Task` that yields `MonitorEvent`
+  (Data.define) instances for `:listening`, `:accepted`, `:connected`,
+  `:connect_delayed`, `:connect_retried`, `:handshake_succeeded`,
+  `:handshake_failed`, `:accept_failed`, `:bind_failed`, `:disconnected`,
+  `:closed`, and `:monitor_stopped`. Event types align with libzmq's
+  `zmq_socket_monitor` where applicable. Pattern-matchable, zero overhead
+  when no monitor is attached.
+
 ## 0.11.0
 
 ### Added
