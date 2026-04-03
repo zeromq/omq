@@ -91,11 +91,20 @@ module OMQ
               end
             else
               batch.each do |parts|
-                topic = parts.first || EMPTY_BINARY
+                topic      = parts.first || EMPTY_BINARY
+                wire_bytes = nil
+
                 @connections.each do |conn|
                   next unless subscribed?(conn, topic)
                   begin
-                    conn.write_message(parts)
+                    if conn.respond_to?(:curve?) && conn.curve?
+                      conn.write_message(parts)
+                    elsif conn.respond_to?(:write_wire)
+                      wire_bytes ||= Protocol::ZMTP::Codec::Frame.encode_message(parts)
+                      conn.write_wire(wire_bytes)
+                    else
+                      conn.write_message(parts)
+                    end
                     @written << conn
                   rescue *CONNECTION_LOST
                   end

@@ -12,6 +12,13 @@
   to `CONNECTION_LOST` for automatic reconnection on TLS failures.
   Accompanied by a draft RFC (`rfc/zmtp-tls.md`) defining the transport
   mapping for ZMTP 3.1 over TLS.
+- **PUB/RADIO fan-out pre-encoding** — ZMTP frames are encoded once per
+  message and written as raw wire bytes to all non-CURVE subscribers.
+  Eliminates redundant `Frame.new` + `#to_wire` calls during fan-out.
+  CURVE connections (which encrypt at the ZMTP level) still encode
+  per-connection. TLS, NULL, and PLAIN all benefit since TLS encrypts
+  below ZMTP. Requires protocol-zmtp `Frame.encode_message` and
+  `Connection#write_wire`.
 - **CURVE benchmarks** — all per-pattern benchmarks now include CURVE
   (via rbnacl) alongside inproc, ipc, tcp, and tls transports.
 - **Engine `connection_wrapper` hook** — optional proc on Engine that wraps

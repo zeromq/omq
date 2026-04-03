@@ -22,6 +22,26 @@ describe "PUB/SUB" do
       pub&.close
     end
   end
+
+  it "fans out to multiple TCP subscribers (pre-encoded wire path)" do
+    Async do
+      pub = OMQ::PUB.bind("tcp://127.0.0.1:0")
+      port = pub.last_tcp_port
+
+      subs = 3.times.map { OMQ::SUB.connect("tcp://127.0.0.1:#{port}", subscribe: "") }
+      wait_connected(*subs)
+
+      pub.send("broadcast", "payload")
+
+      subs.each do |sub|
+        msg = sub.receive
+        assert_equal ["broadcast", "payload"], msg
+      end
+    ensure
+      subs&.each(&:close)
+      pub&.close
+    end
+  end
 end
 
 describe "XPUB/XSUB" do
