@@ -5,8 +5,8 @@ module OMQ
     include Readable
     include Writable
 
-    def initialize(endpoints = nil, linger: 0)
-      _init_engine(:DEALER, linger: linger)
+    def initialize(endpoints = nil, linger: 0, backend: nil)
+      _init_engine(:DEALER, linger: linger, backend: backend)
       _attach(endpoints, default: :connect)
     end
   end
@@ -17,8 +17,8 @@ module OMQ
     include Readable
     include Writable
 
-    def initialize(endpoints = nil, linger: 0)
-      _init_engine(:ROUTER, linger: linger)
+    def initialize(endpoints = nil, linger: 0, backend: nil)
+      _init_engine(:ROUTER, linger: linger, backend: backend)
       _attach(endpoints, default: :bind)
     end
 

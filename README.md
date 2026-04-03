@@ -183,6 +183,11 @@ echo "hello" | omq req -c tcp://localhost:5555
 
 See the [omq-cli README](https://github.com/paddor/omq-cli) for full documentation.
 
+## Companion Gems
+
+- **[omq-ffi](https://github.com/paddor/omq-ffi)** — libzmq FFI backend. Same OMQ socket API, but backed by libzmq instead of the pure Ruby ZMTP stack. Useful for interop testing and when you need libzmq-specific features. Requires libzmq installed.
+- **[omq-ractor](https://github.com/paddor/omq-ractor)** — bridge OMQ sockets into Ruby Ractors for true parallel processing across cores. I/O stays on the main Ractor, worker Ractors do pure computation.
+
 ## Development
 
 ```sh

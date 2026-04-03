@@ -16,5 +16,5 @@ gem "protocol-zmtp", path: ENV["OMQ_DEV"] ? "../protocol-zmtp" : nil
 if ENV["OMQ_DEV"]
   gem "benchmark-ips"
   gem "rbnacl", "~> 7.0"
-  gem "cztop",  require: false, path: "../cztop"
+  gem "omq-ffi",  require: false, path: "../omq-ffi"
 end

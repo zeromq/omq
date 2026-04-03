@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
 
 ### Added
 
+- **`backend:` kwarg** — all socket types accept `backend: :ffi` to use
+  the libzmq FFI backend (via the [omq-ffi](https://github.com/paddor/omq-ffi)
+  gem). Default is `:ruby` (pure Ruby ZMTP). Enables interop testing and
+  access to libzmq-specific features without changing the socket API.
 - **TLS transport (`tls+tcp://`)** — TLS v1.3 on top of TCP using Ruby's
   stdlib `openssl`. Set `socket.tls_context` to an `OpenSSL::SSL::SSLContext`
   before bind/connect. Per-socket (not per-endpoint), frozen on first use.

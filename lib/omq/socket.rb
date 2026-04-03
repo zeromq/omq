@@ -225,7 +225,8 @@ module OMQ
     # @param linger [Integer]
     #
     def _init_engine(socket_type, linger:, send_hwm: nil, recv_hwm: nil,
-                     send_timeout: nil, recv_timeout: nil, conflate: false)
+                     send_timeout: nil, recv_timeout: nil, conflate: false,
+                     backend: nil)
       @options = Options.new(linger: linger)
       @options.send_hwm      = send_hwm     if send_hwm
       @options.recv_hwm      = recv_hwm     if recv_hwm
@@ -234,7 +235,11 @@ module OMQ
       @options.conflate       = conflate
       @recv_buffer = []
       @recv_mutex  = Mutex.new
-      @engine      = Engine.new(socket_type, @options)
+      @engine      = case backend
+                     when nil, :ruby then Engine.new(socket_type, @options)
+                     when :ffi       then FFI::Engine.new(socket_type, @options)
+                     else raise ArgumentError, "unknown backend: #{backend}"
+                     end
     end
   end
 end

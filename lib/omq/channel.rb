@@ -6,8 +6,8 @@ module OMQ
     include Writable
     include SingleFrame
 
-    def initialize(endpoints = nil, linger: 0)
-      _init_engine(:CHANNEL, linger: linger)
+    def initialize(endpoints = nil, linger: 0, backend: nil)
+      _init_engine(:CHANNEL, linger: linger, backend: backend)
       _attach(endpoints, default: :connect)
     end
   end

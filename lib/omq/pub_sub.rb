@@ -4,8 +4,8 @@ module OMQ
   class PUB < Socket
     include Writable
 
-    def initialize(endpoints = nil, linger: 0, conflate: false)
-      _init_engine(:PUB, linger: linger, conflate: conflate)
+    def initialize(endpoints = nil, linger: 0, conflate: false, backend: nil)
+      _init_engine(:PUB, linger: linger, conflate: conflate, backend: backend)
       _attach(endpoints, default: :bind)
     end
   end
@@ -24,8 +24,8 @@ module OMQ
     # @param subscribe [String, nil] subscription prefix; +nil+ (default)
     #   means no subscription — call {#subscribe} explicitly.
     #
-    def initialize(endpoints = nil, linger: 0, subscribe: nil)
-      _init_engine(:SUB, linger: linger)
+    def initialize(endpoints = nil, linger: 0, subscribe: nil, backend: nil)
+      _init_engine(:SUB, linger: linger, backend: backend)
       _attach(endpoints, default: :connect)
       self.subscribe(subscribe) unless subscribe.nil?
     end
@@ -53,8 +53,8 @@ module OMQ
     include Readable
     include Writable
 
-    def initialize(endpoints = nil, linger: 0)
-      _init_engine(:XPUB, linger: linger)
+    def initialize(endpoints = nil, linger: 0, backend: nil)
+      _init_engine(:XPUB, linger: linger, backend: backend)
       _attach(endpoints, default: :bind)
     end
   end
@@ -68,8 +68,8 @@ module OMQ
     # @param subscribe [String, nil] subscription prefix; +nil+ (default)
     #   means no subscription — send a subscribe frame explicitly.
     #
-    def initialize(endpoints = nil, linger: 0, subscribe: nil)
-      _init_engine(:XSUB, linger: linger)
+    def initialize(endpoints = nil, linger: 0, subscribe: nil, backend: nil)
+      _init_engine(:XSUB, linger: linger, backend: backend)
       _attach(endpoints, default: :connect)
       send("\x01#{subscribe}".b) unless subscribe.nil?
     end
