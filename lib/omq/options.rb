@@ -23,7 +23,7 @@ module OMQ
       @heartbeat_interval    = nil   # seconds, nil = disabled
       @heartbeat_ttl         = nil   # seconds, nil = use heartbeat_interval
       @heartbeat_timeout     = nil   # seconds, nil = use heartbeat_interval
-      @max_message_size      = nil  # bytes, nil = unlimited
+      @max_message_size      = 1 << 20  # bytes (1 MiB default)
       @conflate              = false
       @mechanism             = Protocol::ZMTP::Mechanism::Null.new
     end

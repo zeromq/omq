@@ -27,6 +27,10 @@
 
 ### Changed
 
+- **`max_message_size` defaults to 1 MiB** — frames exceeding this limit cause
+  the connection to be dropped before the body is read from the wire, preventing
+  a malicious peer from causing arbitrary memory allocation. Set `socket.max_message_size = nil`
+  to restore the previous unlimited behavior.
 - **Accept loops moved into Listeners** — `TCP::Listener` and
   `IPC::Listener` now own their accept loop logic via
   `#start_accept_loops(parent_task, &on_accepted)`. Engine delegates
