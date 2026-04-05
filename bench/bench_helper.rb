@@ -4,7 +4,7 @@
 #
 # Usage:
 #   require_relative '../bench_helper'
-#   BenchHelper.run("PUSH/PULL", readme_marker: "push-pull-plots") do |transport, ep, peers, payload, n|
+#   BenchHelper.run("PUSH/PULL", dir: __dir__) do |transport, ep, peers, payload, n|
 #     # Set up sockets, measure, return { mbps:, msgs_s: }
 #   end
 
@@ -15,6 +15,7 @@ require_relative '../lib/omq'
 require 'async'
 require 'console'
 require 'rbnacl'
+require 'json'
 require 'protocol/zmtp/mechanism/curve'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
@@ -30,19 +31,25 @@ module BenchHelper
   }.freeze
   SIZES = RUNS.keys.freeze
 
+  RESULTS_PATH = File.join(__dir__, "results.jsonl").freeze
+
   module_function
 
   KERNEL = `uname -r`.strip.freeze
 
   TRANSPORTS = %w[inproc ipc tcp curve].freeze
 
+  def run_id
+    @run_id ||= ENV["OMQ_BENCH_RUN_ID"] || Time.now.strftime("%Y-%m-%dT%H:%M:%S")
+  end
+
   def run(label, dir:, peer_counts: [1, 3], &block)
-    jit = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "+YJIT" : "no JIT"
+    pattern = File.basename(dir)
+    jit     = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "+YJIT" : "no JIT"
     puts "#{label} | OMQ #{OMQ::VERSION} | Ruby #{RUBY_VERSION} (#{jit}) | #{KERNEL}"
     puts
 
-    results = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = [] } }
-    seq     = 0
+    seq = 0
 
     TRANSPORTS.each do |transport|
       peer_counts.each do |peers|
@@ -54,16 +61,12 @@ module BenchHelper
             OMQ::Transport::Inproc.reset! if transport == "inproc"
             ep = endpoint(transport, seq)
             r  = block.call(transport, ep, peers, "x" * size, n)
-            results[transport][peers] << { size: size, **r }
+            append_result(pattern, transport, peers, size, n, r[:elapsed], r[:mbps], r[:msgs_s])
           end
         end
         puts
       end
     end
-
-    require_relative 'plot'
-    plot_text = OMQ::Bench::Plot.render_all(results, sizes: SIZES)
-    write_readme(dir, label, plot_text)
   end
 
   def endpoint(transport, seq)
@@ -145,21 +148,25 @@ module BenchHelper
     msgs_s = n / elapsed
     printf "  %6s  %8.1f MB/s  %8.0f msg/s  (%.2fs)\n",
            "#{msg_size}B", mbps, msgs_s, elapsed
-    { mbps: mbps, msgs_s: msgs_s }
+    { elapsed: elapsed, mbps: mbps, msgs_s: msgs_s }
   end
 
   def wait_connected(*sockets)
     sockets.flatten.each { |s| s.peer_connected.wait }
   end
 
-  def write_readme(dir, label, plot_text)
-    jit     = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "+YJIT" : "no JIT"
-    readme  = "# #{label}\n\n"
-    readme << "OMQ #{OMQ::VERSION} | Ruby #{RUBY_VERSION} (#{jit}) | #{KERNEL} | #{Time.now.strftime('%Y-%m-%d')}\n\n"
-    readme << "```\n#{plot_text}```\n"
-
-    path = File.join(dir, 'README.md')
-    File.write(path, readme)
-    puts "(wrote #{path})"
+  def append_result(pattern, transport, peers, msg_size, msg_count, elapsed, mbps, msgs_s)
+    row = {
+      run_id:  run_id,
+      pattern: pattern,
+      transport: transport,
+      peers:     peers,
+      msg_size:  msg_size,
+      msg_count: msg_count,
+      elapsed_s: elapsed.round(6),
+      mbps:      mbps.round(2),
+      msgs_s:    msgs_s.round(1),
+    }
+    File.open(RESULTS_PATH, "a") { |f| f.puts(JSON.generate(row)) }
   end
 end

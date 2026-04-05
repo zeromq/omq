@@ -11,6 +11,14 @@
   `Async::LimitedQueue` (`:block`) so the publisher yields when a per-connection
   queue is full, giving the send pump fiber a chance to drain it.
 
+### Changed
+
+- **Benchmark suite redesign** — replaced ASCII plots (unicode_plot) with JSONL
+  result storage and a colored terminal regression report. Results are appended
+  to `bench/results.jsonl` (gitignored, machine-local). New commands:
+  `ruby bench/run_all.rb` (run all patterns), `ruby bench/report.rb` (compare
+  last runs, highlight regressions/improvements).
+
 ### Added
 
 - **Per-peer HWM** — send and receive high-water marks now apply per connected

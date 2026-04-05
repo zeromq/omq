@@ -64,11 +64,6 @@ Measured with `benchmark-ips` on Linux x86_64, Ruby 4.0.2 +YJIT (epoll).
 | 4 KB | 4.9 GB/s | 379 MB/s | 392 MB/s |
 | 64 KB | 77 GB/s | 921 MB/s | 921 MB/s |
 
-### Plots
-
-See per-directory READMEs: [`push_pull/`](push_pull/), [`req_rep/`](req_rep/), [`router_dealer/`](router_dealer/), [`dealer_dealer/`](dealer_dealer/), [`pub_sub/`](pub_sub/), [`pair/`](pair/).
-
-
 ## io_uring
 
 With `liburing-dev` installed, io-event uses io_uring instead of epoll.
@@ -83,8 +78,15 @@ gem pristine io-event
 ## Running
 
 ```sh
-# Per-pattern benchmarks (writes plots to <dir>/README.md)
-for d in push_pull req_rep router_dealer dealer_dealer pub_sub pair; do
-  ruby --yjit bench/$d/omq.rb
-done
+# Run full suite (appends to bench/results.jsonl)
+ruby --yjit bench/run_all.rb
+
+# Run single pattern
+ruby --yjit bench/push_pull/omq.rb
+
+# Regression report (latest vs previous run)
+ruby bench/report.rb
+
+# Full comparison table
+ruby bench/report.rb --all
 ```
