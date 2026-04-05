@@ -8,6 +8,7 @@ module OMQ
     #
     class Req
       include RoundRobin
+      include FairRecv
 
       # @param engine [Engine]
       #
@@ -28,14 +29,10 @@ module OMQ
       #
       def connection_added(connection)
         @connections << connection
-        conn_q    = Routing.build_queue(@engine.options.recv_hwm, :block)
-        signaling = SignalingQueue.new(conn_q, @recv_queue)
-        @recv_queue.add_queue(connection, conn_q)
-        task = @engine.start_recv_pump(connection, signaling) do |msg|
+        add_fair_recv_connection(connection) do |msg|
           @state = :ready
           msg.first&.empty? ? msg[1..] : msg
         end
-        @tasks << task if task
         add_round_robin_send_connection(connection)
       end
 

@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 require "async"
+require_relative "engine/recv_pump"
+require_relative "engine/heartbeat"
+require_relative "engine/reconnect"
+require_relative "engine/connection_setup"
 
 module OMQ
   # Per-socket orchestrator.
@@ -72,9 +76,12 @@ module OMQ
     end
 
 
-    attr_reader :peer_connected, :all_peers_gone, :connections, :parent_task
+    attr_reader :peer_connected, :all_peers_gone, :connections, :parent_task,
+                :connection_endpoints, :connection_promises, :tasks
 
     attr_writer :reconnect_enabled, :monitor_queue
+
+    def closed? = @closed
 
     # Optional proc that wraps new connections (e.g. for serialization).
     # Called with the raw connection; must return the (possibly wrapped) connection.
@@ -147,13 +154,7 @@ module OMQ
     #
     def disconnect(endpoint)
       @connected_endpoints.delete(endpoint)
-      conns = @connection_endpoints.select { |_, ep| ep == endpoint }.keys
-      conns.each do |conn|
-        @connection_endpoints.delete(conn)
-        @connections.delete(conn)
-        @routing.connection_removed(conn)
-        conn.close
-      end
+      close_connections_at(endpoint)
     end
 
 
@@ -168,15 +169,7 @@ module OMQ
       return unless listener
       listener.stop
       @listeners.delete(listener)
-
-      # Close connections accepted on this endpoint
-      conns = @connection_endpoints.select { |_, ep| ep == endpoint }.keys
-      conns.each do |conn|
-        @connection_endpoints.delete(conn)
-        @connections.delete(conn)
-        @routing.connection_removed(conn)
-        conn.close
-      end
+      close_connections_at(endpoint)
     end
 
 
@@ -273,77 +266,17 @@ module OMQ
     end
 
 
-    # Starts a recv pump for a connection, or wires the inproc
-    # fast path when the connection is a DirectPipe.
+    # Starts a recv pump for a connection, or wires the inproc fast path.
     #
     # @param conn [Connection, Transport::Inproc::DirectPipe]
-    # Starts a recv pump that dequeues messages from a connection
-    # and enqueues them into the routing strategy's recv queue.
-    #
-    # When a block is given, each message is yielded for transformation
-    # before enqueueing. The block is compiled at the call site, giving
-    # YJIT a monomorphic call per routing strategy instead of a shared
-    # megamorphic `transform.call` dispatch.
-    #
-    # @param conn [Connection, Transport::Inproc::DirectPipe]
-    # @param recv_queue [Async::LimitedQueue] routing strategy's recv queue
+    # @param recv_queue [SignalingQueue]
     # @yield [msg] optional per-message transform
-    # @return [#stop, nil] pump task handle, or nil for DirectPipe bypass
+    # @return [Async::Task, nil]
     #
-    # Fairness limits for the recv pump. Yield to the scheduler
-    # after reading this many messages or bytes from one connection,
-    # whichever comes first. Prevents a fast or large-message
-    # connection from starving slower peers.
-    RECV_FAIRNESS_MESSAGES = 64
-    RECV_FAIRNESS_BYTES    = 1 << 20 # 1 MB
-
     def start_recv_pump(conn, recv_queue, &transform)
-      if conn.is_a?(Transport::Inproc::DirectPipe) && conn.peer
-        conn.peer.direct_recv_queue = recv_queue
-        conn.peer.direct_recv_transform = transform
-        return nil
-      end
-
-      if transform
-        @parent_task.async(transient: true, annotation: "recv pump") do |task|
-          loop do
-            count = 0
-            bytes = 0
-            while count < RECV_FAIRNESS_MESSAGES && bytes < RECV_FAIRNESS_BYTES
-              msg = conn.receive_message
-              msg = transform.call(msg).freeze
-              recv_queue.enqueue(msg)
-              count += 1
-              bytes += msg.is_a?(Array) && msg.first.is_a?(String) ? msg.sum(&:bytesize) : 0
-            end
-            task.yield
-          end
-        rescue Async::Stop
-        rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          connection_lost(conn)
-        rescue => error
-          signal_fatal_error(error)
-        end
-      else
-        @parent_task.async(transient: true, annotation: "recv pump") do |task|
-          loop do
-            count = 0
-            bytes = 0
-            while count < RECV_FAIRNESS_MESSAGES && bytes < RECV_FAIRNESS_BYTES
-              msg = conn.receive_message
-              recv_queue.enqueue(msg)
-              count += 1
-              bytes += msg.is_a?(Array) && msg.first.is_a?(String) ? msg.sum(&:bytesize) : 0
-            end
-            task.yield
-          end
-        rescue Async::Stop
-        rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          connection_lost(conn)
-        rescue => error
-          signal_fatal_error(error)
-        end
-      end
+      task = RecvPump.start(@parent_task, conn, recv_queue, self, transform)
+      @tasks << task if task
+      task
     end
 
 
@@ -358,20 +291,9 @@ module OMQ
       @routing.connection_removed(connection)
       connection.close
       emit_monitor_event(:disconnected, endpoint: endpoint)
-
-      # Signal the connection task to exit.
-      done = @connection_promises.delete(connection)
-      done&.resolve(true)
-
-      # Resolve all_peers_gone once: had peers, now have none.
-      if @peer_connected.resolved? && @connections.empty?
-        @all_peers_gone.resolve(true)
-      end
-
-      # Auto-reconnect if this was a connected (not bound) endpoint
-      if endpoint && @connected_endpoints.include?(endpoint) && !@closed && !@closing && @reconnect_enabled
-        schedule_reconnect(endpoint)
-      end
+      @connection_promises.delete(connection)&.resolve(true)
+      @all_peers_gone.resolve(true) if @peer_connected.resolved? && @connections.empty?
+      maybe_reconnect(endpoint)
     end
 
 
@@ -382,40 +304,13 @@ module OMQ
     def close
       return if @closed || @closing
       @closing = true
-
-      # Stop accepting new connections — but only if we already have
-      # peers to drain to. With zero connections the listeners must
-      # stay open so late-arriving peers can still receive queued
-      # messages during the linger period.
-      unless @connections.empty?
-        @listeners.each(&:stop)
-        @listeners.clear
-      end
-
-      # Linger: wait for send queues to drain before closing.
-      # linger=0 → close immediately, linger=nil → wait forever.
-      # @closed is set AFTER draining so reconnect tasks keep
-      # running during the linger period.
-      linger = @options.linger
-      if linger.nil? || linger > 0
-        drain_timeout = linger # nil = wait forever, >0 = seconds
-        drain_send_queues(drain_timeout)
-      end
-
+      stop_listeners unless @connections.empty?
+      drain_send_queues(@options.linger) if @options.linger.nil? || @options.linger > 0
       @closed = true
       Reactor.untrack_linger(@options.linger) if @on_io_thread
-
-      # Stop any remaining listeners.
-      @listeners.each(&:stop)
-      @listeners.clear
-
-      # Close connections — causes pump tasks to get EOFError/IOError
-      @connections.each(&:close)
-      @connections.clear
-      # Stop any remaining pump tasks
-      @routing.stop rescue nil
-      @tasks.each { |t| t.stop rescue nil }
-      @tasks.clear
+      stop_listeners
+      close_connections
+      stop_tasks
       emit_monitor_event(:closed)
       close_monitor_queue
     end
@@ -479,18 +374,24 @@ module OMQ
     end
 
 
+    def emit_monitor_event(type, endpoint: nil, detail: nil)
+      return unless @monitor_queue
+      @monitor_queue.push(MonitorEvent.new(type: type, endpoint: endpoint, detail: detail))
+    rescue Async::Stop, ClosedQueueError
+    end
+
+    def transport_for(endpoint)
+      scheme = endpoint[/\A([^:]+):\/\//, 1]
+      self.class.transports[scheme] or
+        raise ArgumentError, "unsupported transport: #{endpoint}"
+    end
+
     private
 
-
-    # Spawns an isolated connection task as a sibling of accept/reconnect
-    # tasks. All per-connection children (heartbeat, recv pump, reaper)
-    # live inside this task. When the connection dies, the entire subtree
-    # is cleaned up by Async.
-    #
     def spawn_connection(io, as_server:, endpoint: nil)
       task = @parent_task&.async(transient: true, annotation: "conn #{endpoint}") do
         done = Async::Promise.new
-        conn = setup_connection(io, as_server: as_server, endpoint: endpoint, done: done)
+        conn = ConnectionSetup.run(io, self, as_server: as_server, endpoint: endpoint, done: done)
         done.wait
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST
         # handshake failed or connection lost — subtree cleaned up
@@ -500,154 +401,30 @@ module OMQ
       @tasks << task if task
     end
 
-
-    # Waits for all per-connection send queues to drain.
-    #
-    # @param timeout [Numeric, nil] max seconds to wait (nil = forever)
-    #
     def drain_send_queues(timeout)
       return unless @routing.respond_to?(:send_queues_drained?)
       deadline = timeout ? Async::Clock.now + timeout : nil
-
       until @routing.send_queues_drained?
-        if deadline
-          remaining = deadline - Async::Clock.now
-          break if remaining <= 0
-        end
+        break if deadline && (deadline - Async::Clock.now) <= 0
         sleep 0.001
       end
     end
 
-
-    # Performs the ZMTP handshake, starts heartbeating, and registers
-    # the new connection with the routing strategy.
-    #
-    # @param io [#read, #write, #close] underlying transport stream
-    # @param as_server [Boolean] whether we are the ZMTP server side
-    # @param endpoint [String, nil] endpoint for reconnection tracking
-    # @param done [Async::Promise, nil] resolved when the connection is lost
-    #
-    def setup_connection(io, as_server:, endpoint: nil, done: nil)
-      conn = Protocol::ZMTP::Connection.new(
-        io,
-        socket_type:      @socket_type.to_s,
-        identity:         @options.identity,
-        as_server:        as_server,
-        mechanism:        @options.mechanism&.dup,
-        max_message_size: @options.max_message_size,
-      )
-      conn.handshake!
-      start_heartbeat(conn)
-      conn = @connection_wrapper.call(conn) if @connection_wrapper
-      @connections << conn
-      @connection_endpoints[conn] = endpoint if endpoint
-      @connection_promises[conn]  = done if done
-      @routing.connection_added(conn)
-      @peer_connected.resolve(conn)
-      emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
-      conn
-    rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
-      emit_monitor_event(:handshake_failed, endpoint: endpoint, detail: { error: error })
-      conn&.close
-      raise
+    def maybe_reconnect(endpoint)
+      return unless endpoint && @connected_endpoints.include?(endpoint)
+      return if @closed || @closing || !@reconnect_enabled
+      Reconnect.schedule(endpoint, @options, @parent_task, self)
     end
 
-
-    # Spawns a heartbeat task for the connection.
-    # The connection only tracks timestamps — the engine drives the loop.
-    #
-    # @param conn [Connection]
-    # @return [void]
-    #
-    def start_heartbeat(conn)
-      interval = @options.heartbeat_interval
-      return unless interval
-
-      ttl     = @options.heartbeat_ttl || interval
-      timeout = @options.heartbeat_timeout || interval
-      conn.touch_heartbeat
-
-      @tasks << @parent_task.async(transient: true, annotation: "heartbeat") do
-        loop do
-          sleep interval
-          conn.send_command(Protocol::ZMTP::Codec::Command.ping(ttl: ttl, context: "".b))
-          if conn.heartbeat_expired?(timeout)
-            conn.close
-            break
-          end
-        end
-      rescue Async::Stop
-      rescue *CONNECTION_LOST
-        # connection closed
-      end
-    end
-
-
-    # Spawns a background task that reconnects to the given endpoint
-    # with exponential back-off based on the reconnect_interval option.
-    #
-    # @param endpoint [String] endpoint to reconnect to
-    # @param delay [Numeric, nil] initial delay in seconds (defaults to reconnect_interval)
-    #
     def schedule_reconnect(endpoint, delay: nil)
-      ri = @options.reconnect_interval
-      if ri.is_a?(Range)
-        delay   ||= ri.begin
-        max_delay = ri.end
-      else
-        delay   ||= ri
-        max_delay = nil
-      end
-
-      @tasks << @parent_task.async(transient: true, annotation: "reconnect #{endpoint}") do
-        loop do
-          break if @closed
-          sleep delay if delay > 0
-          break if @closed
-          begin
-            transport = transport_for(endpoint)
-            transport.connect(endpoint, self)
-            break # connected successfully
-          rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error
-            delay = [delay * 2, max_delay].min if max_delay
-            # After first attempt with delay: 0, use the configured interval
-            delay = ri.is_a?(Range) ? ri.begin : ri if delay == 0
-            emit_monitor_event(:connect_retried, endpoint: endpoint, detail: { interval: delay })
-          end
-        end
-      rescue Async::Stop
-        # normal shutdown
-      rescue => error
-        signal_fatal_error(error)
-      end
+      Reconnect.schedule(endpoint, @options, @parent_task, self, delay: delay)
     end
 
-
-    # Eagerly validates TCP hostnames so resolution errors fail
-    # on connect, not silently in the background reconnect loop.
-    # Reconnects still re-resolve (DNS may change), and transient
-    # resolution failures during reconnect are retried with backoff.
-    #
     def validate_endpoint!(endpoint)
       transport = transport_for(endpoint)
       transport.validate_endpoint!(endpoint) if transport.respond_to?(:validate_endpoint!)
     end
 
-
-
-    def transport_for(endpoint)
-      scheme = endpoint[/\A([^:]+):\/\//, 1]
-      self.class.transports[scheme] or
-        raise ArgumentError, "unsupported transport: #{endpoint}"
-    end
-
-
-    # Delegates accept loop startup to the listener.
-    #
-    # Stream-based listeners (TCP, IPC, TLS, …) implement
-    # +#start_accept_loops+. Inproc listeners do not — connections
-    # are established synchronously during +connect+.
-    #
     def start_accept_loops(listener)
       return unless listener.respond_to?(:start_accept_loops)
       listener.start_accept_loops(@parent_task) do |io|
@@ -655,20 +432,37 @@ module OMQ
       end
     end
 
+    def stop_listeners
+      @listeners.each(&:stop)
+      @listeners.clear
+    end
+
+    def close_connections
+      @connections.each(&:close)
+      @connections.clear
+    end
+
+    def close_connections_at(endpoint)
+      conns = @connection_endpoints.select { |_, ep| ep == endpoint }.keys
+      conns.each do |conn|
+        @connection_endpoints.delete(conn)
+        @connections.delete(conn)
+        @routing.connection_removed(conn)
+        conn.close
+      end
+    end
+
+    def stop_tasks
+      @routing.stop rescue nil
+      @tasks.each { |t| t.stop rescue nil }
+      @tasks.clear
+    end
 
     def freeze_error_lists!
       return if OMQ::CONNECTION_LOST.frozen?
       OMQ::CONNECTION_LOST.freeze
       OMQ::CONNECTION_FAILED.freeze
     end
-
-
-    def emit_monitor_event(type, endpoint: nil, detail: nil)
-      return unless @monitor_queue
-      @monitor_queue.push(MonitorEvent.new(type: type, endpoint: endpoint, detail: detail))
-    rescue Async::Stop, ClosedQueueError
-    end
-
 
     def close_monitor_queue
       return unless @monitor_queue

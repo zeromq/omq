@@ -2,6 +2,7 @@
 
 require "async"
 require "async/queue"
+require_relative "inproc/direct_pipe"
 
 module OMQ
   module Transport
@@ -54,25 +55,7 @@ module OMQ
         #
         def connect(endpoint, engine)
           bound_engine = @mutex.synchronize { @registry[endpoint] }
-
-          unless bound_engine
-            # Endpoint not bound yet. Wait with timeout derived from
-            # reconnect_interval. If it doesn't appear, silently return —
-            # matching ZMQ 4.x behavior where inproc connect to an
-            # unbound endpoint succeeds but messages go nowhere.
-            # A background task retries periodically.
-            ri      = engine.options.reconnect_interval
-            timeout = ri.is_a?(Range) ? ri.begin : ri
-            promise = Async::Promise.new
-            @mutex.synchronize { @waiters[endpoint] << promise }
-            unless promise.wait?(timeout: timeout)
-              @mutex.synchronize { @waiters[endpoint].delete(promise) }
-              start_connect_retry(endpoint, engine)
-              return
-            end
-            bound_engine = @mutex.synchronize { @registry[endpoint] }
-          end
-
+          bound_engine ||= await_bind(endpoint, engine) or return
           establish_link(engine, bound_engine, endpoint)
         end
 
@@ -112,42 +95,51 @@ module OMQ
         def establish_link(client_engine, server_engine, endpoint)
           client_type = client_engine.socket_type
           server_type = server_engine.socket_type
-
           unless Protocol::ZMTP::VALID_PEERS[client_type]&.include?(server_type)
             raise Protocol::ZMTP::Error,
                   "incompatible socket types: #{client_type} cannot connect to #{server_type}"
           end
+          needs_cmds = needs_commands?(client_engine, server_engine, client_type, server_type)
+          client_pipe, server_pipe = make_pipe_pair(client_engine, server_engine, client_type, server_type, needs_cmds)
+          client_engine.connection_ready(client_pipe, endpoint: endpoint)
+          server_engine.connection_ready(server_pipe, endpoint: endpoint)
+        end
 
-          # PUB/SUB-family types exchange commands (SUBSCRIBE/CANCEL)
-          # over inproc. QoS >= 1 needs command queues for ACK/NACK.
-          needs_commands = COMMAND_TYPES.include?(client_type) ||
-                           COMMAND_TYPES.include?(server_type) ||
-                           client_engine.options.qos >= 1 ||
-                           server_engine.options.qos >= 1
+        def needs_commands?(ce, se, ct, st)
+          COMMAND_TYPES.include?(ct) || COMMAND_TYPES.include?(st) ||
+            ce.options.qos >= 1 || se.options.qos >= 1
+        end
 
-          if needs_commands
+        def make_pipe_pair(ce, se, ct, st, needs_cmds)
+          if needs_cmds
             a_to_b = Async::Queue.new
             b_to_a = Async::Queue.new
           end
+          client = DirectPipe.new(send_queue: needs_cmds ? a_to_b : nil,
+                                  receive_queue: needs_cmds ? b_to_a : nil,
+                                  peer_identity: se.options.identity, peer_type: st.to_s)
+          server = DirectPipe.new(send_queue: needs_cmds ? b_to_a : nil,
+                                  receive_queue: needs_cmds ? a_to_b : nil,
+                                  peer_identity: ce.options.identity, peer_type: ct.to_s)
+          client.peer = server
+          server.peer = client
+          [client, server]
+        end
 
-          client_pipe = DirectPipe.new(
-            send_queue:    needs_commands ? a_to_b : nil,
-            receive_queue: needs_commands ? b_to_a : nil,
-            peer_identity: server_engine.options.identity,
-            peer_type:     server_type.to_s,
-          )
-          server_pipe = DirectPipe.new(
-            send_queue:    needs_commands ? b_to_a : nil,
-            receive_queue: needs_commands ? a_to_b : nil,
-            peer_identity: client_engine.options.identity,
-            peer_type:     client_type.to_s,
-          )
-
-          client_pipe.peer = server_pipe
-          server_pipe.peer = client_pipe
-
-          client_engine.connection_ready(client_pipe, endpoint: endpoint)
-          server_engine.connection_ready(server_pipe, endpoint: endpoint)
+        def await_bind(endpoint, engine)
+          # Endpoint not bound yet — wait briefly then start background retry.
+          # Matches ZMQ 4.x: connect to unbound inproc succeeds silently.
+          ri      = engine.options.reconnect_interval
+          timeout = ri.is_a?(Range) ? ri.begin : ri
+          promise = Async::Promise.new
+          @mutex.synchronize { @waiters[endpoint] << promise }
+          if promise.wait?(timeout: timeout)
+            @mutex.synchronize { @registry[endpoint] }
+          else
+            @mutex.synchronize { @waiters[endpoint].delete(promise) }
+            start_connect_retry(endpoint, engine)
+            nil
+          end
         end
 
 
@@ -195,179 +187,6 @@ module OMQ
         end
       end
 
-      # A direct in-process pipe that transfers Ruby arrays through queues.
-      #
-      # Implements the same interface as Connection so routing strategies
-      # can use it transparently.
-      #
-      # When a routing strategy sets {#direct_recv_queue} on a pipe,
-      # {#send_message} enqueues directly into the peer's recv queue,
-      # bypassing the intermediate pipe queues and the recv pump task.
-      # This reduces inproc from 3 queue hops to 2 (send_queue →
-      # recv_queue), eliminating the internal pipe queue in between.
-      #
-      class DirectPipe
-        # @return [String] peer's socket type
-        #
-        attr_reader :peer_socket_type
-
-
-        # @return [String] peer's identity
-        #
-        attr_reader :peer_identity
-
-
-        # @return [DirectPipe, nil] the other end of this pipe pair
-        #
-        attr_accessor :peer
-
-
-        # @return [Async::LimitedQueue, nil] when set, {#send_message}
-        #   enqueues directly here instead of using the internal queue
-        #
-        attr_reader :direct_recv_queue
-
-
-        # @return [Proc, nil] optional transform applied before
-        #   enqueuing into {#direct_recv_queue}
-        #
-        attr_accessor :direct_recv_transform
-
-
-        # @param send_queue [Async::Queue, nil] outgoing command queue
-        #   (nil for non-PUB/SUB types that don't exchange commands)
-        # @param receive_queue [Async::Queue, nil] incoming command queue
-        # @param peer_identity [String]
-        # @param peer_type [String]
-        #
-        def initialize(send_queue: nil, receive_queue: nil, peer_identity:, peer_type:)
-          @send_queue            = send_queue
-          @receive_queue         = receive_queue
-          @peer_identity         = peer_identity || "".b
-          @peer_socket_type      = peer_type
-          @closed                = false
-          @peer                  = nil
-          @direct_recv_queue     = nil
-          @direct_recv_transform = nil
-          @pending_direct        = nil
-        end
-
-
-        # Sets the direct recv queue. Drains any messages that were
-        # buffered before the queue was available.
-        #
-        def direct_recv_queue=(queue)
-          @direct_recv_queue = queue
-          if queue && @pending_direct
-            @pending_direct.each do |msg|
-              queue.enqueue(msg)
-            end
-            @pending_direct = nil
-          end
-        end
-
-
-        # Sends a multi-frame message.
-        #
-        # When {#direct_recv_queue} is set (inproc fast path), the
-        # message is delivered directly to the peer's recv queue,
-        # skipping the internal pipe queues and the recv pump.
-        #
-        # @param parts [Array<String>]
-        # @return [void]
-        #
-        def send_message(parts)
-          raise IOError, "closed" if @closed
-          if @direct_recv_queue
-            msg = @direct_recv_transform ? @direct_recv_transform.call(parts).freeze : parts
-            @direct_recv_queue.enqueue(msg)
-          elsif @send_queue
-            @send_queue.enqueue(parts)
-          else
-            msg = @direct_recv_transform ? @direct_recv_transform.call(parts).freeze : parts
-            (@pending_direct ||= []) << msg
-          end
-        end
-
-
-        alias write_message send_message
-
-
-        # No-op — inproc has no IO buffer to flush.
-        #
-        # @return [void]
-        #
-        def flush = nil
-
-
-        # Receives a multi-frame message.
-        #
-        # When a block is given, command items ([:command, cmd]) are
-        # yielded as command frames — matching the Protocol::ZMTP::Connection
-        # interface. Without a block, commands are silently skipped if
-        # the pipe has command queues.
-        #
-        # @return [Array<String>]
-        # @raise [EOFError] if closed
-        #
-        def receive_message
-          loop do
-            item = @receive_queue.dequeue
-            raise EOFError, "connection closed" if item.nil?
-
-            if item.is_a?(Array) && item.first == :command
-              if block_given?
-                cmd   = item[1]
-                frame = Protocol::ZMTP::Codec::Frame.new(cmd.to_body, command: true)
-                yield frame
-              end
-              next
-            end
-
-            return item
-          end
-        end
-
-
-        # Sends a command via the internal command queue.
-        # Only available for PUB/SUB-family pipes.
-        #
-        # @param command [Protocol::ZMTP::Codec::Command]
-        # @return [void]
-        #
-        def send_command(command)
-          raise IOError, "closed" if @closed
-          @send_queue.enqueue([:command, command])
-        end
-
-
-        # Reads one command frame from the internal command queue.
-        # Used by PUB/XPUB subscription listeners.
-        #
-        # @return [Protocol::ZMTP::Codec::Frame]
-        #
-        def read_frame
-          loop do
-            item = @receive_queue.dequeue
-            raise EOFError, "connection closed" if item.nil?
-            if item.is_a?(Array) && item.first == :command
-              cmd = item[1]
-              return Protocol::ZMTP::Codec::Frame.new(cmd.to_body, command: true)
-            end
-          end
-        end
-
-
-        # Closes this pipe end.
-        #
-        # @return [void]
-        #
-        def close
-          return if @closed
-          @closed = true
-          @send_queue&.enqueue(nil) # close sentinel
-        end
-      end
     end
   end
 end

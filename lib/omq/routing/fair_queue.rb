@@ -13,11 +13,12 @@ module OMQ
     #
     class FairQueue
       def initialize
-        @queues  = []              # ordered list of per-connection inner queues
-        @mapping = {}              # connection => inner queue
-        @cycle   = @queues.cycle  # live reference — sees adds/removes
-        @signal  = Async::Promise.new
-        @closed  = false
+        @queues    = []              # ordered list of per-connection inner queues
+        @mapping   = {}              # connection => inner queue
+        @cycle     = @queues.cycle  # live reference — sees adds/removes
+        @condition = Async::Condition.new
+        @pending   = 0              # signals received before #dequeue waits
+        @closed    = false
       end
 
       # Registers a per-connection queue. Called when a connection is added.
@@ -49,7 +50,8 @@ module OMQ
       # Wakes a blocked #dequeue. Called by SignalingQueue after each enqueue.
       #
       def signal
-        @signal.resolve(true) unless @signal.resolved?
+        @pending += 1
+        @condition.signal
       end
 
       # Returns the next message from any per-connection queue, in fair
@@ -70,8 +72,12 @@ module OMQ
           msg = try_dequeue
           return msg if msg
 
-          @signal = Async::Promise.new
-          @signal.wait
+          if @pending > 0
+            @pending -= 1
+            next
+          end
+
+          @condition.wait
         end
       end
 
@@ -80,7 +86,7 @@ module OMQ
       #
       def push(nil_sentinel)
         @closed = true
-        @signal.resolve(true) unless @signal.resolved?
+        @condition.signal
       end
 
       # @return [Boolean]

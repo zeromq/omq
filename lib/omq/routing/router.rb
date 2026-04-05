@@ -11,6 +11,7 @@ module OMQ
     # routing identity on send.
     #
     class Router
+      include FairRecv
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -35,17 +36,11 @@ module OMQ
         @connections_by_identity[identity] = connection
         @identity_by_connection[connection] = identity
 
-        conn_q    = Routing.build_queue(@engine.options.recv_hwm, :block)
-        signaling = SignalingQueue.new(conn_q, @recv_queue)
-        @recv_queue.add_queue(connection, conn_q)
-        task = @engine.start_recv_pump(connection, signaling) do |msg|
-          [identity, *msg]
-        end
-        @tasks << task if task
+        add_fair_recv_connection(connection) { |msg| [identity, *msg] }
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
-        start_conn_send_pump(connection, q, identity)
+        @conn_send_tasks[connection] = ConnSendPump.start(@engine, connection, q, @tasks)
       end
 
       # @param connection [Connection]
@@ -85,25 +80,6 @@ module OMQ
         @conn_queues.values.all?(&:empty?)
       end
 
-      private
-
-      def start_conn_send_pump(conn, q, identity)
-        task = @engine.spawn_pump_task(annotation: "send pump") do
-          loop do
-            batch = [q.dequeue]
-            Routing.drain_send_queue(q, batch)
-            begin
-              batch.each { |parts| conn.write_message(parts) }
-              conn.flush
-            rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-              @engine.connection_lost(conn)
-              break
-            end
-          end
-        end
-        @conn_send_tasks[conn] = task
-        @tasks << task
-      end
     end
   end
 end

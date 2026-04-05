@@ -141,37 +141,32 @@ module OMQ
       #
       def start_conn_send_pump(conn, q)
         use_wire = conn.respond_to?(:write_wire) && !(conn.respond_to?(:curve?) && conn.curve?)
-
-        task = if @conflate
-          start_conn_send_pump_conflate(conn, q)
-        else
-          @engine.spawn_pump_task(annotation: "send pump") do
-            loop do
-              batch = [q.dequeue]
-              Routing.drain_send_queue(q, batch)
-              begin
-                sent = false
-                batch.each do |parts|
-                  topic = parts.first || EMPTY_BINARY
-                  next unless subscribed?(conn, topic)
-                  if use_wire
-                    wire_bytes = Protocol::ZMTP::Codec::Frame.encode_message(parts)
-                    conn.write_wire(wire_bytes)
-                  else
-                    conn.write_message(parts)
-                  end
-                  sent = true
-                end
-                conn.flush if sent
-              rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-                @engine.connection_lost(conn)
-                break
-              end
-            end
-          end
-        end
+        task     = @conflate ? start_conn_send_pump_conflate(conn, q) : start_conn_send_pump_normal(conn, q, use_wire)
         @conn_send_tasks[conn] = task
         @tasks << task
+      end
+
+      def start_conn_send_pump_normal(conn, q, use_wire)
+        @engine.spawn_pump_task(annotation: "send pump") do
+          loop do
+            batch = [q.dequeue]
+            Routing.drain_send_queue(q, batch)
+            conn.flush if write_matching_batch(conn, batch, use_wire)
+          rescue Protocol::ZMTP::Error, *CONNECTION_LOST
+            @engine.connection_lost(conn)
+            break
+          end
+        end
+      end
+
+      def write_matching_batch(conn, batch, use_wire)
+        sent = false
+        batch.each do |parts|
+          next unless subscribed?(conn, parts.first || EMPTY_BINARY)
+          use_wire ? conn.write_wire(Protocol::ZMTP::Codec::Frame.encode_message(parts)) : conn.write_message(parts)
+          sent = true
+        end
+        sent
       end
 
 

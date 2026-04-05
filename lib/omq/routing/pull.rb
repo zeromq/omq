@@ -5,6 +5,7 @@ module OMQ
     # PULL socket routing: fair-queue receive from PUSH peers.
     #
     class Pull
+      include FairRecv
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -20,11 +21,7 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_added(connection)
-        conn_q    = Routing.build_queue(@engine.options.recv_hwm, :block)
-        signaling = SignalingQueue.new(conn_q, @recv_queue)
-        @recv_queue.add_queue(connection, conn_q)
-        task = @engine.start_recv_pump(connection, signaling)
-        @tasks << task if task
+        add_fair_recv_connection(connection)
       end
 
       # @param connection [Connection]
