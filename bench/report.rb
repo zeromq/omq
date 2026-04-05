@@ -8,7 +8,7 @@
 # Usage:
 #   ruby bench/report.rb                  # latest vs previous
 #   ruby bench/report.rb --all            # show all measurements
-#   ruby bench/report.rb --runs 5         # compare last 5 runs
+#   ruby bench/report.rb --runs 5         # compare latest vs oldest-of-5
 #   ruby bench/report.rb --threshold 10   # 10% noise band
 #   ruby bench/report.rb --pattern push_pull
 
@@ -49,11 +49,12 @@ rows.each do |r|
 end
 
 # ANSI helpers
-RED   = "\e[31m"
-GREEN = "\e[32m"
-DIM   = "\e[2m"
-BOLD  = "\e[1m"
-RESET = "\e[0m"
+RED    = "\e[31m"
+GREEN  = "\e[32m"
+YELLOW = "\e[33m"
+DIM    = "\e[2m"
+BOLD   = "\e[1m"
+RESET  = "\e[0m"
 
 def format_si(value)
   case
@@ -80,52 +81,64 @@ def format_size(bytes)
 end
 
 threshold    = options[:threshold]
-prev_run     = run_ids[-2]
-latest_run   = run_ids[-1]
+base_run     = run_ids.first   # oldest of the window
+latest_run   = run_ids.last
 regressions  = []
 improvements = []
+trends       = []
 stable_count = 0
 
 by_key.sort.each do |key, runs|
-  prev   = runs[prev_run]
+  base   = runs[base_run]
   latest = runs[latest_run]
-  next unless prev && latest
+  next unless base && latest
 
   pattern, transport, peers, msg_size = key
   peer_label = "#{peers} peer#{'s' if peers > 1}"
 
   [:msgs_s, :mbps].each do |metric|
-    old_val = prev[metric]
+    old_val = base[metric]
     new_val = latest[metric]
-    next if old_val.zero?
+    next if old_val.nil? || old_val.zero?
 
-    delta_pct = ((new_val - old_val) / old_val * 100).round(1)
+    fmt     = metric == :msgs_s ? method(:format_si) : method(:format_mbps)
+    delta   = ((new_val - old_val) / old_val * 100).round(1)
+    row     = { pattern: pattern, transport: transport, peers: peer_label,
+                size: format_size(msg_size), metric: metric,
+                old: fmt.(old_val), new: fmt.(new_val), delta: delta }
 
-    if delta_pct <= -threshold
-      fmt_old = metric == :msgs_s ? format_si(old_val) : format_mbps(old_val)
-      fmt_new = metric == :msgs_s ? format_si(new_val) : format_mbps(new_val)
-      regressions << { pattern: pattern, transport: transport, peers: peer_label,
-                       size: format_size(msg_size), metric: metric,
-                       old: fmt_old, new: fmt_new, delta: delta_pct }
-    elsif delta_pct >= threshold
-      fmt_old = metric == :msgs_s ? format_si(old_val) : format_mbps(old_val)
-      fmt_new = metric == :msgs_s ? format_si(new_val) : format_mbps(new_val)
-      improvements << { pattern: pattern, transport: transport, peers: peer_label,
-                        size: format_size(msg_size), metric: metric,
-                        old: fmt_old, new: fmt_new, delta: delta_pct }
+    if delta <= -threshold
+      regressions << row
+    elsif delta >= threshold
+      improvements << row
     else
-      stable_count += 1
+      # Check for monotonic trend across all N runs (requires 3+ runs)
+      values = run_ids.map { |id| runs[id]&.fetch(metric, nil) }.compact
+      if values.size >= 3
+        declining  = values.each_cons(2).all? { |a, b| b < a }
+        increasing = values.each_cons(2).all? { |a, b| b > a }
+        if declining || increasing
+          direction = declining ? :down : :up
+          trends << row.merge(direction: direction, runs: values.size)
+        else
+          stable_count += 1
+        end
+      else
+        stable_count += 1
+      end
     end
   end
 end
 
-total = regressions.size + improvements.size + stable_count
+total = regressions.size + improvements.size + trends.size + stable_count
 
-puts "#{BOLD}=== OMQ Benchmark Report (#{latest_run} vs #{prev_run}) ===#{RESET}"
+span_label = run_ids.size == 2 ? "#{latest_run} vs #{base_run}" :
+             "#{latest_run} vs #{base_run} (#{run_ids.size} runs)"
+puts "#{BOLD}=== OMQ Benchmark Report (#{span_label}) ===#{RESET}"
 puts
 
 if regressions.any?
-  puts "#{RED}#{BOLD}REGRESSIONS (>#{threshold}%):#{RESET}"
+  puts "#{RED}#{BOLD}REGRESSIONS (>#{threshold}% vs oldest):#{RESET}"
   regressions.each do |r|
     printf "  %-15s %-8s %-9s %5s  %-6s  %10s → %-10s  #{RED}%+.1f%%#{RESET}\n",
            r[:pattern], r[:transport], r[:peers], r[:size], r[:metric], r[:old], r[:new], r[:delta]
@@ -134,7 +147,7 @@ if regressions.any?
 end
 
 if improvements.any?
-  puts "#{GREEN}#{BOLD}IMPROVEMENTS (>#{threshold}%):#{RESET}"
+  puts "#{GREEN}#{BOLD}IMPROVEMENTS (>#{threshold}% vs oldest):#{RESET}"
   improvements.each do |r|
     printf "  %-15s %-8s %-9s %5s  %-6s  %10s → %-10s  #{GREEN}%+.1f%%#{RESET}\n",
            r[:pattern], r[:transport], r[:peers], r[:size], r[:metric], r[:old], r[:new], r[:delta]
@@ -142,10 +155,21 @@ if improvements.any?
   puts
 end
 
-if regressions.empty? && improvements.empty?
+if trends.any?
+  puts "#{YELLOW}#{BOLD}TRENDS (monotonic across #{run_ids.size} runs, within ±#{threshold}%):#{RESET}"
+  trends.each do |r|
+    arrow = r[:direction] == :down ? "↓" : "↑"
+    printf "  %-15s %-8s %-9s %5s  %-6s  %10s → %-10s  #{YELLOW}%s %+.1f%%#{RESET}\n",
+           r[:pattern], r[:transport], r[:peers], r[:size], r[:metric], r[:old], r[:new], arrow, r[:delta]
+  end
+  puts
+end
+
+if regressions.empty? && improvements.empty? && trends.empty?
   puts "#{DIM}All #{total} measurements stable (±#{threshold}%)#{RESET}"
 else
-  puts "#{DIM}#{total} measurements total: #{regressions.size} regressions, #{improvements.size} improvements, #{stable_count} stable (±#{threshold}%)#{RESET}"
+  puts "#{DIM}#{total} measurements total: #{regressions.size} regressions, " \
+       "#{improvements.size} improvements, #{trends.size} trends, #{stable_count} stable (±#{threshold}%)#{RESET}"
 end
 
 # --all: full table grouped by pattern
@@ -157,7 +181,6 @@ if options[:all]
     pattern, transport, peers, msg_size = key
     peer_label = "#{peers} peer#{'s' if peers > 1}"
 
-    header_values = run_ids.map { |id| id[0..9] }
     printf "\n  %-15s %-8s %-9s %5s", pattern, transport, peer_label, format_size(msg_size)
 
     [:msgs_s, :mbps].each do |metric|
@@ -167,17 +190,15 @@ if options[:all]
       printf "  %-6s", metric
       values.each { |v| printf "  %10s", v ? fmt.(v) : "--" }
 
-      if values.compact.size >= 2
-        old_val = values[-2]
-        new_val = values[-1]
-        if old_val && new_val && !old_val.zero?
-          delta = ((new_val - old_val) / old_val * 100).round(1)
-          color = delta <= -threshold ? RED : delta >= threshold ? GREEN : DIM
-          printf "  #{color}%+.1f%%#{RESET}", delta
-        end
+      base_val   = values.first
+      latest_val = values.last
+      if base_val && latest_val && !base_val.zero?
+        delta = ((latest_val - base_val) / base_val * 100).round(1)
+        color = delta <= -threshold ? RED : delta >= threshold ? GREEN : DIM
+        printf "  #{color}%+.1f%%#{RESET}", delta
       end
     end
-    puts
   end
+  puts
   puts
 end
