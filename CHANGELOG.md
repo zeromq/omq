@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+
+- **FanOut send queues no longer drop messages** — per-connection send queues in
+  `FanOut` (PUB/XPUB/RADIO) used `DropQueue` (`Thread::SizedQueue`) which never
+  blocked the publisher fiber. When burst-sending beyond `send_hwm`, the sender
+  ran without yielding and messages were silently dropped. Switched to
+  `Async::LimitedQueue` (`:block`) so the publisher yields when a per-connection
+  queue is full, giving the send pump fiber a chance to drain it.
+
 ### Added
 
 - **Per-peer HWM** — send and receive high-water marks now apply per connected

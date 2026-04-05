@@ -33,7 +33,6 @@ module OMQ
         @subscriptions      = {} # connection => Set of prefixes
         @conn_queues        = {} # connection => per-connection send queue
         @conn_send_tasks    = {} # connection => send pump task
-        @on_mute            = engine.options.on_mute
         @conflate           = engine.options.conflate
         @subscriber_joined  = Async::Promise.new
         @latest             = {} if @conflate
@@ -77,7 +76,7 @@ module OMQ
       # @param conn [Connection]
       #
       def add_fan_out_send_connection(conn)
-        q = Routing.build_queue(@engine.options.send_hwm, @on_mute)
+        q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[conn] = q
         start_conn_send_pump(conn, q)
       end
@@ -100,8 +99,10 @@ module OMQ
       # are respected: a message enqueued before the async subscription listener
       # has processed SUBSCRIBE commands will still be delivered correctly.
       #
-      # DropQueues silently discard messages for slow subscribers;
-      # LimitedQueues block the publisher until the subscriber catches up.
+      # Per-connection queues use :block (Async::LimitedQueue) for
+      # backpressure: when a subscriber's queue is full, the publisher
+      # yields until the send pump drains it. This matches the old
+      # shared-queue behavior and keeps the publisher fiber-friendly.
       #
       # @param parts [Array<String>]
       #
