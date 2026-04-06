@@ -93,6 +93,11 @@ module OMQ
         alias write_message send_message
 
 
+        # Inproc pipes are never encrypted.
+        #
+        def encrypted? = false
+
+
         # No-op — inproc has no IO buffer to flush.
         #
         def flush = nil

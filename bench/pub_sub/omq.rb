@@ -19,12 +19,7 @@ BenchHelper.run("PUB/SUB", dir: __dir__) do |transport, ep, peers, payload, n|
     sub
   end
   BenchHelper.wait_connected(subs) unless transport == "inproc"
-
-  # Warm up (ensure subscriptions are active)
-  100.times do
-    pub << payload
-    subs.each(&:receive)
-  end
+  BenchHelper.wait_subscribed(pub, subs)
 
   t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 

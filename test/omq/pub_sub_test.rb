@@ -23,6 +23,47 @@ describe "PUB/SUB" do
     end
   end
 
+  it "fans out to multiple inproc subscribers" do
+    Async do
+      pub = OMQ::PUB.bind("inproc://pubsub-fanout-inproc")
+
+      subs = 3.times.map { OMQ::SUB.connect("inproc://pubsub-fanout-inproc", subscribe: "") }
+
+      pub.send("broadcast", "payload")
+
+      subs.each do |sub|
+        msg = sub.receive
+        assert_equal ["broadcast", "payload"], msg
+      end
+    ensure
+      subs&.each(&:close)
+      pub&.close
+    end
+  end
+
+  it "fans out to multiple IPC subscribers" do
+    Async do
+      pub = OMQ::PUB.bind("ipc://@pubsub-fanout-ipc")
+
+      subs = 3.times.map { OMQ::SUB.connect("ipc://@pubsub-fanout-ipc", subscribe: "") }
+      wait_connected(*subs)
+
+      # Wait for subscriptions to propagate
+      pub.subscriber_joined.wait
+      Async::Task.current.yield
+
+      pub.send("broadcast", "payload")
+
+      subs.each do |sub|
+        msg = sub.receive
+        assert_equal ["broadcast", "payload"], msg
+      end
+    ensure
+      subs&.each(&:close)
+      pub&.close
+    end
+  end
+
   it "fans out to multiple TCP subscribers (pre-encoded wire path)" do
     Async do
       pub = OMQ::PUB.bind("tcp://127.0.0.1:0")

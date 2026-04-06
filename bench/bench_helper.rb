@@ -11,6 +11,7 @@
 $VERBOSE = nil
 $stdout.sync = true
 
+require "bundler/setup"
 require_relative '../lib/omq'
 require 'async'
 require 'console'
@@ -154,6 +155,24 @@ module BenchHelper
 
   def wait_connected(*sockets)
     sockets.flatten.each { |s| s.peer_connected.wait }
+  end
+
+  # Waits until every SUB has an active subscription at the PUB by
+  # sending probe messages until each sub receives one.
+  #
+  def wait_subscribed(pub, subs)
+    pending = subs.to_set
+    until pending.empty?
+      pub << ""
+      pending.each do |sub|
+        begin
+          Async::Task.current.with_timeout(0.01) { sub.receive }
+          pending.delete(sub)
+        rescue Async::TimeoutError
+          # subscription not yet propagated
+        end
+      end
+    end
   end
 
   def append_result(pattern, transport, peers, msg_size, msg_count, elapsed, mbps, msgs_s)

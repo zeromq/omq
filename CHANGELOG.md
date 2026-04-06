@@ -14,6 +14,10 @@
 - **YJIT: remove safe navigation in hot enqueue paths** — `&.enqueue` calls
   in `FanOut#fan_out_enqueue` and `RoundRobin#enqueue_round_robin` replaced
   with direct calls; queues are guaranteed to exist for live connections.
+- **Fix PUB/SUB fan-out over inproc and IPC** — restore `respond_to?(:write_wire)`
+  guard in `FanOut#start_conn_send_pump` so DirectPipe connections use
+  `#write_message` instead of the wire-optimized path. Add `DirectPipe#encrypted?`
+  (returns `false`) for the mechanism query.
 
 ## 0.13.0
 
