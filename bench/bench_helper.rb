@@ -18,6 +18,7 @@ require 'console'
 require 'rbnacl'
 require 'json'
 require 'protocol/zmtp/mechanism/curve'
+require 'omq/rfcxx-blake3zmq'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
@@ -38,7 +39,7 @@ module BenchHelper
 
   KERNEL = `uname -r`.strip.freeze
 
-  TRANSPORTS = %w[inproc ipc tcp curve].freeze
+  TRANSPORTS = %w[inproc ipc tcp curve blake3].freeze
 
   def run_id
     @run_id ||= ENV["OMQ_BENCH_RUN_ID"] || Time.now.strftime("%Y-%m-%dT%H:%M:%S")
@@ -76,6 +77,7 @@ module BenchHelper
     when "ipc"    then "ipc://@omq-bench-#{seq}"
     when "tcp"    then "tcp://127.0.0.1:0"
     when "curve"  then "tcp://127.0.0.1:0"
+    when "blake3" then "tcp://127.0.0.1:0"
     end
   end
 
@@ -83,7 +85,7 @@ module BenchHelper
   #
   def resolve_endpoint(transport, socket)
     case transport
-    when "tcp", "curve" then "tcp://127.0.0.1:#{socket.last_tcp_port}"
+    when "tcp", "curve", "blake3" then "tcp://127.0.0.1:#{socket.last_tcp_port}"
     else socket.last_endpoint
     end
   end
@@ -94,6 +96,8 @@ module BenchHelper
     case transport
     when "curve"
       socket.mechanism = curve_mechanism(role)
+    when "blake3"
+      socket.mechanism = blake3_mechanism(role)
     end
   end
 
@@ -111,6 +115,25 @@ module BenchHelper
     when :client
       Protocol::ZMTP::Mechanism::Curve.client(k[:client_pub], k[:client_sec],
                                               server_key: k[:server_pub], crypto: RbNaCl)
+    end
+  end
+
+  Blake3Crypto = OMQ::RFCXX::Blake3ZMQ::Crypto
+
+  def blake3_mechanism(role)
+    @blake3_keys ||= begin
+      server_sec = Blake3Crypto::PrivateKey.generate
+      client_sec = Blake3Crypto::PrivateKey.generate
+      { server_pub: server_sec.public_key.to_s, server_sec: server_sec.to_s,
+        client_pub: client_sec.public_key.to_s, client_sec: client_sec.to_s }
+    end
+    k = @blake3_keys
+    case role
+    when :server
+      Protocol::ZMTP::Mechanism::Blake3.server(k[:server_pub], k[:server_sec], crypto: Blake3Crypto)
+    when :client
+      Protocol::ZMTP::Mechanism::Blake3.client(k[:client_pub], k[:client_sec],
+                                               server_key: k[:server_pub], crypto: Blake3Crypto)
     end
   end
 
