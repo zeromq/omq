@@ -18,6 +18,10 @@
   guard in `FanOut#start_conn_send_pump` so DirectPipe connections use
   `#write_message` instead of the wire-optimized path. Add `DirectPipe#encrypted?`
   (returns `false`) for the mechanism query.
+- **Code audit: never-instantiated classes** — `RecvPump`, `ConnectionSetup`,
+  and `Reconnect` refactored from class-method namespaces to proper instances
+  that capture shared state. `Heartbeat`, `Maintenance`, and `ConnSendPump`
+  changed from classes to modules (single `self.` method, never instantiated).
 
 ## 0.13.0
 

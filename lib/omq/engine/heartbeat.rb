@@ -7,7 +7,7 @@ module OMQ
     # Sends PING frames at +interval+ seconds and closes the connection
     # if no traffic is seen within +timeout+ seconds.
     #
-    class Heartbeat
+    module Heartbeat
       # @param parent_task [Async::Task]
       # @param conn [Connection]
       # @param options [Options]

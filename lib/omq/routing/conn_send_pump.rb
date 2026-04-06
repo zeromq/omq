@@ -7,7 +7,7 @@ module OMQ
     # Used by Router and Rep, which have per-connection queues but do not
     # include the RoundRobin mixin.
     #
-    class ConnSendPump
+    module ConnSendPump
       # Spawns the pump task and registers it in +tasks+.
       #
       # @param engine [Engine]

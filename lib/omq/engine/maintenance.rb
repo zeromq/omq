@@ -9,7 +9,7 @@ module OMQ
     # The mechanism declares maintenance needs via +#maintenance+,
     # which returns +{ interval:, task: }+ or nil.
     #
-    class Maintenance
+    module Maintenance
       # @param parent_task [Async::Task]
       # @param mechanism [#maintenance, nil]
       # @param tasks [Array<Async::Task>]
