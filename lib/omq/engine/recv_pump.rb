@@ -59,7 +59,7 @@ module OMQ
                 msg = conn.receive_message
                 recv_queue.enqueue(msg)
                 count += 1
-                bytes += msg.is_a?(Array) && msg.first.is_a?(String) ? msg.sum(&:bytesize) : 0
+                bytes += msg.sum(&:bytesize)
               end
               task.yield
             end

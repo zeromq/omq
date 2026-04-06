@@ -5,6 +5,15 @@
 - Add `Engine::Maintenance` — spawns a periodic `Async::Loop.quantized` timer
   that calls the mechanism's `#maintenance` callback (if defined). Enables
   automatic cookie key rotation for CurveZMQ and BLAKE3ZMQ server mechanisms.
+- **YJIT: remove redundant `is_a?` guards in recv pump** — the non-transform
+  branch no longer type-checks every message; `conn.receive_message` always
+  returns `Array<String>`.
+- **YJIT: `FanOut#subscribed?` fast path for subscribe-all** — connections
+  subscribed to `""` are tracked in a `@subscribe_all` Set, short-circuiting
+  the per-message prefix scan with an O(1) lookup.
+- **YJIT: remove safe navigation in hot enqueue paths** — `&.enqueue` calls
+  in `FanOut#fan_out_enqueue` and `RoundRobin#enqueue_round_robin` replaced
+  with direct calls; queues are guaranteed to exist for live connections.
 
 ## 0.13.0
 

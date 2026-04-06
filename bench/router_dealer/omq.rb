@@ -26,13 +26,14 @@ BenchHelper.run("ROUTER/DEALER", dir: __dir__) do |transport, ep, peers, payload
 
   t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-  tasks = dealers.map do |d|
-    Async { per_dealer.times { d << payload } }
+  barrier = Async::Barrier.new
+  dealers.each do |d|
+    barrier.async { per_dealer.times { d << payload } }
   end
 
   (per_dealer * dealers.size).times { router.receive }
   elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-  tasks.each(&:wait)
+  barrier.wait
 
   begin
     BenchHelper.report(payload.bytesize, n, elapsed)

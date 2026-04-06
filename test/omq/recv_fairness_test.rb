@@ -66,8 +66,9 @@ describe "recv pump fairness" do
       n_big   = 10
       n_small = 10
 
-      task_a = Async { n_big.times { push_a.send(big) } }
-      task_b = Async { n_small.times { push_b.send(small) } }
+      barrier = Async::Barrier.new
+      barrier.async { n_big.times { push_a.send(big) } }
+      barrier.async { n_small.times { push_b.send(small) } }
 
       received = []
       (n_big + n_small).times do
@@ -76,8 +77,7 @@ describe "recv pump fairness" do
         end
       end
 
-      task_a.wait
-      task_b.wait
+      barrier.wait
 
       assert_equal n_big, received.count("X")
       assert_equal n_small, received.count("y")
@@ -105,8 +105,9 @@ describe "recv pump fairness" do
 
       n = 200
 
-      task_a = Async { n.times { |i| push_a.send("A-#{i}") } }
-      task_b = Async { n.times { |i| push_b.send("B-#{i}") } }
+      barrier = Async::Barrier.new
+      barrier.async { n.times { |i| push_a.send("A-#{i}") } }
+      barrier.async { n.times { |i| push_b.send("B-#{i}") } }
 
       received = []
       (2 * n).times do
@@ -115,8 +116,7 @@ describe "recv pump fairness" do
         end
       end
 
-      task_a.wait
-      task_b.wait
+      barrier.wait
 
       # Messages from each peer must be in order (no reordering within
       # a connection), even though messages from different peers are

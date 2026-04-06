@@ -112,13 +112,14 @@ describe "Stress tests" do
       # Wait for subscriptions to propagate
       pub.subscriber_joined.wait
 
-      # Publish messages
-      Async { n_msgs.times { |i| pub.send("msg-#{i}") } }
+      # Publish messages and receive in parallel
+      barrier = Async::Barrier.new
+      barrier.async { n_msgs.times { |i| pub.send("msg-#{i}") } }
 
-      # Each subscriber should receive all messages (in parallel)
-      counts = subs.map do |sub|
+      counts = Array.new(n_subs)
+      subs.each_with_index do |sub, i|
         sub.read_timeout = 0.02
-        Async do
+        barrier.async do
           count = 0
           loop do
             sub.receive
@@ -126,9 +127,10 @@ describe "Stress tests" do
           rescue IO::TimeoutError
             break
           end
-          count
+          counts[i] = count
         end
-      end.map(&:wait)
+      end
+      barrier.wait
 
       counts.each do |count|
         assert_operator count, :>, 0, "subscriber received no messages"

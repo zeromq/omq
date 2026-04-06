@@ -111,14 +111,12 @@ describe "PUB/SUB" do
       5.times { pub.send("warmup"); sub.receive }
 
       n        = 200
-      sender   = Async { n.times { |i| pub.send("msg.#{i}") } }
+      barrier = Async::Barrier.new
+      barrier.async { n.times { |i| pub.send("msg.#{i}") } }
       received = []
-      receiver = Async { n.times { received << sub.receive } }
+      barrier.async { n.times { received << sub.receive } }
 
-      Async::Task.current.with_timeout(5) do
-        receiver.wait
-        sender.wait
-      end
+      Async::Task.current.with_timeout(5) { barrier.wait }
 
       assert_equal n, received.size
     ensure

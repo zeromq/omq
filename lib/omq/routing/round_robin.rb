@@ -103,7 +103,7 @@ module OMQ
           @staging_queue.enqueue(parts)
         else
           conn = next_connection
-          @conn_queues[conn]&.enqueue(parts)
+          @conn_queues[conn].enqueue(parts)
         end
       end
 

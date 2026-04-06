@@ -31,6 +31,7 @@ module OMQ
       def init_fan_out(engine)
         @connections        = Set.new
         @subscriptions      = {} # connection => Set of prefixes
+        @subscribe_all      = Set.new # connections subscribed to "" (match-all fast path)
         @conn_queues        = {} # connection => per-connection send queue
         @conn_send_tasks    = {} # connection => send pump task
         @conflate           = engine.options.conflate
@@ -42,6 +43,7 @@ module OMQ
       # @return [Boolean] whether the connection is subscribed to the topic
       #
       def subscribed?(conn, topic)
+        return true if @subscribe_all.include?(conn)
         subs = @subscriptions[conn]
         return false unless subs
         subs.any? { |prefix| topic.start_with?(prefix) }
@@ -56,6 +58,7 @@ module OMQ
       #
       def on_subscribe(conn, prefix)
         @subscriptions[conn] << prefix.b.freeze
+        @subscribe_all.add(conn) if prefix.empty?
         @subscriber_joined.resolve(conn) unless @subscriber_joined.resolved?
       end
 
@@ -67,6 +70,7 @@ module OMQ
       #
       def on_cancel(conn, prefix)
         @subscriptions[conn]&.delete(prefix)
+        @subscribe_all.delete(conn) if prefix.empty?
       end
 
 
@@ -88,6 +92,7 @@ module OMQ
       # @param conn [Connection]
       #
       def remove_fan_out_send_connection(conn)
+        @subscribe_all.delete(conn)
         @conn_queues.delete(conn)
         @conn_send_tasks.delete(conn)&.stop
       end
@@ -108,7 +113,7 @@ module OMQ
       #
       def fan_out_enqueue(parts)
         @connections.each do |conn|
-          @conn_queues[conn]&.enqueue(parts)
+          @conn_queues[conn].enqueue(parts)
         end
       end
 

@@ -28,15 +28,15 @@ BenchHelper.run("PUB/SUB", dir: __dir__) do |transport, ep, peers, payload, n|
 
   t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-  sender = Async { n.times { pub << payload } }
+  send_barrier = Async::Barrier.new
+  send_barrier.async { n.times { pub << payload } }
 
   # Each sub must receive all N messages
-  receivers = subs.map do |sub|
-    Async { n.times { sub.receive } }
-  end
-  receivers.each(&:wait)
+  recv_barrier = Async::Barrier.new
+  subs.each { |sub| recv_barrier.async { n.times { sub.receive } } }
+  recv_barrier.wait
   elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-  sender.wait
+  send_barrier.wait
 
   begin
     BenchHelper.report(payload.bytesize, n, elapsed)

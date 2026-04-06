@@ -121,13 +121,14 @@ module BenchHelper
 
     t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    tasks = senders.map do |s|
-      Async { per_sender.times { s << payload } }
+    barrier = Async::Barrier.new
+    senders.each do |s|
+      barrier.async { per_sender.times { s << payload } }
     end
 
     (per_sender * senders.size).times { receiver.receive }
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    tasks.each(&:wait)
+    barrier.wait
 
     report(payload.bytesize, n, elapsed)
   end
