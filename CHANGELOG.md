@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 — 2026-04-07
 
 - **Fix recv pump crash with connection wrappers** — `start_direct` called
   `msg.sum(&:bytesize)` unconditionally, crashing when a `connection_wrapper`
@@ -11,6 +11,8 @@
 - YARD documentation on all public methods and classes.
 - Code style: expand `else X` one-liners, enforce two blank lines between
   methods and constants.
+- Benchmarks: add per-run timeout (default 30s, `OMQ_BENCH_TIMEOUT` env var)
+  and abort if a group produces no results.
 
 - Add `Engine::Maintenance` — spawns a periodic `Async::Loop.quantized` timer
   that calls the mechanism's `#maintenance` callback (if defined). Enables

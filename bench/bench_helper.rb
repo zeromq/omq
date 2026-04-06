@@ -45,6 +45,10 @@ module BenchHelper
     @run_id ||= ENV["OMQ_BENCH_RUN_ID"] || Time.now.strftime("%Y-%m-%dT%H:%M:%S")
   end
 
+  # Per-size timeout in seconds. If a single benchmark run takes longer
+  # than this, the benchmark aborts with an error instead of hanging.
+  RUN_TIMEOUT = Integer(ENV.fetch("OMQ_BENCH_TIMEOUT", 30))
+
   def run(label, dir:, peer_counts: [1, 3], &block)
     pattern = File.basename(dir)
     jit     = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "+YJIT" : "no JIT"
@@ -55,16 +59,26 @@ module BenchHelper
 
     TRANSPORTS.each do |transport|
       peer_counts.each do |peers|
-        puts "--- #{transport} (#{peers} peer#{'s' if peers > 1}) ---"
+        header = "#{transport} (#{peers} peer#{'s' if peers > 1})"
+        puts "--- #{header} ---"
+        completed = 0
         SIZES.each do |size|
           n   = RUNS[size]
           seq += 1
-          Async do
-            OMQ::Transport::Inproc.reset! if transport == "inproc"
-            ep = endpoint(transport, seq)
-            r  = block.call(transport, ep, peers, "x" * size, n)
-            append_result(pattern, transport, peers, size, n, r[:elapsed], r[:mbps], r[:msgs_s])
+          Async do |task|
+            task.with_timeout(RUN_TIMEOUT) do
+              OMQ::Transport::Inproc.reset! if transport == "inproc"
+              ep = endpoint(transport, seq)
+              r  = block.call(transport, ep, peers, "x" * size, n)
+              append_result(pattern, transport, peers, size, n, r[:elapsed], r[:mbps], r[:msgs_s])
+              completed += 1
+            end
+          rescue Async::TimeoutError
+            abort "BENCH TIMEOUT: #{header} #{size}B exceeded #{RUN_TIMEOUT}s"
           end
+        end
+        if completed == 0
+          abort "BENCH FAILED: #{header} produced no results"
         end
         puts
       end
