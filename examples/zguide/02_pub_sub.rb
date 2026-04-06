@@ -83,54 +83,47 @@ describe 'Publish-Subscribe' do
       # Proxy: XSUB (upstream) <-> XPUB (downstream)
       xsub = OMQ::XSUB.bind(upstream_ep)
       xpub = OMQ::XPUB.bind(downstream_ep)
-      xsub.recv_timeout = 1
-      xpub.recv_timeout = 0.1
 
-      proxy = task.async do
-        loop do
-          begin
-            event = xpub.receive.first
-            xsub << event
-          rescue IO::TimeoutError
-            # no new subscriptions
-          end
-
-          begin
-            msg = xsub.receive
-            xpub << msg
-          rescue IO::TimeoutError
-            break
-          end
-        end
-      end
-
-      sub = OMQ::SUB.connect(downstream_ep, subscribe: 'data')
-      sub.recv_timeout = 1
-
-      subscriber = task.async do
-        loop do
-          msg = sub.receive.first
-          received << msg
-          puts "  subscriber: #{msg}"
-        rescue IO::TimeoutError
-          break
-        end
-      end
-
-      sleep 0.02
-
+      # PUB must connect to XSUB *before* subscriptions are forwarded,
+      # otherwise XSUB sends SUBSCRIBE into the void.
       pub = OMQ::PUB.connect(upstream_ep)
-      sleep 0.02 # let subscription propagate
-      5.times { |i| pub << "data.#{i}" }
-      sleep 0.05 # let messages flow through proxy
 
-      proxy.wait
-      subscriber.wait
+      # Two concurrent tasks: one forwards subscriptions, the other data.
+      sub_forwarder = task.async do
+        loop do
+          event = xpub.receive.first
+          xsub << event
+        end
+      end
+
+      data_forwarder = task.async do
+        loop do
+          msg = xsub.receive
+          xpub << msg
+        end
+      end
+
+      # SUB subscribes after PUB is already connected upstream.
+      sub = OMQ::SUB.connect(downstream_ep, subscribe: 'data')
+      xpub.subscriber_joined.wait
+
+      # Wait for the subscription to propagate through the proxy to PUB.
+      pub.subscriber_joined.wait
+
+      5.times { |i| pub << "data.#{i}" }
+
+      5.times do
+        msg = sub.receive.first
+        received << msg
+        puts "  subscriber: #{msg}"
+      end
 
       refute_empty received, 'expected subscriber to receive messages through proxy'
       assert(received.all? { |m| m.start_with?('data') })
       puts "  summary: #{received.size} messages forwarded through proxy"
     ensure
+      sub_forwarder&.stop
+      data_forwarder&.stop
       xsub&.close
       xpub&.close
       sub&.close
