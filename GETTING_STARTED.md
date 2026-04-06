@@ -3,7 +3,7 @@
 The [zguide](https://zguide.zeromq.org/) is a ~500 page book. This is
 the 30-minute version — half a CS lecture — that teaches you the same
 material, for the modern brain with a 12-second attention span. No
-philosophical digressions, no committee design talk. Just how ZMQ works,
+philosophical digressions, no committee design talk. Just how ØMQ works,
 the patterns, and how to use them from Ruby with
 [OMQ](https://github.com/zeromq/omq).
 
@@ -65,10 +65,10 @@ internal service communication, pipeline processing, real-time data
 distribution, inter-thread coordination — a broker is overhead you're
 paying for but not using.
 
-ZeroMQ is **brokerless** by default. Processes connect directly to each
+ØMQ is **brokerless** by default. Processes connect directly to each
 other — no central server to deploy, monitor, or lose. This
 decentralized approach means no single point of failure and half the
-network hops. When you *do* need a broker, ZeroMQ lets you build one
+network hops. When you *do* need a broker, ØMQ lets you build one
 with ROUTER/DEALER sockets (see [Majordomo](#majordomo-service-broker)
 below) — but it's your code, your rules, not a black box.
 
@@ -77,21 +77,21 @@ SQLite, or deploying Kubernetes when a systemd unit file would do.
 
 ---
 
-## What makes ZMQ sockets special
+## What makes ØMQ sockets special
 
-ZMQ sockets aren't BSD sockets with extra steps. They're a different
+ØMQ sockets aren't BSD sockets with extra steps. They're a different
 animal:
 
 - **You never touch the network directly.** Sends queue into an
-  in-process buffer; a background I/O thread handles the wire. Your
-  code and the network run concurrently without you writing async code.
+  in-process buffer; OMQ handles the wire protocol for you. You don't
+  write any networking code.
 - **Connect/bind order doesn't matter.** You can connect before the
-  remote side has bound. ZMQ queues messages and retries in the
+  remote side has bound. ØMQ queues messages and retries in the
   background. Startup order is decoupled.
-- **Automatic reconnection.** If a TCP connection drops, ZMQ reconnects
+- **Automatic reconnection.** If a TCP connection drops, ØMQ reconnects
   transparently. Messages sent during the window are queued. You don't
   write retry loops or handle `ECONNREFUSED`.
-- **Messages, not bytes.** TCP is a byte stream. ZMQ is message-oriented
+- **Messages, not bytes.** TCP is a byte stream. ØMQ is message-oriented
   — send a message, receive that exact message. No framing code, no
   reassembly buffers.
 - **Transport-agnostic.** Switch from `tcp://` to `ipc://` to
@@ -105,7 +105,7 @@ animal:
 
 ## The four core patterns
 
-ZeroMQ's API is organized around *patterns* — predefined roles that
+ØMQ's API is organized around *patterns* — predefined roles that
 sockets play. Each socket type enforces a messaging discipline so you
 can't accidentally send when you should receive.
 
@@ -161,7 +161,7 @@ N workers without changing client code.
 ```
 
 PUB sends to all connected SUBs. SUB filters by topic prefix — filtering
-happens on the *publisher* side (since ZMQ 3.x), so unwanted messages
+happens on the *publisher* side (since ZeroMQ 3.x), so unwanted messages
 don't even cross the network. In OMQ, `SUB.new` starts with no
 subscriptions — pass `subscribe:` to filter by prefix, or call
 `#subscribe` later.
@@ -278,7 +278,7 @@ end
 
 ## The advanced socket types
 
-Beyond the four basic patterns, ZeroMQ provides "raw" socket types for
+Beyond the four basic patterns, ØMQ provides "raw" socket types for
 manual control over routing. These are the building blocks for brokers,
 proxies, and custom topologies.
 
@@ -419,9 +419,9 @@ end
 
 ## Messages and framing
 
-ZeroMQ messages are **not** byte streams. A message is one or more
+ØMQ messages are **not** byte streams. A message is one or more
 *frames*, each an opaque blob of bytes with a length. Unlike TCP (where
-sending "hello" then "world" might arrive as "helloworld"), ZMQ delivers
+sending "hello" then "world" might arrive as "helloworld"), ØMQ delivers
 each message whole and separate.
 
 - Messages are atomic: receive all frames or none
@@ -442,7 +442,7 @@ frames at the front, payload at the back, empty delimiter between them.
 
 ### Binary data
 
-All received data is `ASCII-8BIT` (binary). ZMQ frames are raw bytes —
+All received data is `ASCII-8BIT` (binary). ØMQ frames are raw bytes —
 no encoding is preserved. Send UTF-8, receive `ASCII-8BIT`.
 
 ```ruby
@@ -630,7 +630,7 @@ end
 
 ## Reliability patterns
 
-ZeroMQ gives you no delivery guarantees out of the box. Messages can be
+ØMQ gives you no delivery guarantees out of the box. Messages can be
 lost on connection drops, HWM overflow, or process crashes.
 
 This is by design, not a limitation. Centralized brokers that claim
@@ -641,7 +641,7 @@ application itself can confirm that a message was actually processed.
 This is the [end-to-end argument](https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf):
 reliability belongs at the endpoints, not in the transport.
 
-ZeroMQ gives you the building blocks — timeouts, retries, heartbeats,
+ØMQ gives you the building blocks — timeouts, retries, heartbeats,
 idempotent services — and the zguide shows how to compose them from
 simple to sophisticated:
 
@@ -955,7 +955,7 @@ Peer-to-peer               ROUTER ──▶ ROUTER  (hard mode)
 3. **PUB/SUB filtering is prefix-based.** `""` = everything.
 4. **Connect from the ephemeral side.** Stable address binds.
 5. **Heartbeat everything** in production.
-6. **Let ZeroMQ reconnect for you.** Close-and-reopen only for REQ
+6. **Let ØMQ reconnect for you.** Close-and-reopen only for REQ
    after a timeout (Lazy Pirate).
 7. **Use ROUTER for addressed routing, DEALER for async round-robin.**
 8. **Multipart messages are atomic.** Use them for envelopes, not
