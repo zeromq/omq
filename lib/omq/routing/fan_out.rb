@@ -131,7 +131,7 @@ module OMQ
 
 
       # Starts a dedicated send pump for one subscriber connection.
-      # Uses write_wire (pre-encoded bytes) for non-CURVE TCP connections
+      # Uses write_wire (pre-encoded bytes) for non-encrypted TCP connections
       # to avoid re-encoding the same message N times during fan-out.
       # In conflate mode, drains the batch and keeps only the latest
       # message per topic before writing.
@@ -140,7 +140,7 @@ module OMQ
       # @param q [Async::LimitedQueue, DropQueue]
       #
       def start_conn_send_pump(conn, q)
-        use_wire = conn.respond_to?(:write_wire) && !conn.encrypted?
+        use_wire = !conn.encrypted?
         task     = @conflate ? start_conn_send_pump_conflate(conn, q) : start_conn_send_pump_normal(conn, q, use_wire)
         @conn_send_tasks[conn] = task
         @tasks << task
