@@ -5,6 +5,7 @@ require_relative "engine/recv_pump"
 require_relative "engine/heartbeat"
 require_relative "engine/reconnect"
 require_relative "engine/connection_setup"
+require_relative "engine/maintenance"
 
 module OMQ
   # Per-socket orchestrator.
@@ -371,6 +372,7 @@ module OMQ
         @on_io_thread = true
         Reactor.track_linger(@options.linger)
       end
+      Maintenance.start(@parent_task, @options.mechanism, @tasks)
     end
 
 

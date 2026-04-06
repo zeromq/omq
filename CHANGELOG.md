@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `Engine::Maintenance` — spawns a periodic `Async::Loop.quantized` timer
+  that calls the mechanism's `#maintenance` callback (if defined). Enables
+  automatic cookie key rotation for CurveZMQ and BLAKE3ZMQ server mechanisms.
+
 ## 0.13.0
 
 ### Changed
