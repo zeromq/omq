@@ -19,6 +19,7 @@ module OMQ
       #
       COMMAND_TYPES = %i[PUB SUB XPUB XSUB RADIO DISH].freeze
 
+
       # Global registry of bound inproc endpoints.
       #
       @registry = {}
@@ -105,10 +106,12 @@ module OMQ
           server_engine.connection_ready(server_pipe, endpoint: endpoint)
         end
 
+
         def needs_commands?(ce, se, ct, st)
           COMMAND_TYPES.include?(ct) || COMMAND_TYPES.include?(st) ||
             ce.options.qos >= 1 || se.options.qos >= 1
         end
+
 
         def make_pipe_pair(ce, se, ct, st, needs_cmds)
           if needs_cmds
@@ -125,6 +128,7 @@ module OMQ
           server.peer = client
           [client, server]
         end
+
 
         def await_bind(endpoint, engine)
           # Endpoint not bound yet — wait briefly then start background retry.
@@ -162,6 +166,7 @@ module OMQ
           end
         end
       end
+
 
       # A bound inproc endpoint handle.
       #

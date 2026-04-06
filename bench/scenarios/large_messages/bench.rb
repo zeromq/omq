@@ -30,7 +30,10 @@ SIZES.each do |label, size|
     port = pull.last_tcp_port
     push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
 
-    20.times { push << payload; pull.receive }
+    20.times do
+      push << payload
+      pull.receive
+    end
 
     Benchmark.ips do |x|
       x.config(warmup: 1, time: 3)

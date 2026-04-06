@@ -12,6 +12,8 @@ module OMQ
     # SignalingQueue wrapper, which also wakes a blocked #dequeue.
     #
     class FairQueue
+      # Creates an empty fair queue with no per-connection queues.
+      #
       def initialize
         @queues    = []              # ordered list of per-connection inner queues
         @mapping   = {}              # connection => inner queue
@@ -20,6 +22,7 @@ module OMQ
         @pending   = 0              # signals received before #dequeue waits
         @closed    = false
       end
+
 
       # Registers a per-connection queue. Called when a connection is added.
       #
@@ -30,6 +33,7 @@ module OMQ
         @mapping[conn] = q
         @queues << q
       end
+
 
       # Removes the per-connection queue for a disconnected peer.
       #
@@ -47,12 +51,14 @@ module OMQ
         # Non-empty orphaned queues stay in @queues until drained
       end
 
+
       # Wakes a blocked #dequeue. Called by SignalingQueue after each enqueue.
       #
       def signal
         @pending += 1
         @condition.signal
       end
+
 
       # Returns the next message from any per-connection queue, in fair
       # round-robin order. Blocks until a message is available.
@@ -81,6 +87,7 @@ module OMQ
         end
       end
 
+
       # Injects a nil sentinel to unblock a waiting #dequeue.
       # Called by Engine on close or fatal error.
       #
@@ -88,6 +95,7 @@ module OMQ
         @closed = true
         @condition.signal
       end
+
 
       # @return [Boolean]
       #
@@ -126,18 +134,38 @@ module OMQ
     # signals the FairQueue to wake a blocked #dequeue.
     #
     class SignalingQueue
+      # @param inner [Async::LimitedQueue] the per-connection bounded queue
+      # @param fair_queue [FairQueue] the parent fair queue to signal on enqueue
+      #
       def initialize(inner, fair_queue)
         @inner = inner
         @fair  = fair_queue
       end
 
+
+      # Enqueues a message and signals the fair queue.
+      #
+      # @param msg [Array<String>]
+      # @return [void]
+      #
       def enqueue(msg)
         @inner.enqueue(msg)
         @fair.signal
       end
 
+
+      # @param timeout [Numeric, nil] dequeue timeout
+      # @return [Array<String>, nil]
+      #
       def dequeue(timeout: nil) = @inner.dequeue(timeout: timeout)
+
+      # @return [Boolean]
+      #
       def empty?                = @inner.empty?
+
+      # @param item [Object, nil]
+      # @return [void]
+      #
       def push(item)            = @inner.push(item)
     end
   end

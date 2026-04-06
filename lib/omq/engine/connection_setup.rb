@@ -16,10 +16,22 @@ module OMQ
         new(engine).run(io, as_server: as_server, endpoint: endpoint, done: done)
       end
 
+
+      # @param engine [Engine]
+      #
       def initialize(engine)
         @engine = engine
       end
 
+
+      # Performs the ZMTP handshake, starts heartbeat, and registers the connection.
+      #
+      # @param io [#read, #write, #close]
+      # @param as_server [Boolean]
+      # @param endpoint [String, nil]
+      # @param done [Async::Promise, nil] resolved when connection is lost
+      # @return [Connection]
+      #
       def run(io, as_server:, endpoint: nil, done: nil)
         conn = build_connection(io, as_server)
         conn.handshake!
@@ -46,6 +58,7 @@ module OMQ
           max_message_size: @engine.options.max_message_size,
         )
       end
+
 
       def register(conn, endpoint, done)
         @engine.connections[conn] = Engine::ConnectionRecord.new(endpoint: endpoint, done: done)

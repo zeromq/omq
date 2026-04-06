@@ -73,11 +73,16 @@ module BenchHelper
 
   def endpoint(transport, seq)
     case transport
-    when "inproc" then "inproc://bench-#{seq}"
-    when "ipc"    then "ipc://@omq-bench-#{seq}"
-    when "tcp"    then "tcp://127.0.0.1:0"
-    when "curve"  then "tcp://127.0.0.1:0"
-    when "blake3" then "tcp://127.0.0.1:0"
+    when "inproc"
+      "inproc://bench-#{seq}"
+    when "ipc"
+      "ipc://@omq-bench-#{seq}"
+    when "tcp"
+      "tcp://127.0.0.1:0"
+    when "curve"
+      "tcp://127.0.0.1:0"
+    when "blake3"
+      "tcp://127.0.0.1:0"
     end
   end
 
@@ -85,7 +90,8 @@ module BenchHelper
   #
   def resolve_endpoint(transport, socket)
     case transport
-    when "tcp", "curve", "blake3" then "tcp://127.0.0.1:#{socket.last_tcp_port}"
+    when "tcp", "curve", "blake3"
+      "tcp://127.0.0.1:#{socket.last_tcp_port}"
     else socket.last_endpoint
     end
   end
@@ -129,7 +135,10 @@ module BenchHelper
     per_sender = n / senders.size
 
     # Warm up
-    100.times { senders.first << payload; receiver.receive }
+    100.times do
+      senders.first << payload
+      receiver.receive
+    end
 
     t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -147,10 +156,16 @@ module BenchHelper
 
   def measure_roundtrip(requester, responder_task, payload, n)
     # Warm up
-    100.times { requester << payload; requester.receive }
+    100.times do
+      requester << payload
+      requester.receive
+    end
 
     t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    n.times { requester << payload; requester.receive }
+    n.times do
+      requester << payload
+      requester.receive
+    end
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
 
     report(payload.bytesize, n, elapsed)

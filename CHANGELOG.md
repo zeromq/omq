@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Fix recv pump crash with connection wrappers** — `start_direct` called
+  `msg.sum(&:bytesize)` unconditionally, crashing when a `connection_wrapper`
+  (e.g. omq-ractor's `MarshalConnection`) returns deserialized Ruby objects.
+  Byte counting now uses `conn.instance_of?(Protocol::ZMTP::Connection)` to
+  skip non-ZMTP connections (inproc, Ractor bridges).
+- Remove TLS transport dependency from Gemfile.
+- YARD documentation on all public methods and classes.
+- Code style: expand `else X` one-liners, enforce two blank lines between
+  methods and constants.
+
 - Add `Engine::Maintenance` — spawns a periodic `Async::Loop.quantized` timer
   that calls the mechanism's `#maintenance` callback (if defined). Enables
   automatic cookie key rotation for CurveZMQ and BLAKE3ZMQ server mechanisms.

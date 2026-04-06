@@ -18,6 +18,7 @@ module OMQ
       @strategy = strategy
     end
 
+
     # Enqueues an item. Drops according to the configured strategy if full.
     #
     # @param item [Object]
@@ -33,6 +34,7 @@ module OMQ
       retry
     end
 
+
     # Removes and returns the next item, blocking if empty.
     #
     # @return [Object]
@@ -44,6 +46,7 @@ module OMQ
         @queue.pop
       end
     end
+
 
     # @return [Boolean]
     #

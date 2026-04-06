@@ -22,7 +22,8 @@ Async do
   push.reconnect_interval = 0.02
   push.connect("tcp://127.0.0.1:#{port}")
   sleep 0.3
-  push << "warmup"; pull.receive
+  push << "warmup"
+  pull.receive
 
   times = []
   ITERATIONS.times do |i|

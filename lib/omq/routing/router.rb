@@ -24,6 +24,7 @@ module OMQ
         @tasks                   = []
       end
 
+
       # @return [FairQueue]
       #
       attr_reader :recv_queue
@@ -43,6 +44,7 @@ module OMQ
         @conn_send_tasks[connection] = ConnSendPump.start(@engine, connection, q, @tasks)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -52,6 +54,7 @@ module OMQ
         @conn_queues.delete(connection)
         @conn_send_tasks.delete(connection)&.stop
       end
+
 
       # Enqueues a message for sending. The first frame is the routing identity.
       #
@@ -69,12 +72,18 @@ module OMQ
         @conn_queues[conn]&.enqueue(parts[1..])
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
+      #
       def stop
         @tasks.each(&:stop)
         @tasks.clear
       end
 
-      # True when all per-connection send queues are empty.
+
+      # @return [Boolean] true when all per-connection send queues are empty
       #
       def send_queues_drained?
         @conn_queues.values.all?(&:empty?)

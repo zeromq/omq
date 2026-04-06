@@ -24,6 +24,7 @@ module OMQ
       attr_reader :transports
     end
 
+
     # Per-connection metadata: the endpoint it was established on and an
     # optional Promise resolved when the connection is lost (used by
     # {#spawn_connection} to await connection teardown).
@@ -80,10 +81,23 @@ module OMQ
     end
 
 
+    # @return [Async::Promise] resolves when first peer completes handshake
+    # @return [Async::Promise] resolves when all peers disconnect (after having had peers)
+    # @return [Hash{Connection => ConnectionRecord}] active connections
+    # @return [Async::Task, nil] root task for spawning subtrees
+    # @return [Array<Async::Task>] background tasks (pumps, heartbeat, reconnect)
+    #
     attr_reader :peer_connected, :all_peers_gone, :connections, :parent_task, :tasks
 
+    # @!attribute [w] reconnect_enabled
+    #   @param value [Boolean] enable or disable auto-reconnect
+    # @!attribute [w] monitor_queue
+    #   @param value [Async::Queue, nil] queue for monitor events
+    #
     attr_writer :reconnect_enabled, :monitor_queue
 
+    # @return [Boolean] true if the engine has been closed
+    #
     def closed? = @state == :closed
 
     # Optional proc that wraps new connections (e.g. for serialization).
@@ -376,12 +390,26 @@ module OMQ
     end
 
 
+    # Emits a lifecycle event to the monitor queue, if one is attached.
+    #
+    # @param type [Symbol] event type (e.g. :listening, :connected, :disconnected)
+    # @param endpoint [String, nil] the endpoint involved
+    # @param detail [Hash, nil] extra context
+    # @return [void]
+    #
     def emit_monitor_event(type, endpoint: nil, detail: nil)
       return unless @monitor_queue
       @monitor_queue.push(MonitorEvent.new(type: type, endpoint: endpoint, detail: detail))
     rescue Async::Stop, ClosedQueueError
     end
 
+
+    # Looks up the transport module for an endpoint URI.
+    #
+    # @param endpoint [String] endpoint URI (e.g. "tcp://...", "inproc://...")
+    # @return [Module] the transport module
+    # @raise [ArgumentError] if the scheme is not registered
+    #
     def transport_for(endpoint)
       scheme = endpoint[/\A([^:]+):\/\//, 1]
       self.class.transports[scheme] or
@@ -403,6 +431,7 @@ module OMQ
       @tasks << task if task
     end
 
+
     def drain_send_queues(timeout)
       return unless @routing.respond_to?(:send_queues_drained?)
       deadline = timeout ? Async::Clock.now + timeout : nil
@@ -412,20 +441,24 @@ module OMQ
       end
     end
 
+
     def maybe_reconnect(endpoint)
       return unless endpoint && @dialed.include?(endpoint)
       return unless @state == :open && @reconnect_enabled
       Reconnect.schedule(endpoint, @options, @parent_task, self)
     end
 
+
     def schedule_reconnect(endpoint, delay: nil)
       Reconnect.schedule(endpoint, @options, @parent_task, self, delay: delay)
     end
+
 
     def validate_endpoint!(endpoint)
       transport = transport_for(endpoint)
       transport.validate_endpoint!(endpoint) if transport.respond_to?(:validate_endpoint!)
     end
+
 
     def start_accept_loops(listener)
       return unless listener.respond_to?(:start_accept_loops)
@@ -434,15 +467,18 @@ module OMQ
       end
     end
 
+
     def stop_listeners
       @listeners.each(&:stop)
       @listeners.clear
     end
 
+
     def close_connections
       @connections.each_key(&:close)
       @connections.clear
     end
+
 
     def close_connections_at(endpoint)
       conns = @connections.filter_map { |conn, e| conn if e.endpoint == endpoint }
@@ -453,11 +489,13 @@ module OMQ
       end
     end
 
+
     def stop_tasks
       @routing.stop rescue nil
       @tasks.each { |t| t.stop rescue nil }
       @tasks.clear
     end
+
 
     def freeze_error_lists!
       return if OMQ::CONNECTION_LOST.frozen?
@@ -465,11 +503,13 @@ module OMQ
       OMQ::CONNECTION_FAILED.freeze
     end
 
+
     def close_monitor_queue
       return unless @monitor_queue
       @monitor_queue.push(nil)
     end
   end
+
 
   # Register built-in transports.
   Engine.transports["tcp"]    = Transport::TCP

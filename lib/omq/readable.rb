@@ -11,6 +11,7 @@ module OMQ
     # Maximum messages to prefetch from the recv queue per drain.
     RECV_BATCH_SIZE = 64
 
+
     # Receives the next message. Returns from a local prefetch
     # buffer when available, otherwise drains up to
     # {RECV_BATCH_SIZE} messages from the recv queue in one
@@ -22,6 +23,7 @@ module OMQ
     def receive
       @recv_mutex.synchronize { @recv_buffer.shift } || fill_recv_buffer
     end
+
 
     # Waits until the socket is readable.
     #

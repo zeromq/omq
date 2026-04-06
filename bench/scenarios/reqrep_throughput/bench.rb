@@ -36,7 +36,10 @@ TRANSPORTS.each do |transport, addr_fn|
     end
 
     # Warm up
-    100.times { req << "ping"; req.receive }
+    100.times do
+      req << "ping"
+      req.receive
+    end
 
     Benchmark.ips do |x|
       x.config(warmup: 1, time: 3)

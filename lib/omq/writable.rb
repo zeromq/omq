@@ -19,6 +19,7 @@ module OMQ
       self
     end
 
+
     # Sends a message (chainable).
     #
     # @param message [String, Array<String>]
@@ -45,6 +46,7 @@ module OMQ
       end
       parts.freeze
     end
+
 
     def frozen_binary(str)
       s = str.to_str

@@ -14,6 +14,7 @@ module OMQ
         @tasks      = []
       end
 
+
       # @return [FairQueue]
       #
       attr_reader :recv_queue
@@ -24,6 +25,7 @@ module OMQ
         add_fair_recv_connection(connection)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -31,12 +33,17 @@ module OMQ
         # recv pump stops on EOFError
       end
 
+
       # PULL is read-only.
       #
       def enqueue(_parts)
         raise "PULL sockets cannot send"
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
       #
       def stop
         @tasks.each(&:stop)

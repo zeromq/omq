@@ -18,6 +18,7 @@ module OMQ
     # Shared frozen empty binary string to avoid repeated allocations.
     EMPTY_BINARY = "".b.freeze
 
+
     # Plugin registry for socket types not built into omq.
     # Populated by sister gems via +Routing.register+.
     #
@@ -34,6 +35,7 @@ module OMQ
         @registry[socket_type] = strategy_class
       end
     end
+
 
     # Builds a send or recv queue based on the mute strategy.
     #
@@ -54,6 +56,7 @@ module OMQ
       end
     end
 
+
     # Drains all available messages from +queue+ into +batch+ without
     # blocking. Call after the initial blocking dequeue.
     #
@@ -73,6 +76,7 @@ module OMQ
       end
     end
 
+
     # Returns the routing strategy class for a socket type.
     #
     # @param socket_type [Symbol] e.g. :PAIR, :REQ
@@ -80,17 +84,28 @@ module OMQ
     #
     def self.for(socket_type)
       case socket_type
-      when :PAIR   then Pair
-      when :REQ    then Req
-      when :REP    then Rep
-      when :DEALER then Dealer
-      when :ROUTER then Router
-      when :PUB    then Pub
-      when :SUB    then Sub
-      when :XPUB   then XPub
-      when :XSUB   then XSub
-      when :PUSH   then Push
-      when :PULL   then Pull
+      when :PAIR
+        Pair
+      when :REQ
+        Req
+      when :REP
+        Rep
+      when :DEALER
+        Dealer
+      when :ROUTER
+        Router
+      when :PUB
+        Pub
+      when :SUB
+        Sub
+      when :XPUB
+        XPub
+      when :XSUB
+        XSub
+      when :PUSH
+        Push
+      when :PULL
+        Pull
       else
         @registry[socket_type] or raise ArgumentError, "unknown socket type: #{socket_type.inspect}"
       end

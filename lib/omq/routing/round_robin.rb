@@ -15,8 +15,8 @@ module OMQ
     # their #initialize.
     #
     module RoundRobin
-      # True when the staging queue and all per-connection send queues
-      # are empty. Used by Engine#drain_send_queues during linger.
+      # @return [Boolean] true when the staging queue and all per-connection
+      #   send queues are empty
       #
       def send_queues_drained?
         @staging_queue.empty? && @conn_queues.values.all?(&:empty?)
@@ -164,6 +164,7 @@ module OMQ
         @conn_send_tasks[conn] = task
         @tasks << task
       end
+
 
       def write_batch(conn, batch)
         if batch.size == 1

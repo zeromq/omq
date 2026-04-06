@@ -37,12 +37,7 @@ module OMQ
           Listener.new(resolved, servers, actual_port)
         end
 
-        # Connects to a TCP endpoint.
-        #
-        # @param endpoint [String] e.g. "tcp://127.0.0.1:5555"
-        # @param engine [Engine]
-        # @return [void]
-        #
+
         # Validates that the endpoint's host can be resolved.
         #
         # @param endpoint [String]
@@ -54,11 +49,18 @@ module OMQ
         end
 
 
+        # Connects to a TCP endpoint.
+        #
+        # @param endpoint [String] e.g. "tcp://127.0.0.1:5555"
+        # @param engine [Engine]
+        # @return [void]
+        #
         def connect(endpoint, engine)
           host, port = self.parse_endpoint(endpoint)
           sock = TCPSocket.new(host, port)
           engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
         end
+
 
         # Parses a TCP endpoint URI into host and port.
         #
@@ -70,6 +72,7 @@ module OMQ
           [uri.hostname, uri.port]
         end
       end
+
 
       # A bound TCP listener.
       #
@@ -122,7 +125,9 @@ module OMQ
         end
 
 
-        # Stops the listener.
+        # Stops the listener and closes all server sockets.
+        #
+        # @return [void]
         #
         def stop
           @tasks.each(&:stop)

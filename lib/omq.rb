@@ -16,7 +16,9 @@ module OMQ
   # Raised when an internal pump task crashes unexpectedly.
   # The socket is no longer usable; the original error is available via #cause.
   #
-  class SocketDeadError < RuntimeError; end
+  class SocketDeadError < RuntimeError
+  end
+
 
   # Errors raised when a peer disconnects or resets the connection.
   # Not frozen at load time — transport plugins append to this before
@@ -41,6 +43,7 @@ module OMQ
     Socket::ResolutionError,
   ]
 end
+
 
 # Transport
 require_relative "omq/transport/inproc"

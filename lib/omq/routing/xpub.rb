@@ -23,6 +23,7 @@ module OMQ
         init_fan_out(engine)
       end
 
+
       # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
@@ -36,6 +37,7 @@ module OMQ
         add_fan_out_send_connection(connection)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -44,12 +46,17 @@ module OMQ
         remove_fan_out_send_connection(connection)
       end
 
+
       # @param parts [Array<String>]
       #
       def enqueue(parts)
         fan_out_enqueue(parts)
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
       #
       def stop
         @tasks.each(&:stop)
@@ -64,6 +71,7 @@ module OMQ
         super
         @recv_queue.enqueue(["\x01#{prefix}".b])
       end
+
 
       # Expose unsubscription to application as data message.
       #

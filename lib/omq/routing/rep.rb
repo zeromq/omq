@@ -13,6 +13,7 @@ module OMQ
 
       EMPTY_FRAME = "".b.freeze
 
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -23,6 +24,7 @@ module OMQ
         @conn_send_tasks = {}  # connection => send pump task
         @tasks           = []
       end
+
 
       # @return [FairQueue]
       #
@@ -44,6 +46,7 @@ module OMQ
         @conn_send_tasks[connection] = ConnSendPump.start(@engine, connection, q, @tasks)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -52,6 +55,7 @@ module OMQ
         @conn_queues.delete(connection)
         @conn_send_tasks.delete(connection)&.stop
       end
+
 
       # Enqueues a reply. Routes to the connection that sent the matching
       # request by consuming the next pending_reply entry.
@@ -65,12 +69,18 @@ module OMQ
         @conn_queues[conn]&.enqueue([*reply_info[:envelope], EMPTY_FRAME, *parts])
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
+      #
       def stop
         @tasks.each(&:stop)
         @tasks.clear
       end
 
-      # True when all per-connection send queues are empty.
+
+      # @return [Boolean] true when all per-connection send queues are empty
       #
       def send_queues_drained?
         @conn_queues.values.all?(&:empty?)

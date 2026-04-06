@@ -35,6 +35,7 @@ module OMQ
       dequeue(timeout: nil)
     end
 
+
     # Yields each received message until the socket is closed or
     # a receive timeout expires.
     #

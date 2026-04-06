@@ -28,7 +28,10 @@ def bench_push_pull(transport, addr)
     sleep 0.05
 
     # Warm up
-    50.times { push << PAYLOAD; pull.receive }
+    50.times do
+      push << PAYLOAD
+      pull.receive
+    end
 
     ROUNDS.times do
       t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -60,7 +63,10 @@ def bench_pub_sub(transport, addr, n_subs:)
     sleep 0.05
 
     # Warm up
-    50.times { pub << PAYLOAD; subs.each(&:receive) }
+    50.times do
+      pub << PAYLOAD
+      subs.each(&:receive)
+    end
 
     ROUNDS.times do
       t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)

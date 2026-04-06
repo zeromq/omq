@@ -17,7 +17,5 @@ if ENV["OMQ_DEV"]
   gem "benchmark-ips"
   gem "rbnacl", "~> 7.0"
   gem "omq-ffi",                require: false, path: "../omq-ffi"
-  gem "omq-transport-tls",      require: false, path: "../omq-transport-tls"
   gem "omq-rfc-blake3zmq",      require: false, path: "../omq-rfc-blake3zmq"
-  gem "chacha20blake3",         path: "../chacha20blake3"
 end

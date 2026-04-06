@@ -30,6 +30,7 @@ module OMQ
           Listener.new(endpoint, server, path)
         end
 
+
         # Connects to an IPC endpoint.
         #
         # @param endpoint [String]
@@ -51,6 +52,7 @@ module OMQ
           endpoint.sub(%r{\Aipc://}, "")
         end
 
+
         # Converts @ prefix to \0 for abstract namespace.
         #
         def to_socket_path(path)
@@ -61,12 +63,14 @@ module OMQ
           end
         end
 
+
         # @return [Boolean] true if abstract namespace path
         #
         def abstract?(path)
           path.start_with?("@")
         end
       end
+
 
       # A bound IPC listener.
       #
@@ -113,7 +117,9 @@ module OMQ
         end
 
 
-        # Stops the listener.
+        # Stops the listener and removes the socket file.
+        #
+        # @return [void]
         #
         def stop
           @task&.stop

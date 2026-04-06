@@ -9,6 +9,7 @@ module OMQ
   class Options
     DEFAULT_HWM = 1000
 
+
     # @param linger [Integer] linger period in seconds (default 0)
     #
     def initialize(linger: 0)
@@ -30,6 +31,40 @@ module OMQ
       @qos                   = 0       # 0 = fire-and-forget, 1 = at-least-once (see omq-qos gem)
     end
 
+
+    # @!attribute send_hwm
+    #   @return [Integer] send high water mark (default 1000, 0 = unbounded)
+    # @!attribute recv_hwm
+    #   @return [Integer] receive high water mark (default 1000, 0 = unbounded)
+    # @!attribute linger
+    #   @return [Integer, nil] linger period in seconds (nil = wait forever, 0 = immediate)
+    # @!attribute identity
+    #   @return [String] socket identity for ROUTER addressing (default "")
+    # @!attribute router_mandatory
+    #   @return [Boolean] raise on unroutable messages (default false)
+    # @!attribute conflate
+    #   @return [Boolean] keep only the latest message per topic (default false)
+    # @!attribute read_timeout
+    #   @return [Numeric, nil] read timeout in seconds (nil = no timeout)
+    # @!attribute write_timeout
+    #   @return [Numeric, nil] write timeout in seconds (nil = no timeout)
+    # @!attribute reconnect_interval
+    #   @return [Numeric, Range] reconnect interval in seconds, or Range for exponential backoff
+    # @!attribute heartbeat_interval
+    #   @return [Numeric, nil] PING interval in seconds (nil = disabled)
+    # @!attribute heartbeat_ttl
+    #   @return [Numeric, nil] TTL advertised in PING (nil = use heartbeat_interval)
+    # @!attribute heartbeat_timeout
+    #   @return [Numeric, nil] time without traffic before closing (nil = use heartbeat_interval)
+    # @!attribute max_message_size
+    #   @return [Integer, nil] maximum message size in bytes
+    # @!attribute on_mute
+    #   @return [Symbol] mute strategy (:block, :drop_newest, :drop_oldest)
+    # @!attribute mechanism
+    #   @return [Protocol::ZMTP::Mechanism::Null, Protocol::ZMTP::Mechanism::Curve] security mechanism
+    # @!attribute qos
+    #   @return [Integer] quality of service level (0 = fire-and-forget)
+    #
     attr_accessor :send_hwm,  :recv_hwm,
                   :linger,    :identity,
                   :router_mandatory,  :conflate,
@@ -41,10 +76,19 @@ module OMQ
                   :mechanism,
                   :qos
 
+    # @return [Boolean] true if router_mandatory is set
     alias_method :router_mandatory?, :router_mandatory
+
+    # @return [Numeric, nil] alias for #read_timeout
     alias_method :recv_timeout,      :read_timeout
+
+    # @param val [Numeric, nil] alias for #read_timeout=
     alias_method :recv_timeout=,     :read_timeout=
+
+    # @return [Numeric, nil] alias for #write_timeout
     alias_method :send_timeout,      :write_timeout
+
+    # @param val [Numeric, nil] alias for #write_timeout=
     alias_method :send_timeout=,     :write_timeout=
   end
 end

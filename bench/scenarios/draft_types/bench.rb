@@ -29,21 +29,35 @@ Async do
 
   pull = OMQ::PULL.bind("inproc://bench_push")
   push = OMQ::PUSH.connect("inproc://bench_push")
-  100.times { push << PAYLOAD; pull.receive }
+  100.times do
+    push << PAYLOAD
+    pull.receive
+  end
 
   gather  = OMQ::GATHER.bind("inproc://bench_scatter")
   scatter = OMQ::SCATTER.connect("inproc://bench_scatter")
-  100.times { scatter << PAYLOAD; gather.receive }
+  100.times do
+    scatter << PAYLOAD
+    gather.receive
+  end
 
   Benchmark.ips do |x|
     x.config(warmup: 1, time: 3)
-    x.report("PUSH/PULL")     { push << PAYLOAD; pull.receive }
-    x.report("SCATTER/GATHER") { scatter << PAYLOAD; gather.receive }
+    x.report("PUSH/PULL") do
+      push << PAYLOAD
+      pull.receive
+    end
+    x.report("SCATTER/GATHER") do
+      scatter << PAYLOAD
+      gather.receive
+    end
     x.compare!
   end
 ensure
-  push&.close; pull&.close
-  scatter&.close; gather&.close
+  push&.close
+  pull&.close
+  scatter&.close
+  gather&.close
 end
 
 puts
@@ -57,8 +71,16 @@ Async do |task|
 
   rep = OMQ::REP.bind("inproc://bench_rep")
   req = OMQ::REQ.connect("inproc://bench_rep")
-  rep_task = task.async { loop { msg = rep.receive; rep << msg } }
-  100.times { req << PAYLOAD; req.receive }
+  rep_task = task.async do
+    loop do
+      msg = rep.receive
+      rep << msg
+    end
+  end
+  100.times do
+    req << PAYLOAD
+    req.receive
+  end
 
   server = OMQ::SERVER.bind("inproc://bench_server")
   client = OMQ::CLIENT.connect("inproc://bench_server")
@@ -68,20 +90,31 @@ Async do |task|
       server.send_to(msg[0], msg[1])
     end
   end
-  100.times { client << PAYLOAD; client.receive }
+  100.times do
+    client << PAYLOAD
+    client.receive
+  end
 
   Benchmark.ips do |x|
     x.config(warmup: 1, time: 3)
-    x.report("REQ/REP")        { req << PAYLOAD; req.receive }
-    x.report("CLIENT/SERVER")  { client << PAYLOAD; client.receive }
+    x.report("REQ/REP") do
+      req << PAYLOAD
+      req.receive
+    end
+    x.report("CLIENT/SERVER") do
+      client << PAYLOAD
+      client.receive
+    end
     x.compare!
   end
 
   rep_task.stop
   server_task.stop
 ensure
-  req&.close; rep&.close
-  client&.close; server&.close
+  req&.close
+  rep&.close
+  client&.close
+  server&.close
 end
 
 puts
@@ -96,20 +129,34 @@ Async do
   pub = OMQ::PUB.bind("inproc://bench_pub")
   sub = OMQ::SUB.connect("inproc://bench_pub", subscribe: "t.")
   sleep 0.01
-  50.times { pub << "t.#{PAYLOAD}"; sub.receive }
+  50.times do
+    pub << "t.#{PAYLOAD}"
+    sub.receive
+  end
 
   radio = OMQ::RADIO.bind("inproc://bench_radio")
   dish  = OMQ::DISH.connect("inproc://bench_radio", group: "t")
   sleep 0.01
-  50.times { radio.publish("t", PAYLOAD); dish.receive }
+  50.times do
+    radio.publish("t", PAYLOAD)
+    dish.receive
+  end
 
   Benchmark.ips do |x|
     x.config(warmup: 1, time: 3)
-    x.report("PUB/SUB")    { pub << "t.#{PAYLOAD}"; sub.receive }
-    x.report("RADIO/DISH") { radio.publish("t", PAYLOAD); dish.receive }
+    x.report("PUB/SUB") do
+      pub << "t.#{PAYLOAD}"
+      sub.receive
+    end
+    x.report("RADIO/DISH") do
+      radio.publish("t", PAYLOAD)
+      dish.receive
+    end
     x.compare!
   end
 ensure
-  sub&.close; pub&.close
-  dish&.close; radio&.close
+  sub&.close
+  pub&.close
+  dish&.close
+  radio&.close
 end

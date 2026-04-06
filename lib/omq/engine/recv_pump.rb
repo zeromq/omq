@@ -16,6 +16,7 @@ module OMQ
       FAIRNESS_MESSAGES = 64
       FAIRNESS_BYTES    = 1 << 20 # 1 MB
 
+
       # Public entry point — callers use the class method.
       #
       # @param parent_task [Async::Task]
@@ -29,12 +30,26 @@ module OMQ
         new(conn, recv_queue, engine).start(parent_task, transform)
       end
 
+
+      # @param conn [Connection, Transport::Inproc::DirectPipe]
+      # @param recv_queue [Routing::SignalingQueue]
+      # @param engine [Engine]
+      #
       def initialize(conn, recv_queue, engine)
-        @conn       = conn
-        @recv_queue = recv_queue
-        @engine     = engine
+        @conn        = conn
+        @recv_queue  = recv_queue
+        @engine      = engine
+        @count_bytes = conn.instance_of?(Protocol::ZMTP::Connection)
       end
 
+
+      # Starts the recv pump. For inproc DirectPipe, wires the direct path
+      # (no task spawned). For TCP/IPC, spawns a fiber that reads messages.
+      #
+      # @param parent_task [Async::Task]
+      # @param transform [Proc, nil] optional per-message transform
+      # @return [Async::Task, nil]
+      #
       def start(parent_task, transform)
         if @conn.is_a?(Transport::Inproc::DirectPipe) && @conn.peer
           @conn.peer.direct_recv_queue     = @recv_queue
@@ -51,8 +66,9 @@ module OMQ
 
       private
 
+
       def start_with_transform(parent_task, transform)
-        conn, recv_queue = @conn, @recv_queue
+        conn, recv_queue, count_bytes = @conn, @recv_queue, @count_bytes
 
         parent_task.async(transient: true, annotation: "recv pump") do |task|
           loop do
@@ -63,7 +79,7 @@ module OMQ
               msg = transform.call(msg).freeze
               recv_queue.enqueue(msg)
               count += 1
-              bytes += msg.is_a?(Array) && msg.first.is_a?(String) ? msg.sum(&:bytesize) : 0
+              bytes += msg.sum(&:bytesize) if count_bytes
             end
             task.yield
           end
@@ -75,8 +91,9 @@ module OMQ
         end
       end
 
+
       def start_direct(parent_task)
-        conn, recv_queue = @conn, @recv_queue
+        conn, recv_queue, count_bytes = @conn, @recv_queue, @count_bytes
 
         parent_task.async(transient: true, annotation: "recv pump") do |task|
           loop do
@@ -86,7 +103,7 @@ module OMQ
               msg = conn.receive_message
               recv_queue.enqueue(msg)
               count += 1
-              bytes += msg.sum(&:bytesize)
+              bytes += msg.sum(&:bytesize) if count_bytes
             end
             task.yield
           end

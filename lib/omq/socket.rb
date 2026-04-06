@@ -62,7 +62,12 @@ module OMQ
     end
 
 
-    def initialize(endpoints = nil, linger: 0); end
+    # @param endpoints [String, nil] optional endpoint with prefix convention
+    #   (+@+ for bind, +>+ for connect, plain uses subclass default)
+    # @param linger [Integer] linger period in seconds (default 0)
+    #
+    def initialize(endpoints = nil, linger: 0)
+    end
 
 
     # Binds to an endpoint.
@@ -136,6 +141,8 @@ module OMQ
     # Signals end-of-stream on the receive side. A subsequent
     # +#receive+ call that would otherwise block returns +nil+.
     #
+    # @return [void]
+    #
     def close_read
       @engine.dequeue_recv_sentinel
     end
@@ -182,12 +189,18 @@ module OMQ
 
 
     # Disable auto-reconnect for connected endpoints.
+    #
+    # @param val [Boolean]
+    # @return [void]
+    #
     def reconnect_enabled=(val)
       @engine.reconnect_enabled = val
     end
 
 
-    # Closes the socket.
+    # Closes the socket and releases all resources.
+    #
+    # @return [nil]
     #
     def close
       Reactor.run { @engine.close }
@@ -196,6 +209,8 @@ module OMQ
 
 
     # Set socket to use unbounded pipes (HWM=0).
+    #
+    # @return [nil]
     #
     def set_unbounded
       @options.send_hwm = 0
@@ -277,9 +292,12 @@ module OMQ
       @recv_buffer = []
       @recv_mutex  = Mutex.new
       @engine      = case backend
-                     when nil, :ruby then Engine.new(socket_type, @options)
-                     when :ffi       then FFI::Engine.new(socket_type, @options)
-                     else raise ArgumentError, "unknown backend: #{backend}"
+                     when nil, :ruby
+                       Engine.new(socket_type, @options)
+                     when :ffi
+                       FFI::Engine.new(socket_type, @options)
+                     else
+                       raise ArgumentError, "unknown backend: #{backend}"
                      end
     end
   end

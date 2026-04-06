@@ -21,6 +21,7 @@ module OMQ
         @tasks           = []
       end
 
+
       # @return [FairQueue]
       #
       attr_reader :recv_queue
@@ -41,6 +42,7 @@ module OMQ
         start_conn_send_pump(connection, q)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -50,6 +52,7 @@ module OMQ
         @conn_send_tasks.delete(connection)&.stop
       end
 
+
       # Enqueues a subscription command (fan-out to all connected PUBs).
       #
       # @param parts [Array<String>]
@@ -58,13 +61,18 @@ module OMQ
         @connections.each { |conn| @conn_queues[conn]&.enqueue(parts) }
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
       #
       def stop
         @tasks.each(&:stop)
         @tasks.clear
       end
 
-      # True when all per-connection send queues are empty.
+
+      # @return [Boolean] true when all per-connection send queues are empty
       #
       def send_queues_drained?
         @conn_queues.values.all?(&:empty?)
@@ -82,8 +90,10 @@ module OMQ
             prefix = frame.byteslice(1..) || "".b
             begin
               case flag
-              when 0x01 then conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
-              when 0x00 then conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
+              when 0x01
+                conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
+              when 0x00
+                conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
               end
             rescue Protocol::ZMTP::Error, *CONNECTION_LOST
               @engine.connection_lost(conn)

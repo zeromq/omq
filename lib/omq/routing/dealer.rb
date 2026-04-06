@@ -19,6 +19,7 @@ module OMQ
         init_round_robin(engine)
       end
 
+
       # @return [FairQueue]
       #
       attr_reader :recv_queue
@@ -31,6 +32,7 @@ module OMQ
         add_round_robin_send_connection(connection)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -39,12 +41,17 @@ module OMQ
         remove_round_robin_send_connection(connection)
       end
 
+
       # @param parts [Array<String>]
       #
       def enqueue(parts)
         enqueue_round_robin(parts)
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
       #
       def stop
         @tasks.each(&:stop)

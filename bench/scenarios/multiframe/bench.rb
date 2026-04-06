@@ -25,7 +25,10 @@ FRAME_COUNTS.each do |n_frames|
     pull = OMQ::PULL.bind("inproc://bench_mf_#{n_frames}")
     push = OMQ::PUSH.connect("inproc://bench_mf_#{n_frames}")
 
-    100.times { push << payload; pull.receive }
+    100.times do
+      push << payload
+      pull.receive
+    end
 
     Benchmark.ips do |x|
       x.config(warmup: 1, time: 3)

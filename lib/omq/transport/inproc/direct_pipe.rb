@@ -64,6 +64,9 @@ module OMQ
         # Sets the direct recv queue. Drains any messages that were
         # buffered before the queue was available.
         #
+        # @param queue [Async::LimitedQueue, nil]
+        # @return [void]
+        #
         def direct_recv_queue=(queue)
           @direct_recv_queue = queue
           if queue && @pending_direct
@@ -93,12 +96,13 @@ module OMQ
         alias write_message send_message
 
 
-        # Inproc pipes are never encrypted.
+        # @return [Boolean] always false; inproc pipes are never encrypted
         #
         def encrypted? = false
 
-
         # No-op — inproc has no IO buffer to flush.
+        #
+        # @return [nil]
         #
         def flush = nil
 
@@ -148,7 +152,9 @@ module OMQ
         end
 
 
-        # Closes this pipe end.
+        # Closes this pipe end and sends a nil sentinel to the peer.
+        #
+        # @return [void]
         #
         def close
           return if @closed

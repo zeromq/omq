@@ -19,11 +19,13 @@ module OMQ
         init_fan_out(engine)
       end
 
+
       # PUB is write-only.
       #
       def recv_queue
         raise "PUB sockets cannot receive"
       end
+
 
       # @param connection [Connection]
       #
@@ -34,6 +36,7 @@ module OMQ
         add_fan_out_send_connection(connection)
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -42,12 +45,17 @@ module OMQ
         remove_fan_out_send_connection(connection)
       end
 
+
       # @param parts [Array<String>]
       #
       def enqueue(parts)
         fan_out_enqueue(parts)
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
       #
       def stop
         @tasks.each(&:stop)

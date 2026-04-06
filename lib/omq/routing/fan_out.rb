@@ -17,10 +17,11 @@ module OMQ
     # their #initialize.
     #
     module FanOut
+      # @return [Async::Promise] resolves when the first subscriber joins
+      #
       attr_reader :subscriber_joined
 
-      # True when all per-connection send queues are empty.
-      # Used by Engine#drain_send_queues during linger.
+      # @return [Boolean] true when all per-connection send queues are empty
       #
       def send_queues_drained?
         @conn_queues.values.all?(&:empty?)
@@ -49,6 +50,7 @@ module OMQ
         subs.any? { |prefix| topic.start_with?(prefix) }
       end
 
+
       # Called when a subscription command is received from a peer.
       # Override in subclasses to expose subscriptions to the
       # application (e.g. XPUB enqueues to recv_queue).
@@ -61,6 +63,7 @@ module OMQ
         @subscribe_all.add(conn) if prefix.empty?
         @subscriber_joined.resolve(conn) unless @subscriber_joined.resolved?
       end
+
 
       # Called when a cancel command is received from a peer.
       # Override in subclasses (e.g. XPUB enqueues to recv_queue).
@@ -125,8 +128,10 @@ module OMQ
             next unless frame.command?
             cmd = Protocol::ZMTP::Codec::Command.from_body(frame.body)
             case cmd.name
-            when "SUBSCRIBE" then on_subscribe(conn, cmd.data)
-            when "CANCEL"    then on_cancel(conn, cmd.data)
+            when "SUBSCRIBE"
+              on_subscribe(conn, cmd.data)
+            when "CANCEL"
+              on_cancel(conn, cmd.data)
             end
           end
         rescue *CONNECTION_LOST
@@ -151,6 +156,7 @@ module OMQ
         @tasks << task
       end
 
+
       def start_conn_send_pump_normal(conn, q, use_wire)
         @engine.spawn_pump_task(annotation: "send pump") do
           loop do
@@ -163,6 +169,7 @@ module OMQ
           end
         end
       end
+
 
       def write_matching_batch(conn, batch, use_wire)
         sent = false

@@ -149,7 +149,10 @@ describe "PUB/SUB" do
       sub = OMQ::SUB.connect("inproc://pubsub-burst", subscribe: "")
 
       # Warm up — ensure subscription is active
-      5.times { pub.send("warmup"); sub.receive }
+      5.times do
+        pub.send("warmup")
+        sub.receive
+      end
 
       n        = 200
       barrier = Async::Barrier.new

@@ -23,6 +23,7 @@ module OMQ
         @tasks          = []
       end
 
+
       # @return [FairQueue]
       #
       attr_reader :recv_queue
@@ -45,6 +46,7 @@ module OMQ
         end
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -56,6 +58,7 @@ module OMQ
           @send_pump = nil
         end
       end
+
 
       # @param parts [Array<String>]
       #
@@ -70,13 +73,18 @@ module OMQ
         end
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
       #
       def stop
         @tasks.each(&:stop)
         @tasks.clear
       end
 
-      # True when the staging and send queues are empty.
+
+      # @return [Boolean] true when the staging and send queues are empty
       #
       def send_queues_drained?
         @staging_queue.empty? && (@send_queue.nil? || @send_queue.empty?)

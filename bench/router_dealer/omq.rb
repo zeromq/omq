@@ -22,7 +22,10 @@ BenchHelper.run("ROUTER/DEALER", dir: __dir__) do |transport, ep, peers, payload
   per_dealer = n / dealers.size
 
   # Warm up
-  100.times { dealers.first << payload; router.receive }
+  100.times do
+    dealers.first << payload
+    router.receive
+  end
 
   t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 

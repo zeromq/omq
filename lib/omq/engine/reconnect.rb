@@ -18,12 +18,24 @@ module OMQ
         new(engine, endpoint, options).run(parent_task, delay: delay)
       end
 
+
+      # @param engine [Engine]
+      # @param endpoint [String]
+      # @param options [Options]
+      #
       def initialize(engine, endpoint, options)
         @engine   = engine
         @endpoint = endpoint
         @options  = options
       end
 
+
+      # Spawns a background task that retries the connection with exponential backoff.
+      #
+      # @param parent_task [Async::Task]
+      # @param delay [Numeric, nil] initial delay override
+      # @return [void]
+      #
       def run(parent_task, delay: nil)
         delay, max_delay = init_delay(delay)
 
@@ -56,6 +68,7 @@ module OMQ
           [delay || ri, nil]
         end
       end
+
 
       def next_delay(delay, max_delay)
         ri    = @options.reconnect_interval

@@ -51,7 +51,8 @@ when "fork"
           push << Marshal.dump(fib(n))
         end
       ensure
-        pull&.close; push&.close
+        pull&.close
+        push&.close
       end
     end
   end
@@ -63,7 +64,10 @@ when "fork"
     sleep 0.3
 
     # Warm up
-    50.times { producer << Marshal.dump(FIB_N); collector.receive }
+    50.times do
+      producer << Marshal.dump(FIB_N)
+      collector.receive
+    end
 
     # Timed run
     t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -79,7 +83,8 @@ when "fork"
   ensure
     pids&.each { |pid| Process.kill(:TERM, pid) rescue nil }
     pids&.each { |pid| Process.wait(pid) rescue nil }
-    producer&.close; collector&.close
+    producer&.close
+    collector&.close
   end
 
 when "ractors"
@@ -87,7 +92,11 @@ when "ractors"
 
   workers = N_WORKERS.times.map do
     Ractor.new(result_port) do |rp|
-      f = Module.new { module_function; def fib(n) = n < 2 ? n : fib(n - 1) + fib(n - 2) }
+      f = Module.new do
+        module_function
+
+        def fib(n) = n < 2 ? n : fib(n - 1) + fib(n - 2)
+      end
       loop do
         n = Ractor.receive
         break if n == :stop

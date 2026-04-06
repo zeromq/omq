@@ -64,7 +64,10 @@ Async do |task|
   req.connect("inproc://broker_fe")
 
   # Warm up
-  50.times { req << PAYLOAD; req.receive }
+  50.times do
+    req << PAYLOAD
+    req.receive
+  end
 
   Benchmark.ips do |x|
     x.config(warmup: 1, time: 3)

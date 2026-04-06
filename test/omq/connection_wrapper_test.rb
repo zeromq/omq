@@ -127,6 +127,43 @@ describe "Engine connection_wrapper" do
   end
 
 
+  it "recv pump skips byte counting for wrapped connections returning mixed arrays" do
+    Async do
+      pull = OMQ::PULL.bind("ipc://@omq-cw-mixed-array")
+
+      # Wrapper that returns [String, Integer] — an Array whose first
+      # element is a String but second is not. Without instance_of?-based
+      # byte counting this would crash on Integer#bytesize.
+      wrapper = Class.new(SimpleDelegator) do
+        def receive_message
+          parts = super
+          [parts.first, parts.first.length]
+        end
+
+        def is_a?(klass) = super || __getobj__.is_a?(klass)
+      end
+
+      pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+        wrapper.new(conn)
+      end
+
+      push = OMQ::PUSH.connect("ipc://@omq-cw-mixed-array")
+      wait_connected(push)
+
+      5.times { |i| push << "msg-#{i}" }
+      results = 5.times.map { pull.receive }
+
+      assert_equal 5, results.size
+      results.each_with_index do |r, i|
+        assert_equal "msg-#{i}", r.first
+        assert_equal "msg-#{i}".length, r.last
+      end
+    ensure
+      [push, pull].compact.each(&:close)
+    end
+  end
+
+
   it "recv pump fairness handles non-string messages" do
     Async do
       pull = OMQ::PULL.bind("ipc://@omq-cw-fairness")

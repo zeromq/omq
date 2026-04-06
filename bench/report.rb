@@ -58,24 +58,30 @@ RESET  = "\e[0m"
 
 def format_si(value)
   case
-  when value >= 1e9  then "%.1fG"  % (value / 1e9)
-  when value >= 1e6  then "%.1fM"  % (value / 1e6)
-  when value >= 1e3  then "%.1fk"  % (value / 1e3)
+  when value >= 1e9
+    "%.1fG"  % (value / 1e9)
+  when value >= 1e6
+    "%.1fM"  % (value / 1e6)
+  when value >= 1e3
+    "%.1fk"  % (value / 1e3)
   else                    "%.0f"   % value
   end
 end
 
 def format_mbps(value)
   case
-  when value >= 1_000_000 then "%.1f TB/s" % (value / 1_000_000)
-  when value >= 1_000     then "%.1f GB/s" % (value / 1_000)
+  when value >= 1_000_000
+    "%.1f TB/s" % (value / 1_000_000)
+  when value >= 1_000
+    "%.1f GB/s" % (value / 1_000)
   else                         "%.1f MB/s" % value
   end
 end
 
 def format_size(bytes)
   case
-  when bytes >= 1024 then "#{bytes / 1024}KB"
+  when bytes >= 1024
+    "#{bytes / 1024}KB"
   else                    "#{bytes}B"
   end
 end

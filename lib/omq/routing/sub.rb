@@ -18,6 +18,7 @@ module OMQ
         @tasks         = []
       end
 
+
       # @return [FairQueue]
       #
       attr_reader :recv_queue
@@ -36,6 +37,7 @@ module OMQ
         @tasks << task if task
       end
 
+
       # @param connection [Connection]
       #
       def connection_removed(connection)
@@ -43,11 +45,13 @@ module OMQ
         @recv_queue.remove_queue(connection)
       end
 
+
       # SUB is read-only.
       #
       def enqueue(_parts)
         raise "SUB sockets cannot send"
       end
+
 
       # Subscribes to a topic prefix.
       #
@@ -60,6 +64,7 @@ module OMQ
         end
       end
 
+
       # Unsubscribes from a topic prefix.
       #
       # @param prefix [String]
@@ -71,6 +76,11 @@ module OMQ
         end
       end
 
+
+      # Stops all background tasks.
+      #
+      # @return [void]
+      #
       def stop
         @tasks.each(&:stop)
         @tasks.clear

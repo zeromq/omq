@@ -55,12 +55,16 @@ when "async"
           push << msg
         end
       ensure
-        pull&.close; push&.close
+        pull&.close
+        push&.close
       end
     end
 
     # Warm up
-    20.times { producer << PAYLOAD; collector.receive }
+    20.times do
+      producer << PAYLOAD
+      collector.receive
+    end
 
     # Timed run
     t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -74,7 +78,8 @@ when "async"
     puts "async  (ipc, 1 thread):  %7.1f msg/s  (%5.0f ms)" % [rate, elapsed * 1000]
   ensure
     workers&.each(&:stop)
-    producer&.close; collector&.close
+    producer&.close
+    collector&.close
   end
 
 when "ractors"
@@ -90,7 +95,11 @@ when "ractors"
     workers = N_WORKERS.times.map do |i|
       Ractor.new(work_addr, result_addr) do |wa, ra|
         Console.logger = Console::Logger.new(Console::Output::Null.new)
-        w = Module.new { module_function; def fib(n) = n < 2 ? n : fib(n - 1) + fib(n - 2) }
+        w = Module.new do
+          module_function
+
+          def fib(n) = n < 2 ? n : fib(n - 1) + fib(n - 2)
+        end
         Async do
           pull = OMQ::PULL.connect(wa)
           push = OMQ::PUSH.connect(ra)
@@ -100,7 +109,8 @@ when "ractors"
             push << msg
           end
         ensure
-          pull&.close; push&.close
+          pull&.close
+          push&.close
         end
       end
     end
@@ -108,7 +118,10 @@ when "ractors"
     sleep 0.3 # let workers connect
 
     # Warm up
-    20.times { producer << PAYLOAD; collector.receive }
+    20.times do
+      producer << PAYLOAD
+      collector.receive
+    end
 
     # Timed run
     t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -121,7 +134,8 @@ when "ractors"
 
     puts "ractors (ipc, #{N_WORKERS} threads): %7.1f msg/s  (%5.0f ms)" % [rate, elapsed * 1000]
   ensure
-    producer&.close; collector&.close
+    producer&.close
+    collector&.close
   end
   exit!(true)
 
