@@ -197,6 +197,33 @@ bundle install
 bundle exec rake
 ```
 
+### Full development setup
+
+Set `OMQ_DEV=1` to tell Bundler to load sibling projects from source
+(protocol-zmtp, nuckle, omq-rfc-\*, etc.) instead of released gems.
+This is required for running benchmarks and for testing changes across
+the stack.
+
+```sh
+# clone OMQ and its sibling repos into the same parent directory
+git clone https://github.com/paddor/omq.git
+git clone https://github.com/paddor/protocol-zmtp.git
+git clone https://github.com/paddor/nuckle.git
+git clone https://github.com/paddor/omq-rfc-blake3zmq.git
+git clone https://github.com/paddor/omq-rfc-channel.git
+git clone https://github.com/paddor/omq-rfc-clientserver.git
+git clone https://github.com/paddor/omq-rfc-p2p.git
+git clone https://github.com/paddor/omq-rfc-qos.git
+git clone https://github.com/paddor/omq-rfc-radiodish.git
+git clone https://github.com/paddor/omq-rfc-scattergather.git
+git clone https://github.com/paddor/omq-ffi.git
+git clone https://github.com/paddor/omq-ractor.git
+
+cd omq
+OMQ_DEV=1 bundle install
+OMQ_DEV=1 bundle exec rake
+```
+
 ## License
 
 [ISC](LICENSE)
