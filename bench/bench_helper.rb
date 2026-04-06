@@ -18,7 +18,7 @@ require 'console'
 require 'rbnacl'
 require 'json'
 require 'protocol/zmtp/mechanism/curve'
-require 'omq/rfcxx-blake3zmq'
+require 'omq/rfc/blake3zmq'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
@@ -118,22 +118,13 @@ module BenchHelper
     end
   end
 
-  Blake3Crypto = OMQ::RFCXX::Blake3ZMQ::Crypto
-
   def blake3_mechanism(role)
-    @blake3_keys ||= begin
-      server_sec = Blake3Crypto::PrivateKey.generate
-      client_sec = Blake3Crypto::PrivateKey.generate
-      { server_pub: server_sec.public_key.to_s, server_sec: server_sec.to_s,
-        client_pub: client_sec.public_key.to_s, client_sec: client_sec.to_s }
-    end
-    k = @blake3_keys
+    k = @curve_keys  # same X25519 keys work for both mechanisms
     case role
     when :server
-      Protocol::ZMTP::Mechanism::Blake3.server(k[:server_pub], k[:server_sec], crypto: Blake3Crypto)
+      Protocol::ZMTP::Mechanism::Blake3.server(k[:server_pub], k[:server_sec])
     when :client
-      Protocol::ZMTP::Mechanism::Blake3.client(k[:client_pub], k[:client_sec],
-                                               server_key: k[:server_pub], crypto: Blake3Crypto)
+      Protocol::ZMTP::Mechanism::Blake3.client(nil, nil, server_key: k[:server_pub])
     end
   end
 
