@@ -140,7 +140,7 @@ module OMQ
       # @param q [Async::LimitedQueue, DropQueue]
       #
       def start_conn_send_pump(conn, q)
-        use_wire = conn.respond_to?(:write_wire) && !(conn.respond_to?(:curve?) && conn.curve?)
+        use_wire = conn.respond_to?(:write_wire) && !conn.encrypted?
         task     = @conflate ? start_conn_send_pump_conflate(conn, q) : start_conn_send_pump_normal(conn, q, use_wire)
         @conn_send_tasks[conn] = task
         @tasks << task
