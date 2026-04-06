@@ -104,27 +104,24 @@ module BenchHelper
   def curve_mechanism(role)
     @curve_keys ||= begin
       server_sec = RbNaCl::PrivateKey.generate
-      client_sec = RbNaCl::PrivateKey.generate
-      { server_pub: server_sec.public_key.to_s, server_sec: server_sec.to_s,
-        client_pub: client_sec.public_key.to_s, client_sec: client_sec.to_s }
+      { server_pub: server_sec.public_key.to_s, server_sec: server_sec.to_s }
     end
     k = @curve_keys
     case role
     when :server
-      Protocol::ZMTP::Mechanism::Curve.server(k[:server_pub], k[:server_sec], crypto: RbNaCl)
+      Protocol::ZMTP::Mechanism::Curve.server(public_key: k[:server_pub], secret_key: k[:server_sec], crypto: RbNaCl)
     when :client
-      Protocol::ZMTP::Mechanism::Curve.client(k[:client_pub], k[:client_sec],
-                                              server_key: k[:server_pub], crypto: RbNaCl)
+      Protocol::ZMTP::Mechanism::Curve.client(server_key: k[:server_pub], crypto: RbNaCl)
     end
   end
 
   def blake3_mechanism(role)
-    k = @curve_keys  # same X25519 keys work for both mechanisms
+    k = @curve_keys  # same X25519 keys
     case role
     when :server
-      Protocol::ZMTP::Mechanism::Blake3.server(k[:server_pub], k[:server_sec])
+      Protocol::ZMTP::Mechanism::Blake3.server(public_key: k[:server_pub], secret_key: k[:server_sec])
     when :client
-      Protocol::ZMTP::Mechanism::Blake3.client(nil, nil, server_key: k[:server_pub])
+      Protocol::ZMTP::Mechanism::Blake3.client(server_key: k[:server_pub])
     end
   end
 
