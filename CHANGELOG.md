@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.1 — 2026-04-07
+
+- **Fix per-connection task tree** — recv pump, heartbeat, and reaper tasks
+  were spawned under `@parent_task` (socket-level) instead of the connection
+  task. When `@parent_task` finished before a late connection completed its
+  handshake, `spawn_pump_task` raised `Async::Task::FinishedError`. Now uses
+  `Async::Task.current` so per-connection subtasks are children of their
+  connection task, matching the DESIGN.md task tree.
+
 ## 0.14.0 — 2026-04-07
 
 - **Fix recv pump crash with connection wrappers** — `start_direct` called

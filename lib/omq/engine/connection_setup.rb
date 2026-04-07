@@ -35,7 +35,7 @@ module OMQ
       def run(io, as_server:, endpoint: nil, done: nil)
         conn = build_connection(io, as_server)
         conn.handshake!
-        Heartbeat.start(@engine.parent_task, conn, @engine.options, @engine.tasks)
+        Heartbeat.start(Async::Task.current, conn, @engine.options, @engine.tasks)
         conn = @engine.connection_wrapper.call(conn) if @engine.connection_wrapper
         register(conn, endpoint, done)
         @engine.emit_monitor_event(:handshake_succeeded, endpoint: endpoint)

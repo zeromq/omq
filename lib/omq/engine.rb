@@ -290,7 +290,7 @@ module OMQ
     # @return [Async::Task, nil]
     #
     def start_recv_pump(conn, recv_queue, &transform)
-      task = RecvPump.start(@parent_task, conn, recv_queue, self, transform)
+      task = RecvPump.start(Async::Task.current, conn, recv_queue, self, transform)
       @tasks << task if task
       task
     end
@@ -342,7 +342,7 @@ module OMQ
     # @return [Async::Task]
     #
     def spawn_pump_task(annotation:, &block)
-      @parent_task.async(transient: true, annotation: annotation) do
+      Async::Task.current.async(transient: true, annotation: annotation) do
         yield
       rescue Async::Stop, Protocol::ZMTP::Error, *CONNECTION_LOST
         # normal shutdown / expected disconnect
