@@ -2,6 +2,12 @@
 
 ## 0.14.1 — 2026-04-07
 
+- **Fix PUSH send queue deadlock on disconnect** — when a peer disconnected
+  while a fiber was blocked on a full per-connection send queue (low `send_hwm`),
+  the fiber hung forever. Now closes the queue on disconnect, raising
+  `ClosedError` which re-routes the message to staging. Also reorders
+  `add_round_robin_send_connection` to start the send pump before draining
+  staging, preventing deadlock with small queues.
 - **Fix reconnect backoff for plain Numeric** — `#next_delay` incorrectly
   doubled the delay even when `reconnect_interval` was a plain Numeric. Now
   only Range triggers exponential backoff; a fixed Numeric returns the same

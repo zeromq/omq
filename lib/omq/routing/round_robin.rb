@@ -48,8 +48,8 @@ module OMQ
         update_direct_pipe
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[conn] = q
-        drain_staging_to(q)
         start_conn_send_pump(conn, q)
+        drain_staging_to(q)
         signal_connection_available
       end
 
@@ -61,7 +61,7 @@ module OMQ
       #
       def remove_round_robin_send_connection(conn)
         update_direct_pipe
-        @conn_queues.delete(conn)
+        @conn_queues.delete(conn)&.close
         @conn_send_tasks.delete(conn)&.stop
       end
 
@@ -105,6 +105,8 @@ module OMQ
           conn = next_connection
           @conn_queues[conn].enqueue(parts)
         end
+      rescue Async::Queue::ClosedError
+        retry
       end
 
 
