@@ -47,6 +47,16 @@ module OMQ
     Errno::ENETUNREACH,
     Socket::ResolutionError,
   ]
+
+
+  # Freezes module-level state so OMQ sockets can be used inside Ractors.
+  # Call this once before spawning any Ractors that create OMQ sockets.
+  #
+  def self.freeze_for_ractors!
+    Ractor.make_shareable(CONNECTION_LOST)
+    Ractor.make_shareable(CONNECTION_FAILED)
+    Ractor.make_shareable(Engine.transports)
+  end
 end
 
 

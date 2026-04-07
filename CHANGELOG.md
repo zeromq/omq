@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.2 — 2026-04-07
+
+- **Add `OMQ.freeze_for_ractors!`** — freezes `CONNECTION_LOST`,
+  `CONNECTION_FAILED`, and `Engine.transports` so OMQ sockets can be
+  created inside bare Ractors. Call once before spawning Ractors.
+
 ## 0.15.0 — 2026-04-07
 
 - **Fix pipe FIFO ordering** — messages from sequential source batches could
