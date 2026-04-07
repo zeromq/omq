@@ -29,6 +29,7 @@ module BenchHelper
     256    => 16_000,
     1024   => 12_000,
     4096   =>  8_000,
+    16_384 =>  5_000,
     65_536 =>  3_000,
   }.freeze
   SIZES = RUNS.keys.freeze
