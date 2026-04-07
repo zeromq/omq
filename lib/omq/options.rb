@@ -20,7 +20,7 @@ module OMQ
       @router_mandatory      = false
       @read_timeout          = nil   # seconds, nil = no timeout
       @write_timeout         = nil
-      @reconnect_interval    = 0.1..1.0  # seconds; Range sets backoff min..max
+      @reconnect_interval    = 0.1   # seconds; Range sets backoff min..max
       @heartbeat_interval    = nil   # seconds, nil = disabled
       @heartbeat_ttl         = nil   # seconds, nil = use heartbeat_interval
       @heartbeat_timeout     = nil   # seconds, nil = use heartbeat_interval
