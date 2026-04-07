@@ -56,6 +56,7 @@ module OMQ
     CONNECTION_LOST.freeze
     CONNECTION_FAILED.freeze
     Engine.transports.freeze
+    Routing.instance_variable_get(:@registry).freeze
   end
 end
 

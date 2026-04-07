@@ -9,6 +9,9 @@
 - **Drop `Ractor.make_shareable`** — `freeze_for_ractors!` now uses plain
   `.freeze` instead of `Ractor.make_shareable`, removing the Ractor
   dependency from the core freeze path.
+- **Freeze routing registry** — `freeze_for_ractors!` now freezes
+  `Routing.@registry` so draft socket types (SCATTER, GATHER, etc.)
+  can be created inside Ractors.
 
 ## 0.15.2 — 2026-04-07
 
