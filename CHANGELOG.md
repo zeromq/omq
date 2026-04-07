@@ -2,6 +2,12 @@
 
 ## 0.14.1 — 2026-04-07
 
+- **Fix reconnect backoff for plain Numeric** — `#next_delay` incorrectly
+  doubled the delay even when `reconnect_interval` was a plain Numeric. Now
+  only Range triggers exponential backoff; a fixed Numeric returns the same
+  interval every retry.
+- **Default `reconnect_interval` changed to `0.1..1.0`** — uses exponential
+  backoff (100 ms → 1 s cap) by default instead of a fixed 100 ms.
 - **Fix per-connection task tree** — recv pump, heartbeat, and reaper tasks
   were spawned under `@parent_task` (socket-level) instead of the connection
   task. When `@parent_task` finished before a late connection completed its

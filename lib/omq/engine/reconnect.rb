@@ -71,11 +71,15 @@ module OMQ
 
 
       def next_delay(delay, max_delay)
-        ri    = @options.reconnect_interval
-        delay = delay * 2
-        delay = [delay, max_delay].min if max_delay
-        delay = (ri.is_a?(Range) ? ri.begin : ri) if delay == 0
-        delay
+        ri = @options.reconnect_interval
+        if ri.is_a?(Range)
+          delay = delay * 2
+          delay = [delay, max_delay].min if max_delay
+          delay = ri.begin if delay == 0
+          delay
+        else
+          ri
+        end
       end
     end
   end
