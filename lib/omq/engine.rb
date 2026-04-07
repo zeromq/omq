@@ -130,7 +130,7 @@ module OMQ
     # @raise [ArgumentError] on unsupported transport
     #
     def bind(endpoint)
-      freeze_error_lists!
+      OMQ.freeze_for_ractors!
       transport = transport_for(endpoint)
       listener  = transport.bind(endpoint, self)
       start_accept_loops(listener)
@@ -150,7 +150,7 @@ module OMQ
     # @return [void]
     #
     def connect(endpoint)
-      freeze_error_lists!
+      OMQ.freeze_for_ractors!
       validate_endpoint!(endpoint)
       @dialed.add(endpoint)
       if endpoint.start_with?("inproc://")
@@ -512,13 +512,6 @@ module OMQ
       @routing.stop rescue nil
       @tasks.each { |t| t.stop rescue nil }
       @tasks.clear
-    end
-
-
-    def freeze_error_lists!
-      return if OMQ::CONNECTION_LOST.frozen?
-      OMQ::CONNECTION_LOST.freeze
-      OMQ::CONNECTION_FAILED.freeze
     end
 
 

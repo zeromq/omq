@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Auto-freeze on bind/connect** — `#bind` and `#connect` now call
+  `OMQ.freeze_for_ractors!` automatically, freezing `CONNECTION_LOST`,
+  `CONNECTION_FAILED`, and `Engine.transports`. This replaces the internal
+  `#freeze_error_lists!` method which only froze the error lists.
+- **Drop `Ractor.make_shareable`** — `freeze_for_ractors!` now uses plain
+  `.freeze` instead of `Ractor.make_shareable`, removing the Ractor
+  dependency from the core freeze path.
+
 ## 0.15.2 — 2026-04-07
 
 - **Add `OMQ.freeze_for_ractors!`** — freezes `CONNECTION_LOST`,
