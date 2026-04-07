@@ -16,6 +16,7 @@ module OMQ
       #
       def initialize
         @queues    = []              # ordered list of per-connection inner queues
+        @drain     = []              # orphaned queues, drained before active queues
         @mapping   = {}              # connection => inner queue
         @cycle     = @queues.cycle  # live reference — sees adds/removes
         @condition = Async::Condition.new
@@ -37,18 +38,18 @@ module OMQ
 
       # Removes the per-connection queue for a disconnected peer.
       #
-      # If the queue is empty it is removed immediately. If it still has
-      # pending messages it is kept in @queues so the application can drain
-      # them via #dequeue; it will be cleaned up lazily by try_dequeue once
-      # it is empty.
+      # If the queue still has pending messages it moves to the
+      # priority drain list so those messages are consumed before
+      # any active connection's messages — preserving FIFO for
+      # sequential connections.
       #
       # @param conn [Connection]
       #
       def remove_queue(conn)
         q = @mapping.delete(conn)
         return unless q
-        @queues.delete(q) if q.empty?
-        # Non-empty orphaned queues stay in @queues until drained
+        @queues.delete(q)
+        @drain << q unless q.empty?
       end
 
 
@@ -73,7 +74,7 @@ module OMQ
         return try_dequeue if timeout == 0
 
         loop do
-          return nil if @closed && @queues.all?(&:empty?)
+          return nil if @closed && @drain.empty? && @queues.all?(&:empty?)
 
           msg = try_dequeue
           return msg if msg
@@ -100,17 +101,25 @@ module OMQ
       # @return [Boolean]
       #
       def empty?
-        @queues.all?(&:empty?)
+        @drain.empty? && @queues.all?(&:empty?)
       end
 
       private
 
-      # Tries each per-connection queue once in round-robin order.
-      # Returns the first message found, or nil if all are empty.
-      # Lazily removes empty orphaned queues (disconnected peers that have
-      # been fully drained).
+      # Drains orphaned queues first (preserves FIFO for disconnected
+      # peers), then tries each active queue once in round-robin order.
       #
       def try_dequeue
+        # Priority: drain orphaned queues before serving active ones
+        until @drain.empty?
+          msg = @drain.first.dequeue(timeout: 0)
+          if msg
+            return msg
+          else
+            @drain.shift
+          end
+        end
+
         @queues.size.times do
           q = begin
                 @cycle.next
@@ -120,10 +129,6 @@ module OMQ
               end
           msg = q.dequeue(timeout: 0)
           return msg if msg
-          if q.empty? && !@mapping.value?(q)
-            @queues.delete(q)
-            break
-          end
         end
         nil
       end

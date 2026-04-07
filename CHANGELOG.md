@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.15.0 — 2026-04-07
+
+- **Fix pipe FIFO ordering** — messages from sequential source batches could
+  interleave when a connection dropped and reconnected. `FairQueue` now moves
+  orphaned per-connection queues to a priority drain list, ensuring all buffered
+  messages from a disconnected peer are consumed before any new peer's messages.
+- **Fix lost messages on disconnect** — `RoundRobin#remove_round_robin_send_connection`
+  now drains the per-connection send queue back to staging before closing it, and
+  the send pump re-stages its in-flight batch on `CONNECTION_LOST`. Previously
+  messages in the per-connection queue or mid-batch were silently dropped.
+- **Fix `next_connection` deadlock** — when the round-robin cycle exhausted with
+  connections still present, a new unresolved `Async::Promise` was created
+  unconditionally, blocking the sender forever. Now only creates a new promise
+  when `@connections` is actually empty.
+- **Fix staging drain race** — `add_round_robin_send_connection` now appends to
+  `@connections` after draining staging (not before), preventing the pipe loop
+  from bypassing staging during drain. A second drain pass catches any message
+  that squeezed in during the first.
+- **Fix `handshake_succeeded` event ordering** — the monitor event is now emitted
+  before `connection_added` (which may yield during drain), so it always appears
+  before any `message_sent` events on that connection.
+- **Fix send pump `Async::Stop` preventing reconnect** — `remove_round_robin_send_connection`
+  no longer calls `task.stop` on the send pump. Instead it closes the queue and
+  lets the pump detect nil, avoiding `Async::Stop` propagation that prevented
+  `maybe_reconnect` from running.
+- **Add `StagingQueue`** — bounded FIFO queue with `#prepend` for re-staging
+  failed messages at the front. Replaces raw `Async::LimitedQueue` in
+  `RoundRobin` and `Pair` routing strategies.
+- **Add `SingleFrame` mixin to core** — moved from 5 duplicate copies across
+  RFC gems to `OMQ::SingleFrame`, eliminating method redefinition warnings.
+- **Add `SO_SNDBUF` / `SO_RCVBUF` socket options** — `Options#sndbuf` and
+  `Options#rcvbuf` set kernel buffer sizes on TCP and IPC sockets (both
+  accepted and connected).
+- **Add verbose monitor events** — `Socket#monitor(verbose: true)` emits
+  `:message_sent` and `:message_received` events via `Engine#emit_verbose_monitor_event`.
+  Allocation-free when verbose is off.
+- **Add `OMQ::DEBUG` flag** — when `OMQ_DEBUG` is set, transport accept loops
+  print unexpected exceptions to stderr.
+- **Fix `Pair` re-staging on disconnect** — `Pair#connection_removed` now drains
+  the per-connection send queue back to staging, and the send pump re-stages its
+  batch on `CONNECTION_LOST`.
+
 ## 0.14.1 — 2026-04-07
 
 - **Fix PUSH send queue deadlock on disconnect** — when a peer disconnected

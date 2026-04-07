@@ -78,6 +78,7 @@ module OMQ
       @on_io_thread      = false
       @fatal_error       = nil
       @monitor_queue     = nil
+      @verbose_monitor   = false
     end
 
 
@@ -95,6 +96,7 @@ module OMQ
     #   @param value [Async::Queue, nil] queue for monitor events
     #
     attr_writer :reconnect_enabled, :monitor_queue
+    attr_accessor :verbose_monitor
 
     # @return [Boolean] true if the engine has been closed
     #
@@ -222,9 +224,9 @@ module OMQ
     def connection_ready(pipe, endpoint: nil)
       pipe = @connection_wrapper.call(pipe) if @connection_wrapper
       @connections[pipe] = ConnectionRecord.new(endpoint: endpoint, done: nil)
+      emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
       @routing.connection_added(pipe)
       @peer_connected.resolve(pipe)
-      emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
     end
 
 
@@ -404,6 +406,20 @@ module OMQ
     end
 
 
+    # Emits a verbose-only monitor event (e.g. message traces).
+    # Only emitted when {Socket#monitor} was called with +verbose: true+.
+    # Uses +**detail+ to avoid Hash allocation when verbose is off.
+    #
+    # @param type [Symbol] event type (e.g. :message_sent, :message_received)
+    # @param detail [Hash] extra context forwarded as keyword args
+    # @return [void]
+    #
+    def emit_verbose_monitor_event(type, **detail)
+      return unless @verbose_monitor
+      emit_monitor_event(type, detail: detail)
+    end
+
+
     # Looks up the transport module for an endpoint URI.
     #
     # @param endpoint [String] endpoint URI (e.g. "tcp://...", "inproc://...")
@@ -423,6 +439,8 @@ module OMQ
         done = Async::Promise.new
         conn = ConnectionSetup.run(io, self, as_server: as_server, endpoint: endpoint, done: done)
         done.wait
+      rescue Async::Queue::ClosedError
+        # connection dropped during drain — message re-staged
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST
         # handshake failed or connection lost — subtree cleaned up
       ensure

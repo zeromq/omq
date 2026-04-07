@@ -34,7 +34,7 @@ module OMQ
 
           host_part = host.include?(":") ? "[#{host}]" : host
           resolved  = "tcp://#{host_part}:#{actual_port}"
-          Listener.new(resolved, servers, actual_port)
+          Listener.new(resolved, servers, actual_port, engine)
         end
 
 
@@ -58,6 +58,7 @@ module OMQ
         def connect(endpoint, engine)
           host, port = self.parse_endpoint(endpoint)
           sock = TCPSocket.new(host, port)
+          apply_buffer_sizes(sock, engine.options)
           engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
         end
 
@@ -70,6 +71,12 @@ module OMQ
         def parse_endpoint(endpoint)
           uri = URI.parse(endpoint)
           [uri.hostname, uri.port]
+        end
+
+
+        def apply_buffer_sizes(sock, options)
+          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options.sndbuf) if options.sndbuf
+          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf) if options.rcvbuf
         end
       end
 
@@ -93,11 +100,13 @@ module OMQ
         # @param endpoint [String] resolved endpoint URI
         # @param servers [Array<TCPServer>]
         # @param port [Integer] bound port number
+        # @param engine [Engine]
         #
-        def initialize(endpoint, servers, port)
+        def initialize(endpoint, servers, port, engine)
           @endpoint = endpoint
           @servers  = servers
           @port     = port
+          @engine   = engine
           @tasks    = []
         end
 
@@ -113,11 +122,14 @@ module OMQ
             parent_task.async(transient: true, annotation: "tcp accept #{@endpoint}") do
               loop do
                 client = server.accept
+                TCP.apply_buffer_sizes(client, @engine.options)
                 Async::Task.current.defer_stop { on_accepted.call(IO::Stream::Buffered.wrap(client)) }
               end
             rescue Async::Stop
             rescue IOError
               # server closed
+            rescue => e
+              $stderr.write("omq: tcp accept: #{e.class}: #{e.message}\n#{e.backtrace&.first}\n") if OMQ::DEBUG
             ensure
               server.close rescue nil
             end

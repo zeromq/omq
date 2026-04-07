@@ -13,6 +13,11 @@ require_relative "omq/version"
 require_relative "omq/monitor_event"
 
 module OMQ
+  # When OMQ_DEBUG is set, silent rescue clauses print the exception
+  # to stderr so transport/engine bugs surface immediately.
+  DEBUG = !!ENV["OMQ_DEBUG"]
+
+
   # Raised when an internal pump task crashes unexpectedly.
   # The socket is no longer usable; the original error is available via #cause.
   #
@@ -71,6 +76,7 @@ require_relative "omq/engine"
 require_relative "omq/queue_interface"
 require_relative "omq/readable"
 require_relative "omq/writable"
+require_relative "omq/single_frame"
 
 # Socket types
 require_relative "omq/socket"

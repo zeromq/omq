@@ -26,6 +26,8 @@ module OMQ
       @heartbeat_timeout     = nil   # seconds, nil = use heartbeat_interval
       @max_message_size      = 1 << 20  # bytes (1 MiB default)
       @conflate              = false
+      @sndbuf                = nil   # bytes, nil = OS default
+      @rcvbuf                = nil   # bytes, nil = OS default
       @on_mute               = :block   # :block, :drop_newest, :drop_oldest
       @mechanism             = Protocol::ZMTP::Mechanism::Null.new
       @qos                   = 0       # 0 = fire-and-forget, 1 = at-least-once (see omq-qos gem)
@@ -58,6 +60,10 @@ module OMQ
     #   @return [Numeric, nil] time without traffic before closing (nil = use heartbeat_interval)
     # @!attribute max_message_size
     #   @return [Integer, nil] maximum message size in bytes
+    # @!attribute sndbuf
+    #   @return [Integer, nil] SO_SNDBUF size in bytes (nil = OS default)
+    # @!attribute rcvbuf
+    #   @return [Integer, nil] SO_RCVBUF size in bytes (nil = OS default)
     # @!attribute on_mute
     #   @return [Symbol] mute strategy (:block, :drop_newest, :drop_oldest)
     # @!attribute mechanism
@@ -72,6 +78,7 @@ module OMQ
                   :reconnect_interval,
                   :heartbeat_interval,    :heartbeat_ttl,    :heartbeat_timeout,
                   :max_message_size,
+                  :sndbuf,    :rcvbuf,
                   :on_mute,
                   :mechanism,
                   :qos

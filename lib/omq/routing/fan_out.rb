@@ -162,7 +162,10 @@ module OMQ
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
-            conn.flush if write_matching_batch(conn, batch, use_wire)
+            if write_matching_batch(conn, batch, use_wire)
+              conn.flush
+              batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
+            end
           rescue Protocol::ZMTP::Error, *CONNECTION_LOST
             @engine.connection_lost(conn)
             break
@@ -193,6 +196,7 @@ module OMQ
             begin
               conn.write_message(latest)
               conn.flush
+              @engine.emit_verbose_monitor_event(:message_sent, parts: latest)
             rescue Protocol::ZMTP::Error, *CONNECTION_LOST
               @engine.connection_lost(conn)
               break

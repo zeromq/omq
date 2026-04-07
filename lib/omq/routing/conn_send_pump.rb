@@ -23,6 +23,7 @@ module OMQ
             Routing.drain_send_queue(q, batch)
             batch.each { |parts| conn.write_message(parts) }
             conn.flush
+            batch.each { |parts| engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
           rescue Protocol::ZMTP::Error, *CONNECTION_LOST
             engine.connection_lost(conn)
             break

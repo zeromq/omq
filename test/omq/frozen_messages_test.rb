@@ -222,8 +222,8 @@ describe "received messages are deep-frozen" do
   describe "IPC" do
     it "PUSH/PULL" do
       Async do
-        pull = OMQ::PULL.bind("ipc://@omq-frozen-pp-#{$$}")
-        push = OMQ::PUSH.connect("ipc://@omq-frozen-pp-#{$$}")
+        pull = OMQ::PULL.bind("ipc://@omq-test-frozen-pp-#{$$}")
+        push = OMQ::PUSH.connect("ipc://@omq-test-frozen-pp-#{$$}")
 
         push << "hello"
         assert_deep_frozen pull.receive
@@ -235,8 +235,8 @@ describe "received messages are deep-frozen" do
 
     it "REQ/REP" do
       Async do
-        rep = OMQ::REP.bind("ipc://@omq-frozen-rr-#{$$}")
-        req = OMQ::REQ.connect("ipc://@omq-frozen-rr-#{$$}")
+        rep = OMQ::REP.bind("ipc://@omq-test-frozen-rr-#{$$}")
+        req = OMQ::REQ.connect("ipc://@omq-test-frozen-rr-#{$$}")
 
         req << "request"
         msg = rep.receive

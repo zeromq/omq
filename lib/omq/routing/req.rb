@@ -29,7 +29,6 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_added(connection)
-        @connections << connection
         add_fair_recv_connection(connection) do |msg|
           @state = :ready
           msg.first&.empty? ? msg[1..] : msg

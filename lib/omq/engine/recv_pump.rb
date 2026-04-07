@@ -68,7 +68,7 @@ module OMQ
 
 
       def start_with_transform(parent_task, transform)
-        conn, recv_queue, count_bytes = @conn, @recv_queue, @count_bytes
+        conn, recv_queue, engine, count_bytes = @conn, @recv_queue, @engine, @count_bytes
 
         parent_task.async(transient: true, annotation: "recv pump") do |task|
           loop do
@@ -78,6 +78,7 @@ module OMQ
               msg = conn.receive_message
               msg = transform.call(msg).freeze
               recv_queue.enqueue(msg)
+              engine.emit_verbose_monitor_event(:message_received, parts: msg)
               count += 1
               bytes += msg.sum(&:bytesize) if count_bytes
             end
@@ -93,7 +94,7 @@ module OMQ
 
 
       def start_direct(parent_task)
-        conn, recv_queue, count_bytes = @conn, @recv_queue, @count_bytes
+        conn, recv_queue, engine, count_bytes = @conn, @recv_queue, @engine, @count_bytes
 
         parent_task.async(transient: true, annotation: "recv pump") do |task|
           loop do
@@ -102,6 +103,7 @@ module OMQ
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
               recv_queue.enqueue(msg)
+              engine.emit_verbose_monitor_event(:message_received, parts: msg)
               count += 1
               bytes += msg.sum(&:bytesize) if count_bytes
             end

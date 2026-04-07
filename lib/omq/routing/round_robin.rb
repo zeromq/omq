@@ -35,7 +35,7 @@ module OMQ
         @conn_queues          = {}  # connection => send queue
         @conn_send_tasks      = {}  # connection => send pump task
         @direct_pipe          = nil
-        @staging_queue        = Routing.build_queue(@engine.options.send_hwm, :block)
+        @staging_queue        = StagingQueue.new(@engine.options.send_hwm)
       end
 
 
@@ -45,10 +45,17 @@ module OMQ
       # @param conn [Connection]
       #
       def add_round_robin_send_connection(conn)
-        update_direct_pipe
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[conn] = q
         start_conn_send_pump(conn, q)
+        drain_staging_to(q)
+        @connections << conn
+        update_direct_pipe
+        # A message may have squeezed into staging while drain was
+        # running (the pipe loop's blocked enqueue completed after
+        # drain freed space).  Now that @connections is set, no new
+        # messages will go to staging, so this second drain is
+        # guaranteed to finish quickly.
         drain_staging_to(q)
         signal_connection_available
       end
@@ -61,8 +68,14 @@ module OMQ
       #
       def remove_round_robin_send_connection(conn)
         update_direct_pipe
-        @conn_queues.delete(conn)&.close
-        @conn_send_tasks.delete(conn)&.stop
+        q = @conn_queues.delete(conn)
+        if q
+          while (msg = q.dequeue(timeout: 0))
+            @staging_queue.prepend(msg)
+          end
+          q.close
+        end
+        @conn_send_tasks.delete(conn)
       end
 
 
@@ -115,9 +128,13 @@ module OMQ
       # were enqueued before any connection existed.
       #
       def drain_staging_to(q)
-        while (msg = @staging_queue.dequeue(timeout: 0))
+        while (msg = @staging_queue.dequeue)
           q.enqueue(msg)
         end
+      rescue Async::Queue::ClosedError
+        # Connection dropped while draining — put the undelivered
+        # message back at the front so ordering is preserved.
+        @staging_queue.prepend(msg) if msg
       end
 
 
@@ -129,8 +146,10 @@ module OMQ
       def next_connection
         @cycle.next
       rescue StopIteration
-        @connection_available = Async::Promise.new
-        @connection_available.wait
+        if @connections.empty?
+          @connection_available = Async::Promise.new
+          @connection_available.wait
+        end
         @cycle = @connections.cycle
         retry
       end
@@ -155,10 +174,14 @@ module OMQ
       def start_conn_send_pump(conn, q)
         task = @engine.spawn_pump_task(annotation: "send pump") do
           loop do
-            batch = [q.dequeue]
+            msg = q.dequeue
+            break unless msg  # queue closed by remove_round_robin_send_connection
+            batch = [msg]
             Routing.drain_send_queue(q, batch)
             write_batch(conn, batch)
+            batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
           rescue Protocol::ZMTP::Error, *CONNECTION_LOST
+            batch&.each { |parts| @staging_queue.prepend(parts) }
             @engine.connection_lost(conn)
             break
           end

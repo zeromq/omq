@@ -37,8 +37,8 @@ module OMQ
         conn.handshake!
         Heartbeat.start(Async::Task.current, conn, @engine.options, @engine.tasks)
         conn = @engine.connection_wrapper.call(conn) if @engine.connection_wrapper
-        register(conn, endpoint, done)
         @engine.emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
+        register(conn, endpoint, done)
         conn
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
         @engine.emit_monitor_event(:handshake_failed, endpoint: endpoint, detail: { error: error })

@@ -43,9 +43,9 @@ describe "PUB/SUB" do
 
   it "fans out to multiple IPC subscribers" do
     Async do
-      pub = OMQ::PUB.bind("ipc://@pubsub-fanout-ipc")
+      pub = OMQ::PUB.bind("ipc://@omq-test-pubsub-fanout")
 
-      subs = 3.times.map { OMQ::SUB.connect("ipc://@pubsub-fanout-ipc", subscribe: "") }
+      subs = 3.times.map { OMQ::SUB.connect("ipc://@omq-test-pubsub-fanout", subscribe: "") }
       wait_connected(*subs)
 
       # Wait for subscriptions to propagate

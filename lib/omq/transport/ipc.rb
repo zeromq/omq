@@ -27,7 +27,7 @@ module OMQ
 
           server = UNIXServer.new(sock_path)
 
-          Listener.new(endpoint, server, path)
+          Listener.new(endpoint, server, path, engine)
         end
 
 
@@ -41,7 +41,13 @@ module OMQ
           path = parse_path(endpoint)
           sock_path = to_socket_path(path)
           sock = UNIXSocket.new(sock_path)
+          apply_buffer_sizes(sock, engine.options)
           engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
+        end
+
+        def apply_buffer_sizes(sock, options)
+          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options.sndbuf) if options.sndbuf
+          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf) if options.rcvbuf
         end
 
         private
@@ -87,11 +93,13 @@ module OMQ
         # @param endpoint [String] the IPC endpoint URI
         # @param server [UNIXServer]
         # @param path [String] filesystem or abstract namespace path
+        # @param engine [Engine]
         #
-        def initialize(endpoint, server, path)
+        def initialize(endpoint, server, path, engine)
           @endpoint = endpoint
           @server   = server
           @path     = path
+          @engine   = engine
           @task     = nil
         end
 
@@ -106,11 +114,14 @@ module OMQ
           @task = parent_task.async(transient: true, annotation: "ipc accept #{@endpoint}") do
             loop do
               client = @server.accept
+              IPC.apply_buffer_sizes(client, @engine.options)
               Async::Task.current.defer_stop { on_accepted.call(IO::Stream::Buffered.wrap(client)) }
             end
           rescue Async::Stop
           rescue IOError
             # server closed
+          rescue => e
+            $stderr.write("omq: ipc accept: #{e.class}: #{e.message}\n#{e.backtrace&.first}\n") if OMQ::DEBUG
           ensure
             @server.close rescue nil
           end

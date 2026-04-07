@@ -18,7 +18,7 @@ module OMQ
         @connection     = nil
         @recv_queue     = FairQueue.new
         @send_queue     = nil   # created per-connection
-        @staging_queue  = Routing.build_queue(@engine.options.send_hwm, :block)
+        @staging_queue  = StagingQueue.new(@engine.options.send_hwm)
         @send_pump      = nil
         @tasks          = []
       end
@@ -39,7 +39,7 @@ module OMQ
 
         unless connection.is_a?(Transport::Inproc::DirectPipe)
           @send_queue = Routing.build_queue(@engine.options.send_hwm, :block)
-          while (msg = @staging_queue.dequeue(timeout: 0))
+          while (msg = @staging_queue.dequeue)
             @send_queue.enqueue(msg)
           end
           start_send_pump(connection)
@@ -53,7 +53,12 @@ module OMQ
         if @connection == connection
           @connection = nil
           @recv_queue.remove_queue(connection)
-          @send_queue = nil
+          if @send_queue
+            while (msg = @send_queue.dequeue(timeout: 0))
+              @staging_queue.prepend(msg)
+            end
+            @send_queue = nil
+          end
           @send_pump&.stop
           @send_pump = nil
         end
@@ -100,7 +105,9 @@ module OMQ
             begin
               batch.each { |parts| conn.write_message(parts) }
               conn.flush
+              batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
             rescue Protocol::ZMTP::Error, *CONNECTION_LOST
+              batch.each { |parts| @staging_queue.prepend(parts) }
               @engine.connection_lost(conn)
               break
             end

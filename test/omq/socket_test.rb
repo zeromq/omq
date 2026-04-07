@@ -18,10 +18,12 @@ describe OMQ::Socket do
     end
 
     it "shows nil endpoint before bind/connect" do
-      rep = OMQ::REP.new
-      assert_match(/nil/, rep.inspect)
-    ensure
-      rep&.close
+      Async do
+        rep = OMQ::REP.new
+        assert_match(/nil/, rep.inspect)
+      ensure
+        rep&.close
+      end
     end
   end
 

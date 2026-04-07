@@ -26,7 +26,6 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_added(connection)
-        @connections << connection
         add_round_robin_send_connection(connection)
         start_reaper(connection)
       end

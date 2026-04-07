@@ -36,6 +36,8 @@ module OMQ
       :heartbeat_ttl,         :heartbeat_ttl=,
       :heartbeat_timeout,     :heartbeat_timeout=,
       :max_message_size,      :max_message_size=,
+      :sndbuf,                :sndbuf=,
+      :rcvbuf,                :rcvbuf=,
       :on_mute,               :on_mute=,
       :mechanism,             :mechanism=
 
@@ -170,10 +172,11 @@ module OMQ
     #   # later:
     #   task.stop
     #
-    def monitor(&block)
+    def monitor(verbose: false, &block)
       ensure_parent_task
       queue = Async::Queue.new
       @engine.monitor_queue = queue
+      @engine.verbose_monitor = verbose
       Reactor.run do
         @engine.parent_task.async(transient: true, annotation: "monitor") do
           while (event = queue.dequeue)

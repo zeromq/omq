@@ -30,7 +30,7 @@ describe "Engine connection_wrapper" do
 
   it "wraps IPC connections via setup_connection" do
     Async do
-      pull = OMQ::PULL.bind("ipc://@omq-cw-ipc")
+      pull = OMQ::PULL.bind("ipc://@omq-test-cw-ipc")
 
       wrapped = []
       pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
@@ -38,7 +38,7 @@ describe "Engine connection_wrapper" do
         conn
       end
 
-      push = OMQ::PUSH.connect("ipc://@omq-cw-ipc")
+      push = OMQ::PUSH.connect("ipc://@omq-test-cw-ipc")
       wait_connected(push)
 
       push << "hello"
@@ -76,7 +76,7 @@ describe "Engine connection_wrapper" do
 
   it "wrapper can transform messages on send (IPC)" do
     Async do
-      pull = OMQ::PULL.bind("ipc://@omq-cw-transform")
+      pull = OMQ::PULL.bind("ipc://@omq-test-cw-transform")
 
       push = OMQ::PUSH.new
 
@@ -99,7 +99,7 @@ describe "Engine connection_wrapper" do
         upcaser.new(conn)
       end
 
-      push.connect("ipc://@omq-cw-transform")
+      push.connect("ipc://@omq-test-cw-transform")
       wait_connected(push)
 
       push << "hello"
@@ -129,7 +129,7 @@ describe "Engine connection_wrapper" do
 
   it "recv pump skips byte counting for wrapped connections returning mixed arrays" do
     Async do
-      pull = OMQ::PULL.bind("ipc://@omq-cw-mixed-array")
+      pull = OMQ::PULL.bind("ipc://@omq-test-cw-mixed-array")
 
       # Wrapper that returns [String, Integer] — an Array whose first
       # element is a String but second is not. Without instance_of?-based
@@ -147,7 +147,7 @@ describe "Engine connection_wrapper" do
         wrapper.new(conn)
       end
 
-      push = OMQ::PUSH.connect("ipc://@omq-cw-mixed-array")
+      push = OMQ::PUSH.connect("ipc://@omq-test-cw-mixed-array")
       wait_connected(push)
 
       5.times { |i| push << "msg-#{i}" }
@@ -166,7 +166,7 @@ describe "Engine connection_wrapper" do
 
   it "recv pump fairness handles non-string messages" do
     Async do
-      pull = OMQ::PULL.bind("ipc://@omq-cw-fairness")
+      pull = OMQ::PULL.bind("ipc://@omq-test-cw-fairness")
 
       # Wrapper that makes receive_message return a Hash instead of string array
       deserializer = Class.new(SimpleDelegator) do
@@ -184,7 +184,7 @@ describe "Engine connection_wrapper" do
         deserializer.new(conn)
       end
 
-      push = OMQ::PUSH.connect("ipc://@omq-cw-fairness")
+      push = OMQ::PUSH.connect("ipc://@omq-test-cw-fairness")
       wait_connected(push)
 
       # Send multiple messages — the fairness byte counting must not crash
