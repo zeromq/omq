@@ -18,18 +18,18 @@ require 'console'
 require 'rbnacl'
 require 'json'
 require 'protocol/zmtp/mechanism/curve'
-require 'omq/rfc/blake3zmq'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
   # Message count per size, tuned so the full 6-script benchmark suite
-  # finishes in ~120s total with YJIT (5 transports × 2 peer counts).
+  # finishes in a couple of minutes with YJIT.
+  #
+  # Sizes cover four orders of magnitude:
+  #   tiny (64 B), small (1 KiB), medium (8 KiB), large (64 KiB)
   RUNS = {
     64     => 20_000,
-    256    => 16_000,
     1024   => 12_000,
-    4096   =>  8_000,
-    16_384 =>  5_000,
+    8192   =>  6_000,
     65_536 =>  3_000,
   }.freeze
   SIZES = RUNS.keys.freeze
@@ -40,7 +40,15 @@ module BenchHelper
 
   KERNEL = `uname -r`.strip.freeze
 
-  TRANSPORTS = %w[inproc ipc tcp curve blake3].freeze
+  # Transports under test:
+  #   inproc — in-process upper bound
+  #   ipc    — Unix-domain sockets, no TCP stack
+  #   tcp    — primary networked path
+  #   curve  — encrypted networked path (CURVE mechanism over TCP)
+  #
+  # blake3 is intentionally excluded from this suite; perf for the
+  # BLAKE3-ZMTP mechanism is tracked in the omq-rfc-blake3zmq repo.
+  TRANSPORTS = %w[inproc ipc tcp curve].freeze
 
   def run_id
     @run_id ||= ENV["OMQ_BENCH_RUN_ID"] || Time.now.strftime("%Y-%m-%dT%H:%M:%S")
@@ -96,8 +104,6 @@ module BenchHelper
       "tcp://127.0.0.1:0"
     when "curve"
       "tcp://127.0.0.1:0"
-    when "blake3"
-      "tcp://127.0.0.1:0"
     end
   end
 
@@ -105,7 +111,7 @@ module BenchHelper
   #
   def resolve_endpoint(transport, socket)
     case transport
-    when "tcp", "curve", "blake3"
+    when "tcp", "curve"
       "tcp://127.0.0.1:#{socket.last_tcp_port}"
     else socket.last_endpoint
     end
@@ -117,8 +123,6 @@ module BenchHelper
     case transport
     when "curve"
       socket.mechanism = curve_mechanism(role)
-    when "blake3"
-      socket.mechanism = blake3_mechanism(role)
     end
   end
 
@@ -133,16 +137,6 @@ module BenchHelper
       Protocol::ZMTP::Mechanism::Curve.server(public_key: k[:server_pub], secret_key: k[:server_sec], crypto: RbNaCl)
     when :client
       Protocol::ZMTP::Mechanism::Curve.client(server_key: k[:server_pub], crypto: RbNaCl)
-    end
-  end
-
-  def blake3_mechanism(role)
-    k = @curve_keys  # same X25519 keys
-    case role
-    when :server
-      Protocol::ZMTP::Mechanism::Blake3.server(public_key: k[:server_pub], secret_key: k[:server_sec])
-    when :client
-      Protocol::ZMTP::Mechanism::Blake3.client(server_key: k[:server_pub])
     end
   end
 

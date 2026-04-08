@@ -6,7 +6,7 @@
 
 require_relative "../bench_helper"
 
-BenchHelper.run("PUB/SUB", dir: __dir__) do |transport, ep, peers, payload, n|
+BenchHelper.run("PUB/SUB", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload, n|
   pub = OMQ::PUB.new
   BenchHelper.apply_security(pub, transport, role: :server)
   pub.bind(ep)

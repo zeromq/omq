@@ -4,7 +4,7 @@
 
 require_relative "../bench_helper"
 
-BenchHelper.run("PUSH/PULL", dir: __dir__) do |transport, ep, peers, payload, n|
+BenchHelper.run("PUSH/PULL", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload, n|
   pull = OMQ::PULL.new
   BenchHelper.apply_security(pull, transport, role: :server)
   pull.bind(ep)
