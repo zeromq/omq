@@ -42,9 +42,11 @@ module OMQ
     attr_reader :options
 
 
-    # @return [Routing] routing strategy
+    # @return [Routing] routing strategy (created lazily on first access)
     #
-    attr_reader :routing
+    def routing
+      @routing ||= Routing.for(@socket_type).new(self)
+    end
 
 
     # @return [String, nil] last bound endpoint
@@ -63,7 +65,7 @@ module OMQ
     def initialize(socket_type, options)
       @socket_type       = socket_type
       @options           = options
-      @routing           = Routing.for(socket_type).new(self)
+      @routing           = nil
       @connections       = {} # connection => ConnectionRecord
       @dialed            = Set.new # endpoints we called connect() on (reconnect intent)
       @listeners         = []
@@ -225,7 +227,7 @@ module OMQ
       pipe = @connection_wrapper.call(pipe) if @connection_wrapper
       @connections[pipe] = ConnectionRecord.new(endpoint: endpoint, done: nil)
       emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
-      @routing.connection_added(pipe)
+      routing.connection_added(pipe)
       @peer_connected.resolve(pipe)
     end
 
@@ -237,28 +239,31 @@ module OMQ
     #
     def dequeue_recv
       raise @fatal_error if @fatal_error
-      msg = @routing.recv_queue.dequeue
+      msg = routing.recv_queue.dequeue
       raise @fatal_error if msg.nil? && @fatal_error
       msg
     end
 
 
-    # Dequeues up to +max+ messages. Blocks on the first, then
-    # drains non-blocking.
+    # Dequeues up to +max+ messages or +max_bytes+ total. Blocks
+    # on the first, then drains non-blocking.
     #
-    # @param max [Integer]
+    # @param max [Integer] message count limit
+    # @param max_bytes [Integer] byte size limit
     # @return [Array<Array<String>>]
     #
-    def dequeue_recv_batch(max)
+    def dequeue_recv_batch(max, max_bytes: 1 << 20)
       raise @fatal_error if @fatal_error
-      queue = @routing.recv_queue
+      queue = routing.recv_queue
       msg   = queue.dequeue
       raise @fatal_error if msg.nil? && @fatal_error
       batch = [msg]
-      while batch.size < max
+      bytes = msg.sum(&:bytesize)
+      while batch.size < max && bytes < max_bytes
         msg = queue.dequeue(timeout: 0)
         break unless msg
         batch << msg
+        bytes += msg.sum(&:bytesize)
       end
       batch
     end
@@ -268,7 +273,7 @@ module OMQ
     # pending {#dequeue_recv} with a nil return value.
     #
     def dequeue_recv_sentinel
-      @routing.recv_queue.push(nil)
+      routing.recv_queue.push(nil)
     end
 
 
@@ -280,7 +285,7 @@ module OMQ
     #
     def enqueue_send(parts)
       raise @fatal_error if @fatal_error
-      @routing.enqueue(parts)
+      routing.enqueue(parts)
     end
 
 
@@ -305,7 +310,7 @@ module OMQ
     #
     def connection_lost(connection)
       entry = @connections.delete(connection)
-      @routing.connection_removed(connection)
+      routing.connection_removed(connection)
       connection.close
       emit_monitor_event(:disconnected, endpoint: entry&.endpoint)
       entry&.done&.resolve(true)
@@ -369,7 +374,7 @@ module OMQ
       rescue => wrapped
         wrapped
       end
-      @routing.recv_queue.push(nil) rescue nil
+      routing.recv_queue.push(nil) rescue nil
       @peer_connected.resolve(nil) rescue nil
     end
 
@@ -502,14 +507,14 @@ module OMQ
       conns = @connections.filter_map { |conn, e| conn if e.endpoint == endpoint }
       conns.each do |conn|
         @connections.delete(conn)
-        @routing.connection_removed(conn)
+        routing.connection_removed(conn)
         conn.close
       end
     end
 
 
     def stop_tasks
-      @routing.stop rescue nil
+      routing.stop rescue nil
       @tasks.each { |t| t.stop rescue nil }
       @tasks.clear
     end

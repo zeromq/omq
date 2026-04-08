@@ -12,7 +12,8 @@ module OMQ
       # @param max [Integer, nil] capacity (nil or 0 = unbounded)
       #
       def initialize(max = nil)
-        @queue = (max && max > 0) ? Async::LimitedQueue.new(max) : Async::Queue.new
+        @max   = (max && max > 0) ? max : nil
+        @queue = @max ? Async::LimitedQueue.new(@max) : Async::Queue.new
         @head  = []
         @mu    = Mutex.new
       end
@@ -30,13 +31,18 @@ module OMQ
 
 
       # Inserts a message at the front (for re-staging after a
-      # failed drain).
+      # failed drain).  Drops the message if the staging queue is
+      # already at capacity (messages sent to a peer that disconnected
+      # may be lost -- same as ZMQ).
       #
       # @param msg [Array<String>]
       # @return [void]
       #
       def prepend(msg)
-        @mu.synchronize { @head.push(msg) }
+        @mu.synchronize do
+          return if @max && @head.size >= @max
+          @head.push(msg)
+        end
       end
 
 

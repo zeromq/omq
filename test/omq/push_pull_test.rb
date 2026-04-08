@@ -324,6 +324,37 @@ describe "PUSH/PULL delivery guarantees" do
     end
   end
 
+  it "prefetch batch is capped by byte size" do
+    Async do
+      pull = OMQ::PULL.bind("inproc://pushpull-prefetch-bytes")
+      push = OMQ::PUSH.connect("inproc://pushpull-prefetch-bytes")
+
+      # Each message is ~512 KB, so 1 MB limit should cap at 2 messages
+      big = "x" * (512 * 1024)
+      5.times { push.send(big) }
+
+      # Let messages arrive
+      sleep 0.01
+
+      # Peek at internal prefetch: first receive triggers a batch drain
+      msg1 = pull.receive
+      assert_equal big, msg1.first
+
+      # Check recv_buffer size — should have at most 1 more (batch was ~2)
+      buffer_size = pull.instance_variable_get(:@recv_mutex).synchronize do
+        pull.instance_variable_get(:@recv_buffer).size
+      end
+      assert_operator buffer_size, :<=, 2, "prefetch should be capped by 1 MB byte limit"
+
+      # Drain remaining
+      4.times { pull.receive }
+    ensure
+      push&.close
+      pull&.close
+    end
+  end
+
+
   it "unbounded via HWM=nil" do
     Async do
       push = OMQ::PUSH.new(nil, linger: 0)

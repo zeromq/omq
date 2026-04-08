@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.15.4 — 2026-04-08
+
+- **Lazy routing initialization** — the routing strategy is now created on
+  first use (bind, connect, send, or receive) instead of eagerly in the
+  constructor. This allows socket option setters (`send_hwm=`, `recv_hwm=`)
+  to take effect before internal queue sizing.
+- **Prefetch byte limit** — `dequeue_recv_batch` now stops at 1 MB total,
+  not just 64 messages. Prevents large messages from filling the prefetch
+  buffer with hundreds of megabytes.
+- **Bound staging queue `@head`** — `StagingQueue#prepend` now drops messages
+  when at capacity, preventing unbounded growth during reconnect cycles.
+- **Bound monitor queue** — `Socket#monitor` uses a `LimitedQueue(64)` instead
+  of an unbounded queue, preventing memory growth when verbose monitoring
+  can't keep up with message rate.
+
+### Unreleased
 
 - **Auto-freeze on bind/connect** — `#bind` and `#connect` now call
   `OMQ.freeze_for_ractors!` automatically, freezing `CONNECTION_LOST`,

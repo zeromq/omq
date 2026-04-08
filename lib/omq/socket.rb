@@ -174,7 +174,7 @@ module OMQ
     #
     def monitor(verbose: false, &block)
       ensure_parent_task
-      queue = Async::Queue.new
+      queue = Async::LimitedQueue.new(64)
       @engine.monitor_queue = queue
       @engine.verbose_monitor = verbose
       Reactor.run do
