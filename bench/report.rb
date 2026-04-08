@@ -17,7 +17,7 @@ require 'optparse'
 
 RESULTS_PATH = File.join(__dir__, "results.jsonl")
 
-options = { runs: 2, threshold: 5, all: false, pattern: nil }
+options = { runs: 2, threshold: 5, all: false, pattern: nil, update_readme: false }
 
 OptionParser.new do |o|
   o.banner = "Usage: ruby bench/report.rb [options]"
@@ -25,6 +25,7 @@ OptionParser.new do |o|
   o.on("--threshold PCT", Float, "Noise band percentage (default 5)")    { |v| options[:threshold] = v }
   o.on("--all", "Show all measurements, not just outliers")              { options[:all] = true }
   o.on("--pattern NAME", "Filter to a specific pattern (e.g. push_pull)") { |v| options[:pattern] = v }
+  o.on("--update-readme", "Regenerate bench/README.md tables from latest run") { options[:update_readme] = true }
 end.parse!
 
 unless File.exist?(RESULTS_PATH)
@@ -32,6 +33,89 @@ unless File.exist?(RESULTS_PATH)
 end
 
 rows = File.readlines(RESULTS_PATH).map { |line| JSON.parse(line, symbolize_names: true) }
+
+# ---- --update-readme: regenerate bench/README.md tables from latest run ----
+
+if options[:update_readme]
+  README_PATH = File.join(__dir__, "README.md")
+  TRANSPORTS  = %w[inproc ipc tcp].freeze
+  SIZE_LABELS = { 64 => "64 B", 1024 => "1 KiB", 8192 => "8 KiB", 65_536 => "64 KiB" }.freeze
+
+  latest = rows.map { |r| r[:run_id] }.uniq.max
+  abort "No runs found in #{RESULTS_PATH}" unless latest
+  latest_rows = rows.select { |r| r[:run_id] == latest }
+
+  # Look up a specific cell's msgs_s from the latest run.
+  cell = lambda do |pattern, transport, peers, msg_size|
+    r = latest_rows.find { |x| x[:pattern] == pattern && x[:transport] == transport && x[:peers] == peers && x[:msg_size] == msg_size }
+    r && r[:msgs_s]
+  end
+
+  fmt_rate = lambda do |v|
+    next "—" unless v
+    if    v >= 1e6 then "%.2fM msg/s" % (v / 1e6)
+    elsif v >= 1e3 then "%.1fk msg/s" % (v / 1e3)
+    else                "%.0f msg/s"  % v
+    end
+  end
+
+  fmt_latency_us = lambda do |v|
+    next "—" unless v && v > 0
+    us = 1_000_000.0 / v
+    if    us >= 100 then "%.0f µs"  % us
+    elsif us >= 10  then "%.1f µs"  % us
+    else                 "%.2f µs"  % us
+    end
+  end
+
+  build_push_pull = lambda do
+    sizes = SIZE_LABELS.keys
+    out   = +"\n"
+    [1, 3].each do |peers|
+      have_any = sizes.any? { |s| TRANSPORTS.any? { |t| cell.call("push_pull", t, peers, s) } }
+      next unless have_any
+      out << "### #{peers} peer#{'s' if peers > 1}\n\n"
+      out << "| Message size | #{TRANSPORTS.join(' | ')} |\n"
+      out << "|---|#{TRANSPORTS.map { '---' }.join('|')}|\n"
+      sizes.each do |size|
+        values = TRANSPORTS.map { |t| fmt_rate.call(cell.call("push_pull", t, peers, size)) }
+        out << "| #{SIZE_LABELS[size]} | #{values.join(' | ')} |\n"
+      end
+      out << "\n"
+    end
+    out
+  end
+
+  build_req_rep = lambda do
+    sizes = SIZE_LABELS.keys
+    out   = +"\n| Message size | #{TRANSPORTS.join(' | ')} |\n"
+    out << "|---|#{TRANSPORTS.map { '---' }.join('|')}|\n"
+    sizes.each do |size|
+      values = TRANSPORTS.map { |t| fmt_latency_us.call(cell.call("req_rep", t, 1, size)) }
+      out << "| #{SIZE_LABELS[size]} | #{values.join(' | ')} |\n"
+    end
+    out << "\n"
+    out
+  end
+
+  replace_block = lambda do |text, marker, new_content|
+    begin_tag = "<!-- BEGIN #{marker} -->"
+    end_tag   = "<!-- END #{marker} -->"
+    re = /#{Regexp.escape(begin_tag)}.*?#{Regexp.escape(end_tag)}/m
+    abort "marker #{begin_tag} not found in README" unless text.match?(re)
+    text.sub(re, "#{begin_tag}#{new_content}#{end_tag}")
+  end
+
+  readme = File.read(README_PATH)
+  readme = replace_block.call(readme, "push_pull", build_push_pull.call)
+  readme = replace_block.call(readme, "req_rep",   build_req_rep.call)
+  File.write(README_PATH, readme)
+  puts "Updated #{README_PATH} from run #{latest}"
+  exit 0
+end
+
+# ---- default: regression report ----
+
 rows.select! { |r| r[:pattern] == options[:pattern] } if options[:pattern]
 
 run_ids = rows.map { |r| r[:run_id] }.uniq.sort.last(options[:runs])

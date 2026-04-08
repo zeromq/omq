@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.15.5 — 2026-04-08
+
+- **`max_message_size` now defaults to `nil` (unlimited)** — previous
+  default of 1 MiB moved into omq-cli.
+- **Benchmark suite: calibration-driven measurement.** Each cell auto-sizes
+  `n` from a prime burst + doubling warmup, then runs `ROUNDS=3` timed
+  rounds of `ROUND_DURATION=1.0 s` (override via `OMQ_BENCH_TARGET`) and
+  reports the fastest. Full suite runs in ~3 min.
+- **Benchmark suite: dropped `curve` transport and the `pair` /
+  `dealer_dealer` pattern scripts from the default loop.** Files stay in
+  place for ad-hoc runs.
+- **`bench/push_pull/omq.rb`** now runs `peer_counts: [1, 3]`.
+- **`bench/report.rb --update-readme`** regenerates the PUSH/PULL and
+  REQ/REP tables in `bench/README.md` from the latest run in
+  `results.jsonl`, between `<!-- BEGIN … -->` / `<!-- END … -->` markers.
+
 ## 0.15.4 — 2026-04-08
 
 - **Lazy routing initialization** — the routing strategy is now created on
@@ -15,7 +31,7 @@
   of an unbounded queue, preventing memory growth when verbose monitoring
   can't keep up with message rate.
 
-### Unreleased
+## 0.15.3 — 2026-04-08
 
 - **Auto-freeze on bind/connect** — `#bind` and `#connect` now call
   `OMQ.freeze_for_ractors!` automatically, freezing `CONNECTION_LOST`,

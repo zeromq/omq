@@ -4,7 +4,7 @@
 
 require_relative "../bench_helper"
 
-BenchHelper.run("ROUTER/DEALER", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload, n|
+BenchHelper.run("ROUTER/DEALER", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload|
   router = OMQ::ROUTER.new
   BenchHelper.apply_security(router, transport, role: :server)
   router.bind(ep)
@@ -19,27 +19,16 @@ BenchHelper.run("ROUTER/DEALER", dir: __dir__, peer_counts: [3]) do |transport, 
   end
   BenchHelper.wait_connected(dealers) unless transport == "inproc"
 
-  per_dealer = n / dealers.size
-
-  # Warm up
-  100.times do
-    dealers.first << payload
-    router.receive
-  end
-
-  t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-  barrier = Async::Barrier.new
-  dealers.each do |d|
-    barrier.async { per_dealer.times { d << payload } }
-  end
-
-  (per_dealer * dealers.size).times { router.receive }
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-  barrier.wait
+  burst = ->(k) {
+    per = [k / dealers.size, 1].max
+    barrier = Async::Barrier.new
+    dealers.each { |d| barrier.async { per.times { d << payload } } }
+    (per * dealers.size).times { router.receive }
+    barrier.wait
+  }
 
   begin
-    BenchHelper.report(payload.bytesize, n, elapsed)
+    BenchHelper.measure_best_of(payload, align: dealers.size, &burst)
   ensure
     dealers.each(&:close)
     router.close

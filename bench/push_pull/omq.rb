@@ -4,7 +4,7 @@
 
 require_relative "../bench_helper"
 
-BenchHelper.run("PUSH/PULL", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload, n|
+BenchHelper.run("PUSH/PULL", dir: __dir__, peer_counts: [1, 3]) do |transport, ep, peers, payload|
   pull = OMQ::PULL.new
   BenchHelper.apply_security(pull, transport, role: :server)
   pull.bind(ep)
@@ -19,7 +19,7 @@ BenchHelper.run("PUSH/PULL", dir: __dir__, peer_counts: [3]) do |transport, ep, 
   BenchHelper.wait_connected(pushes) unless transport == "inproc"
 
   begin
-    BenchHelper.measure(pull, pushes, payload, n)
+    BenchHelper.measure(pull, pushes, payload)
   ensure
     pushes.each(&:close)
     pull.close

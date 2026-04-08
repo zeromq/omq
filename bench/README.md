@@ -1,6 +1,16 @@
 # Benchmarks
 
-Measured with `benchmark-ips` on Linux x86_64, Ruby 4.0.2 +YJIT (epoll).
+Measured on Linux x86_64, Ruby 4.0.2 +YJIT. Each cell is the fastest of 3
+timed rounds (~1 s each) after a calibration warmup, so transient
+scheduler/GC jitter is filtered out. Between-run variance on the same
+machine is ~5-15 % depending on transport; treat single-digit deltas
+across runs as noise.
+
+Regenerate the tables below from the latest run in `results.jsonl`:
+
+```sh
+ruby bench/report.rb --update-readme
+```
 
 ## Throughput (PUSH/PULL, msg/s)
 
@@ -10,25 +20,28 @@ Measured with `benchmark-ips` on Linux x86_64, Ruby 4.0.2 +YJIT (epoll).
 └──────┘       └──────┘
 ```
 
-### 1 peer (inproc uses direct pipe bypass)
+<!-- BEGIN push_pull -->
+### 1 peer
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 980k | 38k | 31k |
-| 256 B | 775k | 34k | 29k |
-| 1024 B | 908k | 30k | 30k |
-| 4096 B | 814k | 26k | 27k |
+| 64 B | 530.9k msg/s | 113.1k msg/s | 176.4k msg/s |
+| 1 KiB | 554.0k msg/s | 105.6k msg/s | 133.8k msg/s |
+| 8 KiB | 515.2k msg/s | 64.6k msg/s | 67.6k msg/s |
+| 64 KiB | 559.8k msg/s | 14.3k msg/s | 13.0k msg/s |
 
-### 3 peers (round-robin via send pump)
+### 3 peers
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 160k | 38k | 31k |
-| 256 B | 165k | 39k | 29k |
-| 1024 B | 193k | 36k | 29k |
-| 4096 B | 165k | 29k | 25k |
+| 64 B | 417.8k msg/s | 141.5k msg/s | 150.2k msg/s |
+| 1 KiB | 415.0k msg/s | 124.2k msg/s | 107.8k msg/s |
+| 8 KiB | 404.4k msg/s | 58.6k msg/s | 54.1k msg/s |
+| 64 KiB | 383.3k msg/s | 14.7k msg/s | 12.8k msg/s |
 
-## Latency (REQ/REP roundtrip)
+<!-- END push_pull -->
+
+## Round-trip latency (REQ/REP, µs)
 
 ```
 ┌─────┐  req   ┌─────┐
@@ -37,32 +50,18 @@ Measured with `benchmark-ips` on Linux x86_64, Ruby 4.0.2 +YJIT (epoll).
 └─────┘  rep   └─────┘
 ```
 
-| | inproc | ipc | tcp |
-|---|---|---|---|
-| 1 peer | 10.5 µs | 71.0 µs | 82.4 µs |
-| 3 peers | 10.0 µs | 62.5 µs | 76.4 µs |
+Round-trip = one `req.send` + one `req.receive` + matching `rep` ops.
+Latency is `1 / msgs_s` converted to µs.
 
-## Pipeline throughput (sustained MB/s)
-
-100k messages, sender ahead of receiver (recv prefetch active).
-
-### 1 peer
-
+<!-- BEGIN req_rep -->
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 49 MB/s | 13 MB/s | 15 MB/s |
-| 1 KB | 927 MB/s | 141 MB/s | 148 MB/s |
-| 4 KB | 4.7 GB/s | 371 MB/s | 389 MB/s |
-| 64 KB | 76 GB/s | 838 MB/s | 885 MB/s |
+| 64 B | 17.3 µs | 73.4 µs | 97.8 µs |
+| 1 KiB | 19.7 µs | 85.5 µs | 111 µs |
+| 8 KiB | 18.6 µs | 93.8 µs | 129 µs |
+| 64 KiB | 18.3 µs | 153 µs | 198 µs |
 
-### 3 peers
-
-| Message size | inproc | ipc | tcp |
-|---|---|---|---|
-| 64 B | 66 MB/s | 13 MB/s | 15 MB/s |
-| 1 KB | 960 MB/s | 142 MB/s | 136 MB/s |
-| 4 KB | 4.9 GB/s | 379 MB/s | 392 MB/s |
-| 64 KB | 77 GB/s | 921 MB/s | 921 MB/s |
+<!-- END req_rep -->
 
 ## io_uring
 
@@ -78,15 +77,18 @@ gem pristine io-event
 ## Running
 
 ```sh
-# Run full suite (appends to bench/results.jsonl)
-ruby --yjit bench/run_all.rb
-
-# Run single pattern
-ruby --yjit bench/push_pull/omq.rb
+# Full suite (one run_id shared across patterns for cross-pattern comparison)
+RUN_ID=$(date +%Y-%m-%dT%H:%M:%S)
+for d in push_pull req_rep router_dealer pub_sub; do
+  OMQ_BENCH_RUN_ID=$RUN_ID bundle exec ruby --yjit bench/$d/omq.rb
+done
 
 # Regression report (latest vs previous run)
-ruby bench/report.rb
+bundle exec ruby bench/report.rb
+
+# Regenerate README tables from the latest run
+bundle exec ruby bench/report.rb --update-readme
 
 # Full comparison table
-ruby bench/report.rb --all
+bundle exec ruby bench/report.rb --all
 ```

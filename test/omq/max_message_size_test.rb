@@ -79,10 +79,12 @@ describe "max_message_size" do
       req = OMQ::REQ.new(nil, linger: 0)
       req.connect("tcp://127.0.0.1:#{port}")
 
-      big = "x" * 100_000
+      assert_nil rep.max_message_size
+      # Send well over the previous 1 MiB default to prove the limit is off.
+      big = "x" * (4 << 20)
       req.send(big)
       msg = rep.receive
-      assert_equal 100_000, msg.first.bytesize
+      assert_equal big.bytesize, msg.first.bytesize
     ensure
       req&.close
       rep&.close

@@ -5,7 +5,7 @@
 
 require_relative "../bench_helper"
 
-BenchHelper.run("DEALER/DEALER", dir: __dir__, peer_counts: [1]) do |transport, ep, peers, payload, n|
+BenchHelper.run("DEALER/DEALER", dir: __dir__, peer_counts: [1]) do |transport, ep, peers, payload|
   receiver = OMQ::DEALER.new
   BenchHelper.apply_security(receiver, transport, role: :server)
   receiver.bind(ep)
@@ -20,7 +20,7 @@ BenchHelper.run("DEALER/DEALER", dir: __dir__, peer_counts: [1]) do |transport, 
   BenchHelper.wait_connected(senders) unless transport == "inproc"
 
   begin
-    BenchHelper.measure(receiver, senders, payload, n)
+    BenchHelper.measure(receiver, senders, payload)
   ensure
     senders.each(&:close)
     receiver.close

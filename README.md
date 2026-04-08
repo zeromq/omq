@@ -147,7 +147,7 @@ end
 
 ## Socket Types
 
-All sockets are thread-safe. Default HWM is 1000 messages per socket. Default `max_message_size` is **1 MiB** — frames larger than this cause the connection to be dropped before the body is read from the wire. Set `socket.max_message_size = nil` to disable the limit or raise it as needed. Classes live under `OMQ::` (alias: `ØMQ`).
+All sockets are thread-safe. Default HWM is 1000 messages per socket. `max_message_size` defaults to **`nil` (unlimited)** — set `socket.max_message_size = N` to cap inbound frames at `N` bytes; oversized frames cause the connection to be dropped before the body is read from the wire. Classes live under `OMQ::` (alias: `ØMQ`).
 
 #### Standard (multipart messages)
 

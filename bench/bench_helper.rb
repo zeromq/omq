@@ -21,18 +21,29 @@ require 'protocol/zmtp/mechanism/curve'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
-  # Message count per size, tuned so the full 6-script benchmark suite
-  # finishes in a couple of minutes with YJIT.
-  #
   # Sizes cover four orders of magnitude:
   #   tiny (64 B), small (1 KiB), medium (8 KiB), large (64 KiB)
-  RUNS = {
-    64     => 20_000,
-    1024   => 12_000,
-    8192   =>  6_000,
-    65_536 =>  3_000,
-  }.freeze
-  SIZES = RUNS.keys.freeze
+  SIZES = [64, 1024, 8192, 65_536].freeze
+
+  # Each cell runs ROUNDS timed rounds and reports the fastest one.
+  # Transient jitter (GC, scheduler preemption, YJIT tier-up, kernel
+  # batching gaps) only ever *slows* a run down, so "fastest" is the
+  # closest approximation to peak sustainable throughput.
+  ROUNDS         = 3
+  ROUND_DURATION = Float(ENV.fetch("OMQ_BENCH_TARGET", 1.0))
+
+  # Calibration warmup window — long enough that a single scheduler
+  # hiccup or YJIT compilation pause doesn't halve the rate estimate.
+  WARMUP_DURATION = 0.3
+
+  # Lower bound on warmup iterations (so noisy short bursts don't fool
+  # the rate estimate).
+  WARMUP_MIN_ITERS = 200
+
+  # Iterations of the untimed prime burst that runs before calibration.
+  # Soaks up YJIT compilation, fiber stack allocation, kernel buffer
+  # ramp-up, etc., so the timed warmup measures steady-state throughput.
+  PRIME_ITERS = 1000
 
   RESULTS_PATH = File.join(__dir__, "results.jsonl").freeze
 
@@ -44,18 +55,19 @@ module BenchHelper
   #   inproc — in-process upper bound
   #   ipc    — Unix-domain sockets, no TCP stack
   #   tcp    — primary networked path
-  #   curve  — encrypted networked path (CURVE mechanism over TCP)
   #
-  # blake3 is intentionally excluded from this suite; perf for the
-  # BLAKE3-ZMTP mechanism is tracked in the omq-rfc-blake3zmq repo.
-  TRANSPORTS = %w[inproc ipc tcp curve].freeze
+  # curve and blake3 are intentionally excluded from this suite.
+  # CURVE regressions are caught by protocol-zmtp tests; BLAKE3-ZMTP
+  # perf is tracked in the omq-rfc-blake3zmq repo.
+  TRANSPORTS = %w[inproc ipc tcp].freeze
 
   def run_id
     @run_id ||= ENV["OMQ_BENCH_RUN_ID"] || Time.now.strftime("%Y-%m-%dT%H:%M:%S")
   end
 
-  # Per-size timeout in seconds. If a single benchmark run takes longer
-  # than this, the benchmark aborts with an error instead of hanging.
+  # Per-size timeout in seconds. Each cell does prime + calibration +
+  # ROUNDS × ROUND_DURATION, roughly 4-5s; 30s leaves headroom for the
+  # slowest cells (TCP 64 KiB under load).
   RUN_TIMEOUT = Integer(ENV.fetch("OMQ_BENCH_TIMEOUT", 30))
 
   def run(label, dir:, peer_counts: [1, 3], &block)
@@ -72,14 +84,13 @@ module BenchHelper
         puts "--- #{header} ---"
         completed = 0
         SIZES.each do |size|
-          n   = RUNS[size]
           seq += 1
           Async do |task|
             task.with_timeout(RUN_TIMEOUT) do
               OMQ::Transport::Inproc.reset! if transport == "inproc"
               ep = endpoint(transport, seq)
-              r  = block.call(transport, ep, peers, "x" * size, n)
-              append_result(pattern, transport, peers, size, n, r[:elapsed], r[:mbps], r[:msgs_s])
+              r  = block.call(transport, ep, peers, "x" * size)
+              append_result(pattern, transport, peers, size, r[:n], r[:elapsed], r[:mbps], r[:msgs_s])
               completed += 1
             end
           rescue Async::TimeoutError
@@ -140,52 +151,71 @@ module BenchHelper
     end
   end
 
-  def measure(receiver, senders, payload, n)
-    per_sender = n / senders.size
-
-    # Warm up
-    100.times do
-      senders.first << payload
-      receiver.receive
+  # Calibrates `n` so that one timed burst lasts ~ROUND_DURATION. The
+  # block must transport exactly `k` messages in the same pipelined/
+  # burst shape as the real measurement — single-shot ping-pong warmups
+  # undercount transports that benefit from batching (TCP, IPC).
+  #
+  # Doubles a timed burst until it reaches WARMUP_DURATION, then
+  # extrapolates to ROUND_DURATION. Caller is responsible for priming
+  # (running PRIME_ITERS untimed) before invoking this.
+  def estimate_n(target: ROUND_DURATION, warmup: WARMUP_DURATION)
+    n = WARMUP_MIN_ITERS
+    loop do
+      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      yield n
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      if elapsed >= warmup
+        rate = n / elapsed
+        return [(rate * target).to_i, WARMUP_MIN_ITERS].max
+      end
+      n *= 4
     end
-
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    barrier = Async::Barrier.new
-    senders.each do |s|
-      barrier.async { per_sender.times { s << payload } }
-    end
-
-    (per_sender * senders.size).times { receiver.receive }
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
-    barrier.wait
-
-    report(payload.bytesize, n, elapsed)
   end
 
-  def measure_roundtrip(requester, responder_task, payload, n)
-    # Warm up
-    100.times do
-      requester << payload
-      requester.receive
+  # Runs ROUNDS timed bursts of `n` messages each and reports the
+  # fastest one. `align` is an optional integer the caller uses to
+  # round `n` to a multiple of its burst shape (e.g. peer count) so
+  # per-sender divisions stay even. The block is the burst closure.
+  def measure_best_of(payload, align: 1, &burst)
+    burst.call(PRIME_ITERS)
+    n = estimate_n(&burst)
+    n = [(n / align) * align, align].max
+
+    best = nil
+    ROUNDS.times do
+      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      burst.call(n)
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      best = elapsed if best.nil? || elapsed < best
     end
 
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    n.times do
-      requester << payload
-      requester.receive
-    end
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    report(payload.bytesize, n, best)
+  end
 
-    report(payload.bytesize, n, elapsed)
+  def measure(receiver, senders, payload)
+    burst = ->(k) {
+      per = [k / senders.size, 1].max
+      barrier = Async::Barrier.new
+      senders.each { |s| barrier.async { per.times { s << payload } } }
+      (per * senders.size).times { receiver.receive }
+      barrier.wait
+    }
+
+    measure_best_of(payload, align: senders.size, &burst)
+  end
+
+  def measure_roundtrip(requester, _responder_task, payload)
+    burst = ->(k) { k.times { requester << payload; requester.receive } }
+    measure_best_of(payload, &burst)
   end
 
   def report(msg_size, n, elapsed)
     mbps   = n * msg_size / elapsed / 1_000_000.0
     msgs_s = n / elapsed
-    printf "  %6s  %8.1f MB/s  %8.0f msg/s  (%.2fs)\n",
-           "#{msg_size}B", mbps, msgs_s, elapsed
-    { elapsed: elapsed, mbps: mbps, msgs_s: msgs_s }
+    printf "  %6s  %8.1f MB/s  %8.0f msg/s  (%.2fs, n=%d)\n",
+           "#{msg_size}B", mbps, msgs_s, elapsed, n
+    { n: n, elapsed: elapsed, mbps: mbps, msgs_s: msgs_s }
   end
 
   def wait_connected(*sockets)

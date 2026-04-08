@@ -4,7 +4,7 @@
 
 require_relative "../bench_helper"
 
-BenchHelper.run("REQ/REP", dir: __dir__, peer_counts: [1]) do |transport, ep, peers, payload, n|
+BenchHelper.run("REQ/REP", dir: __dir__, peer_counts: [1]) do |transport, ep, peers, payload|
   Async do |task|
     rep = OMQ::REP.new
     BenchHelper.apply_security(rep, transport, role: :server)
@@ -23,7 +23,7 @@ BenchHelper.run("REQ/REP", dir: __dir__, peer_counts: [1]) do |transport, ep, pe
     end
 
     begin
-      BenchHelper.measure_roundtrip(req, responder, payload, n)
+      BenchHelper.measure_roundtrip(req, responder, payload)
     ensure
       responder.stop
       req.close
