@@ -4,7 +4,7 @@ require "async"
 require_relative "engine/recv_pump"
 require_relative "engine/heartbeat"
 require_relative "engine/reconnect"
-require_relative "engine/connection_setup"
+require_relative "engine/connection_lifecycle"
 require_relative "engine/maintenance"
 
 module OMQ
@@ -23,13 +23,6 @@ module OMQ
       # @return [Hash{String => Module}] registered transports
       attr_reader :transports
     end
-
-
-    # Per-connection metadata: the endpoint it was established on and an
-    # optional Promise resolved when the connection is lost (used by
-    # {#spawn_connection} to await connection teardown).
-    #
-    ConnectionRecord = Data.define(:endpoint, :done)
 
 
     # @return [Symbol] socket type (e.g. :REQ, :PAIR)
@@ -66,7 +59,7 @@ module OMQ
       @socket_type       = socket_type
       @options           = options
       @routing           = nil
-      @connections       = {} # connection => ConnectionRecord
+      @connections       = {} # connection => ConnectionLifecycle
       @dialed            = Set.new # endpoints we called connect() on (reconnect intent)
       @listeners         = []
       @tasks             = []
@@ -86,7 +79,7 @@ module OMQ
 
     # @return [Async::Promise] resolves when first peer completes handshake
     # @return [Async::Promise] resolves when all peers disconnect (after having had peers)
-    # @return [Hash{Connection => ConnectionRecord}] active connections
+    # @return [Hash{Connection => ConnectionLifecycle}] active connections
     # @return [Async::Task, nil] root task for spawning subtrees
     # @return [Array<Async::Task>] background tasks (pumps, heartbeat, reconnect)
     #
@@ -224,11 +217,7 @@ module OMQ
     # @return [void]
     #
     def connection_ready(pipe, endpoint: nil)
-      pipe = @connection_wrapper.call(pipe) if @connection_wrapper
-      @connections[pipe] = ConnectionRecord.new(endpoint: endpoint, done: nil)
-      emit_monitor_event(:handshake_succeeded, endpoint: endpoint)
-      routing.connection_added(pipe)
-      @peer_connected.resolve(pipe)
+      ConnectionLifecycle.new(self, endpoint: endpoint).ready_direct!(pipe)
     end
 
 
@@ -309,13 +298,26 @@ module OMQ
     # @return [void]
     #
     def connection_lost(connection)
-      entry = @connections.delete(connection)
-      routing.connection_removed(connection)
-      connection.close
-      emit_monitor_event(:disconnected, endpoint: entry&.endpoint)
-      entry&.done&.resolve(true)
-      @all_peers_gone.resolve(true) if @peer_connected.resolved? && @connections.empty?
-      maybe_reconnect(entry&.endpoint)
+      @connections[connection]&.lost!
+    end
+
+
+    # Resolves {@all_peers_gone} if we had peers and now have none.
+    # Called by ConnectionLifecycle during teardown.
+    #
+    def resolve_all_peers_gone_if_empty
+      return unless @peer_connected.resolved? && @connections.empty?
+      @all_peers_gone.resolve(true)
+    end
+
+
+    # Schedules a reconnect for +endpoint+ if auto-reconnect is enabled
+    # and the endpoint is still dialed.
+    #
+    def maybe_reconnect(endpoint)
+      return unless endpoint && @dialed.include?(endpoint)
+      return unless @state == :open && @reconnect_enabled
+      Reconnect.schedule(endpoint, @options, @parent_task, self)
     end
 
 
@@ -441,15 +443,16 @@ module OMQ
 
     def spawn_connection(io, as_server:, endpoint: nil)
       task = @parent_task&.async(transient: true, annotation: "conn #{endpoint}") do
-        done = Async::Promise.new
-        conn = ConnectionSetup.run(io, self, as_server: as_server, endpoint: endpoint, done: done)
+        done      = Async::Promise.new
+        lifecycle = ConnectionLifecycle.new(self, endpoint: endpoint, done: done)
+        lifecycle.handshake!(io, as_server: as_server)
         done.wait
       rescue Async::Queue::ClosedError
         # connection dropped during drain — message re-staged
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST
         # handshake failed or connection lost — subtree cleaned up
       ensure
-        conn&.close rescue nil
+        lifecycle&.close!
       end
       @tasks << task if task
     end
@@ -462,13 +465,6 @@ module OMQ
         break if deadline && (deadline - Async::Clock.now) <= 0
         sleep 0.001
       end
-    end
-
-
-    def maybe_reconnect(endpoint)
-      return unless endpoint && @dialed.include?(endpoint)
-      return unless @state == :open && @reconnect_enabled
-      Reconnect.schedule(endpoint, @options, @parent_task, self)
     end
 
 
@@ -498,18 +494,12 @@ module OMQ
 
 
     def close_connections
-      @connections.each_key(&:close)
-      @connections.clear
+      @connections.values.each(&:close!)
     end
 
 
     def close_connections_at(endpoint)
-      conns = @connections.filter_map { |conn, e| conn if e.endpoint == endpoint }
-      conns.each do |conn|
-        @connections.delete(conn)
-        routing.connection_removed(conn)
-        conn.close
-      end
+      @connections.values.select { |lc| lc.endpoint == endpoint }.each(&:close!)
     end
 
 

@@ -4,6 +4,24 @@
 
 ### Changed
 
+- **Consolidate connection lifecycle into `Engine::ConnectionLifecycle`.** One
+  object per connection owns the full arc: handshake → ready → closed. Replaces
+  the scattered callback pattern where `Engine`, `ConnectionSetup`, and
+  `#close_connections_at` each held partial responsibility for registration,
+  monitor emission, routing add/remove, and reconnect scheduling. Side-effect
+  order (`:handshake_succeeded` before `connection_added`, `connection_removed`
+  before `:disconnected`) is now encoded as sequential statements in two
+  methods instead of implicit across multiple files. Teardown is idempotent via
+  an explicit 4-state transition table — racing pumps can no longer
+  double-fire `:disconnected` or double-call `routing.connection_removed`.
+  `ConnectionSetup` is absorbed and removed. `ConnectionRecord` collapses away
+  — `@connections` now stores lifecycles directly.
+
+### Fixed
+
+- **`disconnect(endpoint)` now emits `:disconnected`** on the monitor queue.
+  Previously silent because `close_connections_at` bypassed `connection_lost`.
+
 - **Revert to per-socket HWM with work-stealing send pumps.** One shared
   bounded send queue per socket, drained by N per-connection send pumps
   that race to dequeue. Slow peers' pumps simply stop pulling; fast peers

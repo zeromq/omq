@@ -34,6 +34,26 @@ describe "disconnect / unbind" do
     end
   end
 
+  it "#disconnect emits :disconnected on the monitor queue" do
+    Async do
+      events = []
+      pull   = OMQ::PULL.bind("inproc://ep-mon")
+      push   = OMQ::PUSH.new
+      push.monitor { |e| events << e.type }
+      push.connect("inproc://ep-mon")
+      wait_connected(push)
+
+      push.disconnect("inproc://ep-mon")
+      sleep 0.01 # let monitor drain
+
+      assert_includes events, :disconnected
+    ensure
+      push&.close
+      pull&.close
+    end
+  end
+
+
   it "#unbind stops accepting new connections" do
     Async do
       rep = OMQ::REP.new
