@@ -112,6 +112,13 @@ module OMQ
       # per-pump latency bounded enough that small-message multi-peer
       # fairness still benefits.
       #
+      # A `Task.yield` between batches ensures peer pumps actually
+      # get a turn: `write_batch` may complete without yielding when
+      # TCP buffers absorb the whole batch, so without this the first
+      # pump to wake can drain a pre-filled queue in one continuous
+      # run. The yield is effectively free when the scheduler has no
+      # other work.
+      #
       # @param conn [Connection]
       #
       def start_conn_send_pump(conn)
@@ -121,6 +128,7 @@ module OMQ
             drain_send_queue_capped(batch)
             write_batch(conn, batch)
             batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
+            Async::Task.current.yield
           rescue Protocol::ZMTP::Error, *CONNECTION_LOST
             @engine.connection_lost(conn)
             break

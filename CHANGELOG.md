@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.16.2 — 2026-04-09
+
+### Fixed
+
+- **Work-stealing send pump fairness.** `RoundRobin#start_conn_send_pump`
+  had no fiber yield between batches. `write_batch` typically completes
+  without yielding when the kernel TCP buffer absorbs the whole batch,
+  so the first pump to wake could drain a pre-filled send queue in one
+  continuous run — starving peer pumps until the queue was empty. This
+  was visible as a flaky `push_pull_test.rb#test_0002 distributes
+  messages across multiple PULL peers` on CI, where the second peer
+  received zero messages. Added `Async::Task.current.yield` at the
+  bottom of the pump loop; effectively free when there is no other
+  work, and guarantees peers actually get a turn when the queue stays
+  non-empty.
+
+- **`disconnect` test no longer assumes strict round-robin.** The test
+  asserted that `push.send("to ep1")` followed by `pull1.receive`
+  returns that exact message — only true with libzmq-style strict
+  per-peer round-robin, not OMQ's work-stealing. It was passing by
+  accident because the first-started pump consistently dequeued first.
+  Rewritten to only assert the actual `#disconnect` semantics: after
+  `disconnect("ep1")`, subsequent messages reach ep2 and ep1 receives
+  nothing.
+
 ## 0.16.1 — 2026-04-09
 
 ### Changed
