@@ -25,19 +25,19 @@ ruby bench/report.rb --update-readme
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 580.2k msg/s | 168.7k msg/s | 194.6k msg/s |
-| 1 KiB | 563.6k msg/s | 160.9k msg/s | 147.9k msg/s |
-| 8 KiB | 604.5k msg/s | 79.8k msg/s | 74.6k msg/s |
-| 64 KiB | 584.5k msg/s | 19.2k msg/s | 16.5k msg/s |
+| 64 B | 597.2k msg/s | 176.7k msg/s | 208.6k msg/s |
+| 1 KiB | 582.2k msg/s | 163.3k msg/s | 161.0k msg/s |
+| 8 KiB | 607.9k msg/s | 79.4k msg/s | 78.3k msg/s |
+| 64 KiB | 608.4k msg/s | 19.7k msg/s | 16.3k msg/s |
 
 ### 3 peers
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 447.6k msg/s | 125.5k msg/s | 179.0k msg/s |
-| 1 KiB | 434.9k msg/s | 139.3k msg/s | 134.8k msg/s |
-| 8 KiB | 436.1k msg/s | 75.2k msg/s | 69.7k msg/s |
-| 64 KiB | 434.1k msg/s | 19.0k msg/s | 16.1k msg/s |
+| 64 B | 459.7k msg/s | 164.6k msg/s | 188.4k msg/s |
+| 1 KiB | 449.8k msg/s | 152.1k msg/s | 148.8k msg/s |
+| 8 KiB | 448.4k msg/s | 79.6k msg/s | 74.2k msg/s |
+| 64 KiB | 445.4k msg/s | 18.3k msg/s | 16.0k msg/s |
 
 <!-- END push_pull -->
 
@@ -56,10 +56,10 @@ Latency is `1 / msgs_s` converted to µs.
 <!-- BEGIN req_rep -->
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 16.4 µs | 63.6 µs | 85.6 µs |
-| 1 KiB | 16.9 µs | 73.1 µs | 91.4 µs |
-| 8 KiB | 16.9 µs | 80.2 µs | 100 µs |
-| 64 KiB | 16.7 µs | 147 µs | 174 µs |
+| 64 B | 16.4 µs | 64.4 µs | 84.8 µs |
+| 1 KiB | 16.5 µs | 70.2 µs | 89.3 µs |
+| 8 KiB | 16.3 µs | 79.2 µs | 96.7 µs |
+| 64 KiB | 16.7 µs | 123 µs | 150 µs |
 
 <!-- END req_rep -->
 
