@@ -96,6 +96,18 @@ module OMQ
         alias write_message send_message
 
 
+        # Batched form, for parity with Protocol::ZMTP::Connection. The
+        # work-stealing pumps call this when they dequeue more than one
+        # message at once; DirectPipe just loops — no mutex to amortize.
+        #
+        # @param messages [Array<Array<String>>]
+        # @return [void]
+        #
+        def write_messages(messages)
+          messages.each { |parts| send_message(parts) }
+        end
+
+
         # @return [Boolean] always false; inproc pipes are never encrypted
         #
         def encrypted? = false

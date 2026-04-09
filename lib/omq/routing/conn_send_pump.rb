@@ -21,7 +21,11 @@ module OMQ
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
-            batch.each { |parts| conn.write_message(parts) }
+            if batch.size == 1
+              conn.write_message(batch[0])
+            else
+              conn.write_messages(batch)
+            end
             conn.flush
             batch.each { |parts| engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
           rescue Protocol::ZMTP::Error, *CONNECTION_LOST
