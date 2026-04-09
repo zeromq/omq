@@ -2,95 +2,69 @@
 
 module OMQ
   module Routing
-    # Mixin for routing strategies that send via round-robin.
+    # Mixin for routing strategies that load-balance via work-stealing.
     #
-    # Provides reactive connection management: Async::Promise waits
-    # for the first connection, Array#cycle handles round-robin,
-    # and a new Promise is created when all connections drop.
+    # One shared bounded send queue per socket (`send_hwm` enforced
+    # at the socket level, not per peer). Each connected peer gets its
+    # own send pump fiber that races to drain the shared queue. Slow
+    # peers' pumps naturally block on their own TCP flush; fast peers'
+    # pumps keep dequeuing. The result is work-stealing load balancing,
+    # which is strictly better than libzmq's strict per-pipe round-robin
+    # for PUSH-style patterns.
     #
-    # Each connected peer gets its own bounded send queue and a
-    # dedicated send pump fiber, ensuring HWM is enforced per peer.
+    # See DESIGN.md "Per-socket HWM (not per-connection)" for the
+    # full reasoning.
     #
     # Including classes must call `init_round_robin(engine)` from
     # their #initialize.
     #
     module RoundRobin
-      # @return [Boolean] true when the staging queue and all per-connection
-      #   send queues are empty
+      # @return [Boolean] true when the shared send queue is empty
       #
       def send_queues_drained?
-        @staging_queue.empty? && @conn_queues.values.all?(&:empty?)
+        @send_queue.empty?
       end
 
       private
 
-      # Initializes round-robin state for the including class.
+      # Initializes the shared send queue for the including class.
       #
       # @param engine [Engine]
       #
       def init_round_robin(engine)
-        @connections          = []
-        @cycle                = @connections.cycle
-        @connection_available = Async::Promise.new
-        @conn_queues          = {}  # connection => send queue
-        @conn_send_tasks      = {}  # connection => send pump task
-        @direct_pipe          = nil
-        @staging_queue        = StagingQueue.new(@engine.options.send_hwm)
+        @connections     = []
+        @send_queue      = Routing.build_queue(engine.options.send_hwm, :block)
+        @direct_pipe     = nil
+        @conn_send_tasks = {}  # conn => send pump task
       end
 
 
-      # Creates a per-connection send queue and starts its send pump.
-      # Call from #connection_added after appending to @connections.
+      # Registers a connection and starts its send pump.
+      # Call from #connection_added.
       #
       # @param conn [Connection]
       #
       def add_round_robin_send_connection(conn)
-        q = Routing.build_queue(@engine.options.send_hwm, :block)
-        @conn_queues[conn] = q
-        start_conn_send_pump(conn, q)
-        drain_staging_to(q)
         @connections << conn
         update_direct_pipe
-        # A message may have squeezed into staging while drain was
-        # running (the pipe loop's blocked enqueue completed after
-        # drain freed space).  Now that @connections is set, no new
-        # messages will go to staging, so this second drain is
-        # guaranteed to finish quickly.
-        drain_staging_to(q)
-        signal_connection_available
+        start_conn_send_pump(conn)
       end
 
 
-      # Stops the per-connection send pump and removes the queue.
-      # Call from #connection_removed.
+      # Removes the connection and stops its send pump. Any message
+      # the pump had already dequeued but not yet written is dropped --
+      # matching libzmq's behavior on `pipe_terminated`. PUSH has no
+      # cross-peer ordering guarantee, so this is safe.
       #
       # @param conn [Connection]
       #
       def remove_round_robin_send_connection(conn)
         update_direct_pipe
-        q = @conn_queues.delete(conn)
-        if q
-          while (msg = q.dequeue(timeout: 0))
-            @staging_queue.prepend(msg)
-          end
-          q.close
-        end
-        @conn_send_tasks.delete(conn)
-      end
-
-
-      # Resolves the connection-available promise so blocked
-      # senders can proceed.
-      #
-      def signal_connection_available
-        unless @connection_available.resolved?
-          @connection_available.resolve(true)
-        end
+        @conn_send_tasks.delete(conn)&.stop
       end
 
 
       # Updates the direct-pipe shortcut for inproc single-peer bypass.
-      # Call from connection_added after @connections is updated.
       #
       def update_direct_pipe
         if @connections.size == 1 && @connections.first.is_a?(Transport::Inproc::DirectPipe)
@@ -101,57 +75,17 @@ module OMQ
       end
 
 
-      # Enqueues directly to the inproc peer's recv queue if possible.
-      # When peers are connected, picks the next one round-robin and
-      # enqueues into its per-connection send queue (blocking if full).
-      # When no peers are connected yet, buffers in a staging queue
-      # (bounded by send_hwm) — drained into the first peer's queue
-      # when it connects.
+      # Enqueues a message. For inproc single-peer, bypasses the queue
+      # and writes directly to the peer's recv queue. Otherwise blocks
+      # on the shared bounded send queue (backpressure when full).
       #
       def enqueue_round_robin(parts)
         pipe = @direct_pipe
         if pipe&.direct_recv_queue
           pipe.send_message(transform_send(parts))
-        elsif @connections.empty?
-          @staging_queue.enqueue(parts)
         else
-          conn = next_connection
-          @conn_queues[conn].enqueue(parts)
+          @send_queue.enqueue(parts)
         end
-      rescue Async::Queue::ClosedError
-        retry
-      end
-
-
-      # Drains the staging queue into the given per-connection queue.
-      # Called when the first peer connects, to deliver messages that
-      # were enqueued before any connection existed.
-      #
-      def drain_staging_to(q)
-        while (msg = @staging_queue.dequeue)
-          q.enqueue(msg)
-        end
-      rescue Async::Queue::ClosedError
-        # Connection dropped while draining — put the undelivered
-        # message back at the front so ordering is preserved.
-        @staging_queue.prepend(msg) if msg
-      end
-
-
-      # Blocks until a connection is available, then returns
-      # the next one in round-robin order.
-      #
-      # @return [Connection]
-      #
-      def next_connection
-        @cycle.next
-      rescue StopIteration
-        if @connections.empty?
-          @connection_available = Async::Promise.new
-          @connection_available.wait
-        end
-        @cycle = @connections.cycle
-        retry
       end
 
 
@@ -164,30 +98,45 @@ module OMQ
       def transform_send(parts) = parts
 
 
-      # Starts a dedicated send pump for one connection.
-      # Batches messages for throughput; flushes after each batch.
-      # Calls Engine#connection_lost on disconnect so reconnect fires.
+      # Spawns a send pump for one connection. Drains the shared send
+      # queue, batches up to BATCH_CAP messages per cycle, writes to its
+      # peer, and yields. The cap is what enforces work-stealing fairness
+      # across the N per-conn pumps -- without it, the first pump that
+      # wakes up would drain the entire queue in one non-blocking burst
+      # before any other pump got a turn (TCP send buffers absorb bursts
+      # without forcing a fiber yield). On disconnect, the in-flight
+      # batch is dropped and the engine reconnect kicks in.
       #
       # @param conn [Connection]
-      # @param q [Async::LimitedQueue] the connection's send queue
       #
-      def start_conn_send_pump(conn, q)
+      def start_conn_send_pump(conn)
         task = @engine.spawn_pump_task(annotation: "send pump") do
           loop do
-            msg = q.dequeue
-            break unless msg  # queue closed by remove_round_robin_send_connection
-            batch = [msg]
-            Routing.drain_send_queue(q, batch)
+            batch = [@send_queue.dequeue]
+            drain_send_queue_capped(batch)
             write_batch(conn, batch)
             batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
           rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-            batch&.each { |parts| @staging_queue.prepend(parts) }
             @engine.connection_lost(conn)
             break
           end
         end
         @conn_send_tasks[conn] = task
         @tasks << task
+      end
+
+
+      # Per-cycle batch cap. Bounded by BATCH_CAP messages so other
+      # per-conn pumps get a turn at the shared send queue.
+      #
+      BATCH_CAP = 64
+
+      def drain_send_queue_capped(batch)
+        while batch.size < BATCH_CAP
+          msg = @send_queue.dequeue(timeout: 0)
+          break unless msg
+          batch << msg
+        end
       end
 
 

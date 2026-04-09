@@ -62,19 +62,23 @@ Async (user code)
 |-- conn tcp://... [connected]        per outgoing peer
 |   |-- heartbeat
 |   +-- recv pump
-|-- send pump                         singleton, shared across all connections
+|   +-- send pump                     conn <- send_queue (per-connection)
 +-- reconnect tcp://...               outgoing endpoint retry loop
 ```
 
 **Per-connection subtree.** Each connection gets its own task whose children
-are the heartbeat, recv pump (or reaper), and any protocol listeners. When
-the connection dies, the entire subtree is cleaned up by Async. No orphaned
-tasks, no reparenting.
+are the heartbeat, recv pump (or reaper), the send pump, and any protocol
+listeners. When the connection dies, the entire subtree is cleaned up by
+Async. No orphaned tasks, no reparenting.
 
-**Send pump is socket-level.** The send pump is a singleton -- one per socket,
-not per connection. It dequeues from the routing strategy's send queue and
-round-robins (or fans out) across all live connections. It outlives individual
-connections.
+**Send pumps are per-connection, queue is per-socket.** Each connection runs
+its own send pump fiber that dequeues from the *socket-level* send queue and
+writes to its peer. With N live peers, N pumps race to drain the one queue --
+work-stealing. A slow peer's pump just stops pulling (blocked on its own
+TCP flush); fast peers' pumps keep draining. This naturally biases load
+toward whichever consumers are keeping up, which is exactly what PUSH should
+do. Fan-out sockets (PUB/RADIO) use a single pump that reads once and writes
+to all matching subscribers.
 
 **Reaper tasks.** Write-only sockets (PUSH, SCATTER) have no recv pump.
 Instead, a "reaper" task calls `receive_message` which blocks until the peer
@@ -118,6 +122,59 @@ still receive queued messages. `linger=0` closes immediately.
 **Reconnect.** Failed or lost connections are retried with configurable
 interval (default 100ms). Supports exponential backoff via a Range
 (e.g., `0.1..5.0`). Suppressed once `@state` moves to `:closing`.
+
+## Per-socket HWM (not per-connection)
+
+The send queue is **one per socket**, not one per connection. `send_hwm`
+bounds that single queue. This is a deliberate divergence from libzmq, which
+gives each pipe its own HWM.
+
+OMQ tried per-pipe HWM briefly. It bought:
+
+- libzmq compatibility on the meaning of `send_hwm`
+- Per-peer fairness for sockets where you actively want it (rare)
+
+And it cost:
+
+- A `StagingQueue` to hold messages enqueued before any peer connects
+- A drain step (twice, to close a race) every time a peer joins
+- A re-staging path on disconnect that prepended a per-conn queue's tail
+  back onto staging -- pretending to preserve an ordering guarantee that
+  PUSH does not actually have
+- Effective buffering of `send_hwm * (N_peers + 1)`, contradicting the
+  option's name
+- A second concurrency hazard around the connect/disconnect race
+- A separate code path for inproc DirectPipe alongside staging and per-conn
+  queues
+
+The simpler model -- one shared queue, N work-stealing pumps -- gives:
+
+- **Better PUSH semantics.** Strict per-pipe round-robin is a known libzmq
+  footgun ("one slow worker stalls the pipeline"). Work-stealing routes
+  messages to whichever consumer is ready, which is what a load balancer
+  should do.
+- **Honest HWM accounting.** `send_hwm = 1000` means 1000 messages, not
+  1000 per peer.
+- **No staging.** Messages enqueued before any peer connects sit in the
+  one queue; the first pump that spawns drains them. No race, no double
+  drain, no `prepend`.
+- **No ordering pretense.** PUSH has no cross-peer ordering guarantee
+  anyway (round-robin interleaves), so on disconnect the in-flight batch
+  is simply dropped -- matching libzmq's actual behavior.
+- **Same fairness.** Per-pump batch caps (in `drain_send_queue`) and the
+  recv-pump 64-msg/1-MB yield limit already give cooperative fairness at
+  the fiber level. Per-pipe HWM was not buying anything on top.
+- **Same parallelism.** Parallelism comes from N pumps, not N queues.
+
+**The conceptual model:** a ZMQ socket is one networked queue. Peers come
+and go; the queue persists. Per-pipe HWM was a leak of libzmq's pipe
+implementation into the user-facing semantics. OMQ does not need it.
+
+The single concession: if a pump dequeues a message and its peer dies
+before the write completes, the in-flight batch is dropped. This matches
+libzmq (which drops on `pipe_terminated`) and is the only honest answer
+given the lack of an end-to-end ack at the ZMTP layer. Apps that need
+delivery guarantees layer them on top -- REQ/REP, Majordomo, etc.
 
 ## Send pump batching
 

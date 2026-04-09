@@ -20,23 +20,52 @@ describe "PUSH/PULL over inproc" do
     end
   end
 
-  it "round-robins across multiple PULL peers" do
+  it "distributes messages across multiple PULL peers" do
     Async do
-      pull1 = OMQ::PULL.bind("inproc://pushpull-rr-1")
-      pull2 = OMQ::PULL.bind("inproc://pushpull-rr-2")
+      pull1 = OMQ::PULL.new
+      pull2 = OMQ::PULL.new
+      pull1.read_timeout = 0.2
+      pull2.read_timeout = 0.2
+      pull1.bind("tcp://127.0.0.1:0")
+      pull2.bind("tcp://127.0.0.1:0")
 
       push = OMQ::PUSH.new
-      push.connect("inproc://pushpull-rr-1")
-      push.connect("inproc://pushpull-rr-2")
+      push.reconnect_interval = RECONNECT_INTERVAL
+      push.connect("tcp://127.0.0.1:#{pull1.last_tcp_port}")
+      push.connect("tcp://127.0.0.1:#{pull2.last_tcp_port}")
 
-      push.send("msg1")
-      push.send("msg2")
+      # Wait for both peers to be handshake-complete before sending,
+      # otherwise the first pump that comes up may absorb all 1000
+      # messages into its TCP buffer before the second has connected.
+      Async::Task.current.with_timeout(2) do
+        sleep 0.001 until push.connection_count >= 2
+      end
 
-      msg1 = pull1.receive
-      msg2 = pull2.receive
+      n = 1000
+      n.times { |i| push.send("msg-#{i}") }
 
-      assert_equal ["msg1"], msg1
-      assert_equal ["msg2"], msg2
+      received = []
+      barrier  = Async::Barrier.new
+      [pull1, pull2].each do |pull|
+        barrier.async do
+          loop do
+            msg = pull.receive
+            received << [pull, msg.first]
+          rescue IO::TimeoutError
+            break
+          end
+        end
+      end
+      barrier.wait
+
+      # Work-stealing distributes; both peers should get some load,
+      # but the split is not strict round-robin.
+      assert_equal n, received.size
+      assert_equal n, received.map(&:last).uniq.size
+      from_pull1 = received.count { |pull, _| pull == pull1 }
+      from_pull2 = received.count { |pull, _| pull == pull2 }
+      assert from_pull1 > 0, "expected pull1 to receive some messages"
+      assert from_pull2 > 0, "expected pull2 to receive some messages"
     ensure
       push&.close
       pull1&.close
