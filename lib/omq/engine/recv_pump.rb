@@ -19,15 +19,15 @@ module OMQ
 
       # Public entry point — callers use the class method.
       #
-      # @param parent_task [Async::Task]
+      # @param parent [Async::Task, Async::Barrier] parent to spawn under
       # @param conn [Connection, Transport::Inproc::DirectPipe]
       # @param recv_queue [SignalingQueue]
       # @param engine [Engine]
       # @param transform [Proc, nil]
       # @return [Async::Task, nil]
       #
-      def self.start(parent_task, conn, recv_queue, engine, transform)
-        new(conn, recv_queue, engine).start(parent_task, transform)
+      def self.start(parent, conn, recv_queue, engine, transform)
+        new(conn, recv_queue, engine).start(parent, transform)
       end
 
 
@@ -67,10 +67,10 @@ module OMQ
       private
 
 
-      def start_with_transform(parent_task, transform)
+      def start_with_transform(parent, transform)
         conn, recv_queue, engine, count_bytes = @conn, @recv_queue, @engine, @count_bytes
 
-        parent_task.async(transient: true, annotation: "recv pump") do |task|
+        parent.async(transient: true, annotation: "recv pump") do |task|
           loop do
             count = 0
             bytes = 0
@@ -84,19 +84,19 @@ module OMQ
             end
             task.yield
           end
-        rescue Async::Stop
+        rescue Async::Stop, Async::Cancel
         rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          @engine.connection_lost(conn)
+          # expected disconnect — supervisor will trigger teardown
         rescue => error
           @engine.signal_fatal_error(error)
         end
       end
 
 
-      def start_direct(parent_task)
+      def start_direct(parent)
         conn, recv_queue, engine, count_bytes = @conn, @recv_queue, @engine, @count_bytes
 
-        parent_task.async(transient: true, annotation: "recv pump") do |task|
+        parent.async(transient: true, annotation: "recv pump") do |task|
           loop do
             count = 0
             bytes = 0
@@ -109,9 +109,9 @@ module OMQ
             end
             task.yield
           end
-        rescue Async::Stop
+        rescue Async::Stop, Async::Cancel
         rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          @engine.connection_lost(conn)
+          # expected disconnect — supervisor will trigger teardown
         rescue => error
           @engine.signal_fatal_error(error)
         end

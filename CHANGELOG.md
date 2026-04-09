@@ -1,5 +1,60 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Socket-level `Async::Barrier` and cascading teardown.**
+  `SocketLifecycle` now owns an `Async::Barrier` that tracks every
+  socket-scoped task — connection supervisors, pumps, accept loops,
+  reconnect loops, heartbeat, maintenance. `Engine#close` and the new
+  `Engine#stop` stop this single barrier and every descendant unwinds
+  in one call, so the ordering of `:disconnected` / `all_peers_gone` /
+  `maybe_reconnect` side effects no longer depends on which pump
+  happens to observe the disconnect first.
+
+- **`Socket#stop`** — immediate hard stop that skips the linger drain
+  and goes straight to the barrier cascade. Complements `#close` for
+  crash-path cleanup.
+
+- **`parent:` kwarg on `Socket#bind` / `Socket#connect`.** Accepts any
+  object responding to `#async` (`Async::Task`, `Async::Barrier`,
+  `Async::Semaphore`). The socket-level barrier is constructed with
+  the caller's parent, so every task spawned under the socket lives
+  under the caller's Async tree — standard Async idiom for letting
+  callers coordinate teardown of internal tasks with their own work.
+
+### Fixed
+
+- **macOS: PUSH fails to reconnect after peer rebinds** (and analogous
+  races on any platform where the send pump observes the disconnect
+  before the recv pump does). The send pump's `rescue EPIPE` called
+  `connection_lost(conn)` → `tear_down!` → `routing.connection_removed`
+  → `.stop` on `@conn_send_tasks[conn]` — which **was** the currently-
+  running send pump. `Task#stop` on self raises `Async::Cancel`
+  synchronously and unwinds through `tear_down!` mid-sequence, before
+  `:disconnected` emission and `maybe_reconnect`, leaving the socket
+  stuck with no reconnect scheduled. Root-caused from a `ruby -d`
+  trace showing `EPIPE` at `buffered.rb:112` immediately followed by
+  `Async::Cancel` at `task.rb:358` "Cancelling current task!".
+
+  Fix: introduce a per-connection `Async::Barrier` and a supervisor
+  task placed on the *socket* barrier (not the per-conn one) that
+  blocks on `@barrier.wait { |t| t.wait; break }` and runs `lost!`
+  in its `ensure`. Pumps now just exit on `EPIPE` / `EOFError` /
+  ZMTP errors — they never initiate teardown from inside themselves,
+  so `Task#stop`-on-self is structurally impossible. All three
+  shutdown paths (peer disconnect, `#close`, `#stop`) converge on the
+  same ordered `tear_down!` sequence.
+
+- **IPC connect to an existing `SOCK_DGRAM` socket file** now surfaces
+  as a connect-time failure with backoff retry instead of crashing
+  the pump. `Errno::EPROTOTYPE` added to `CONNECTION_FAILED` (not
+  `CONNECTION_LOST` — it's a connect() error, not an established-
+  connection drop). Consistent with how `ECONNREFUSED` is treated for
+  TCP: the endpoint is misconfigured or not ready, the socket keeps
+  trying, and the user sees `:connect_retried` monitor events.
+
 ## 0.16.2 — 2026-04-09
 
 ### Fixed

@@ -45,6 +45,7 @@ module OMQ
     Errno::ETIMEDOUT,
     Errno::EHOSTUNREACH,
     Errno::ENETUNREACH,
+    Errno::EPROTOTYPE, # IPC: existing socket file is SOCK_DGRAM, not SOCK_STREAM
     Socket::ResolutionError,
   ]
 

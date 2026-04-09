@@ -60,7 +60,7 @@ module OMQ
       #
       def remove_round_robin_send_connection(conn)
         update_direct_pipe
-        @conn_send_tasks.delete(conn)&.stop
+        @conn_send_tasks.delete(conn)
       end
 
 
@@ -122,16 +122,13 @@ module OMQ
       # @param conn [Connection]
       #
       def start_conn_send_pump(conn)
-        task = @engine.spawn_pump_task(annotation: "send pump") do
+        task = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             batch = [@send_queue.dequeue]
             drain_send_queue_capped(batch)
             write_batch(conn, batch)
             batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
             Async::Task.current.yield
-          rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-            @engine.connection_lost(conn)
-            break
           end
         end
         @conn_send_tasks[conn] = task

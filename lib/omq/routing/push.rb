@@ -62,10 +62,8 @@ module OMQ
       #
       def start_reaper(conn)
         return if conn.is_a?(Transport::Inproc::DirectPipe)
-        @tasks << @engine.spawn_pump_task(annotation: "reaper") do
-          conn.receive_message # blocks until peer disconnects
-        rescue *CONNECTION_LOST
-          @engine.connection_lost(conn)
+        @tasks << @engine.spawn_conn_pump_task(conn, annotation: "reaper") do
+          conn.receive_message # blocks until peer disconnects; then exits
         end
       end
     end

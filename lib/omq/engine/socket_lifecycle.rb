@@ -34,11 +34,20 @@ module OMQ
       # @return [Async::Promise] resolves once all peers are gone (after having had peers)
       attr_reader :all_peers_gone
 
-      # @return [Async::Task, nil] root of the socket's task tree
+      # @return [Async::Task, Async::Barrier, Async::Semaphore, nil] root of
+      #   the socket's task tree (may be user-provided via +parent:+ on
+      #   {Socket#bind} / {Socket#connect}; falls back to the current
+      #   Async task or the shared Reactor root)
       attr_reader :parent_task
 
       # @return [Boolean] true if parent_task is the shared Reactor thread
       attr_reader :on_io_thread
+
+      # @return [Async::Barrier] holds every socket-scoped task (connection
+      #   supervisors, reconnect loops, heartbeat, monitor, accept loops).
+      #   {Engine#stop} and {Engine#close} call +barrier.stop+ to cascade
+      #   teardown through every per-connection barrier in one shot.
+      attr_reader :barrier
 
       # @return [Boolean] whether auto-reconnect is enabled
       attr_accessor :reconnect_enabled
@@ -51,6 +60,7 @@ module OMQ
         @reconnect_enabled = true
         @parent_task       = nil
         @on_io_thread      = false
+        @barrier           = nil
       end
 
 
@@ -60,22 +70,36 @@ module OMQ
       def alive?     = @state == :new || @state == :open
 
 
-      # Captures the current Async task (or the shared Reactor root) as
-      # this socket's task tree root. Transitions `:new → :open`.
+      # Captures the socket's task tree root. Transitions `:new → :open`.
       #
+      # When +parent+ is provided (any Async task/barrier/semaphore — any
+      # object that responds to +#async+), it is used as the root; this is
+      # the common Async idiom for letting callers place internal tasks
+      # under a caller-managed parent so teardown can be coordinated with
+      # other work. Otherwise falls back to the current Async task or the
+      # shared Reactor root for non-Async callers.
+      #
+      # The socket-level {#barrier} is constructed with the captured root
+      # as its parent so every task spawned via +barrier.async+ lives
+      # under the caller's tree.
+      #
+      # @param parent [#async, nil] optional Async parent
       # @param linger [Numeric, nil] used to register the Reactor linger slot
       #   when falling back to the IO thread
       # @return [Boolean] true on first-time capture, false if already captured
       #
-      def capture_parent_task(linger:)
+      def capture_parent_task(parent: nil, linger:)
         return false if @parent_task
-        if Async::Task.current?
+        if parent
+          @parent_task  = parent
+        elsif Async::Task.current?
           @parent_task = Async::Task.current
         else
           @parent_task  = Reactor.root_task
           @on_io_thread = true
           Reactor.track_linger(linger)
         end
+        @barrier = Async::Barrier.new(parent: @parent_task)
         transition!(:open)
         true
       end

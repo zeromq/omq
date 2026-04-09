@@ -3,13 +3,13 @@
 require_relative "../test_helper"
 
 describe "Per-connection task tree" do
-  # Regression: per-connection tasks (recv pump, heartbeat, reaper) were
-  # spawned under @parent_task instead of the connection task. This meant
-  # a finished @parent_task caused FinishedError on late connections, and
-  # the task tree didn't match DESIGN.md.
-  #
-  # Fix: spawn_pump_task, start_recv_pump, and Heartbeat.start now use
-  # Async::Task.current (the connection task) as the parent.
+  # Per-connection pumps (recv pump, heartbeat, reaper, send pump) now
+  # live on the *socket-level* Async::Barrier (SocketLifecycle#barrier).
+  # Each connection also owns a nested per-connection Async::Barrier so
+  # a failing pump can cascade-cancel its siblings. Both barriers share
+  # the same parent task tree, so every pump is reachable from the
+  # socket's root task and +barrier.stop+ cascades through everything
+  # in one call.
 
   def capture_hierarchy(task)
     lines = []
@@ -37,17 +37,12 @@ describe "Per-connection task tree" do
       assert_equal ["hello"], pull.receive
 
       hierarchy = capture_hierarchy(task)
+      annotations = hierarchy.map(&:last)
 
-      conn_level = hierarchy.find { |lvl, ann| ann.start_with?("conn ") }&.first
-      refute_nil conn_level, "should have connection tasks"
-
+      assert_includes annotations.grep(/\Aconn /).any? ? annotations : [], annotations.grep(/\Aconn /).first,
+                      "should have connection tasks"
       %w[recv\ pump heartbeat].each do |name|
-        entries = hierarchy.select { |_, ann| ann == name }
-        refute_empty entries, "should have #{name} tasks"
-        entries.each do |lvl, _|
-          assert lvl > conn_level,
-            "#{name} should be a child of conn task (level #{lvl} > #{conn_level})"
-        end
+        refute_empty annotations.select { |ann| ann == name }, "should have #{name} task reachable from socket root"
       end
     ensure
       push&.close
@@ -56,7 +51,7 @@ describe "Per-connection task tree" do
   end
 
 
-  it "reaper is a child of the connection task on PUSH" do
+  it "reaper is reachable from the socket root task on PUSH" do
     Async do |task|
       push = OMQ::PUSH.new(nil, linger: 0)
       push.bind("tcp://127.0.0.1:0")
@@ -69,17 +64,8 @@ describe "Per-connection task tree" do
       push << "hello"
       assert_equal ["hello"], pull.receive
 
-      hierarchy = capture_hierarchy(task)
-
-      conn_level = hierarchy.find { |lvl, ann| ann.start_with?("conn ") }&.first
-      refute_nil conn_level, "should have connection tasks"
-
-      reaper_entries = hierarchy.select { |_, ann| ann == "reaper" }
-      refute_empty reaper_entries, "PUSH should have a reaper task"
-      reaper_entries.each do |lvl, _|
-        assert lvl > conn_level,
-          "reaper should be a child of conn task (level #{lvl} > #{conn_level})"
-      end
+      annotations = capture_hierarchy(task).map(&:last)
+      refute_empty annotations.select { |ann| ann == "reaper" }, "PUSH should have a reaper task reachable from socket root"
     ensure
       pull&.close
       push&.close

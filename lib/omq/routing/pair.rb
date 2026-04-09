@@ -86,7 +86,7 @@ module OMQ
       private
 
       def start_send_pump(conn)
-        @send_pump = @engine.spawn_pump_task(annotation: "send pump") do
+        @send_pump = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             batch = [@send_queue.dequeue]
             Routing.drain_send_queue(@send_queue, batch)
@@ -97,9 +97,6 @@ module OMQ
             end
             conn.flush
             batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
-          rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-            @engine.connection_lost(conn)
-            break
           end
         end
         @tasks << @send_pump

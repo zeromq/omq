@@ -40,6 +40,13 @@ module OMQ
       # @return [Symbol] current state
       attr_reader :state
 
+      # @return [Async::Barrier] holds all per-connection pump tasks
+      #   (send pump, recv pump, reaper, heartbeat). When the connection
+      #   is torn down, {#tear_down!} calls `@barrier.stop` to take down
+      #   every sibling task atomically — so the first pump to see a
+      #   disconnect takes down all the others.
+      attr_reader :barrier
+
 
       # @param engine [Engine]
       # @param endpoint [String, nil]
@@ -51,6 +58,11 @@ module OMQ
         @done     = done
         @state    = :new
         @conn     = nil
+        # Nest the per-connection barrier under the socket-level barrier
+        # so every pump spawned via +@barrier.async+ is also tracked by
+        # the socket barrier — {Engine#stop}/{Engine#close} cascade
+        # through in one call.
+        @barrier  = Async::Barrier.new(parent: engine.barrier)
       end
 
 
@@ -71,7 +83,7 @@ module OMQ
           max_message_size: @engine.options.max_message_size,
         )
         conn.handshake!
-        Heartbeat.start(Async::Task.current, conn, @engine.options, @engine.tasks)
+        Heartbeat.start(@barrier, conn, @engine.options, @engine.tasks)
         ready!(conn)
         @conn
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
@@ -120,6 +132,39 @@ module OMQ
         @engine.routing.connection_added(@conn)
         @engine.peer_connected.resolve(@conn)
         transition!(:ready)
+        # No supervisor if nothing to supervise: inproc DirectPipes
+        # wire the recv/send paths synchronously (no task-based pumps),
+        # and isolated unit tests use a FakeEngine without pumps at all.
+        # Waiting on an empty barrier returns immediately and would
+        # tear the connection down right after registering.
+        start_supervisor unless @barrier.empty?
+      end
+
+
+      # Spawns a supervisor task on the *socket-level* barrier (not the
+      # per-connection barrier) that blocks on the first pump to finish
+      # and then triggers teardown.
+      #
+      # Keeping the supervisor out of the per-connection barrier avoids
+      # the self-stop problem: stopping the current task raises
+      # Async::Cancel synchronously and unwinds before side effects can
+      # run. Placing it on the socket barrier means {Engine#stop} /
+      # {Engine#close} cascade-cancels the supervisor, whose +ensure+
+      # runs the ordered disconnect side effects once.
+      #
+      def start_supervisor
+        @supervisor = @engine.barrier.async(transient: true, annotation: "conn supervisor") do
+          @barrier.wait do |task|
+            task.wait
+            break
+          end
+        rescue Async::Stop, Async::Cancel
+          # socket or supervisor cancelled externally (socket closing)
+        rescue Protocol::ZMTP::Error, *CONNECTION_LOST
+          # expected pump exit on disconnect
+        ensure
+          lost!
+        end
       end
 
 
@@ -133,6 +178,10 @@ module OMQ
         @done&.resolve(true)
         @engine.resolve_all_peers_gone_if_empty
         @engine.maybe_reconnect(@endpoint) if reconnect
+        # Cancel every sibling pump of this connection. The caller is
+        # the supervisor task, which is NOT in the barrier — so there
+        # is no self-stop risk.
+        @barrier.stop
       end
 
 

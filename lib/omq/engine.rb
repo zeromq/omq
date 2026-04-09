@@ -90,6 +90,7 @@ module OMQ
     def peer_connected    = @lifecycle.peer_connected
     def all_peers_gone    = @lifecycle.all_peers_gone
     def parent_task       = @lifecycle.parent_task
+    def barrier           = @lifecycle.barrier
     def closed?           = @lifecycle.closed?
     def reconnect_enabled=(value)
       @lifecycle.reconnect_enabled = value
@@ -109,9 +110,9 @@ module OMQ
     def spawn_inproc_retry(endpoint)
       ri  = @options.reconnect_interval
       ivl = ri.is_a?(Range) ? ri.begin : ri
-      @tasks << @lifecycle.parent_task.async(transient: true, annotation: "inproc reconnect #{endpoint}") do
+      @tasks << @lifecycle.barrier.async(transient: true, annotation: "inproc reconnect #{endpoint}") do
         yield ivl
-      rescue Async::Stop
+      rescue Async::Stop, Async::Cancel
       end
     end
 
@@ -122,8 +123,9 @@ module OMQ
     # @return [void]
     # @raise [ArgumentError] on unsupported transport
     #
-    def bind(endpoint)
+    def bind(endpoint, parent: nil)
       OMQ.freeze_for_ractors!
+      capture_parent_task(parent: parent)
       transport = transport_for(endpoint)
       listener  = transport.bind(endpoint, self)
       start_accept_loops(listener)
@@ -142,8 +144,9 @@ module OMQ
     # @param endpoint [String]
     # @return [void]
     #
-    def connect(endpoint)
+    def connect(endpoint, parent: nil)
       OMQ.freeze_for_ractors!
+      capture_parent_task(parent: parent)
       validate_endpoint!(endpoint)
       @dialed.add(endpoint)
       if endpoint.start_with?("inproc://")
@@ -284,7 +287,11 @@ module OMQ
     # @return [Async::Task, nil]
     #
     def start_recv_pump(conn, recv_queue, &transform)
-      task = RecvPump.start(Async::Task.current, conn, recv_queue, self, transform)
+      # Spawn on the connection's lifecycle barrier so the recv pump is
+      # torn down together with the rest of its sibling per-connection
+      # pumps when the connection is lost.
+      parent = @connections[conn]&.barrier || @lifecycle.barrier
+      task   = RecvPump.start(parent, conn, recv_queue, self, transform)
       @tasks << task if task
       task
     end
@@ -318,7 +325,10 @@ module OMQ
     end
 
 
-    # Closes all connections and listeners.
+    # Closes all connections and listeners gracefully. Drains pending
+    # sends up to +linger+ seconds, then cascades teardown through the
+    # socket-level {SocketLifecycle#barrier} — every per-connection
+    # barrier is stopped as a side effect, cancelling every pump.
     #
     # @return [void]
     #
@@ -330,8 +340,27 @@ module OMQ
       @lifecycle.finish_closing!
       Reactor.untrack_linger(@options.linger) if @lifecycle.on_io_thread
       stop_listeners
-      close_connections
-      stop_tasks
+      tear_down_barrier
+      routing.stop rescue nil
+      emit_monitor_event(:closed)
+      close_monitor_queue
+    end
+
+
+    # Immediate hard stop: skips the linger drain and cascades teardown
+    # through the socket-level barrier. Intended for crash-path cleanup
+    # where {#close}'s drain is either unsafe or undesired.
+    #
+    # @return [void]
+    #
+    def stop
+      return unless @lifecycle.alive?
+      @lifecycle.start_closing! if @lifecycle.open?
+      @lifecycle.finish_closing!
+      Reactor.untrack_linger(@options.linger) if @lifecycle.on_io_thread
+      stop_listeners
+      tear_down_barrier
+      routing.stop rescue nil
       emit_monitor_event(:closed)
       close_monitor_queue
     end
@@ -350,8 +379,33 @@ module OMQ
     def spawn_pump_task(annotation:, &block)
       Async::Task.current.async(transient: true, annotation: annotation) do
         yield
-      rescue Async::Stop, Protocol::ZMTP::Error, *CONNECTION_LOST
+      rescue Async::Stop, Async::Cancel, Protocol::ZMTP::Error, *CONNECTION_LOST
         # normal shutdown / expected disconnect
+      rescue => error
+        signal_fatal_error(error)
+      end
+    end
+
+
+    # Spawns a per-connection pump task on the connection's own
+    # lifecycle barrier. When any pump on the barrier exits (e.g. the
+    # send pump sees EPIPE and calls {#connection_lost}), {ConnectionLifecycle#tear_down!}
+    # calls `barrier.stop` which cancels every sibling pump for that
+    # connection — so a dead peer can no longer leave orphan send
+    # pumps blocked on `dequeue` waiting for messages that will never
+    # be written.
+    #
+    # @param conn [Connection, Transport::Inproc::DirectPipe]
+    # @param annotation [String]
+    #
+    def spawn_conn_pump_task(conn, annotation:, &block)
+      lifecycle = @connections[conn]
+      return spawn_pump_task(annotation: annotation, &block) unless lifecycle
+
+      lifecycle.barrier.async(transient: true, annotation: annotation) do
+        yield
+      rescue Async::Stop, Async::Cancel, Protocol::ZMTP::Error, *CONNECTION_LOST
+        # normal shutdown / expected disconnect / sibling tore us down
       rescue => error
         signal_fatal_error(error)
       end
@@ -378,14 +432,22 @@ module OMQ
     end
 
 
-    # Saves the current Async task so connection subtrees can be
-    # spawned under the caller's task tree. Called by Socket before
-    # the first bind/connect — outside Reactor.run so non-Async
-    # callers get the IO thread's root task, not an ephemeral work task.
+    # Captures the socket's task tree root and starts the socket-level
+    # maintenance task. If +parent+ is given, it is used as the parent
+    # for every task spawned under this socket (connection supervisors,
+    # reconnect loops, maintenance, monitor). Otherwise the current
+    # Async task (or the shared Reactor root, for non-Async callers)
+    # is captured automatically.
     #
-    def capture_parent_task
-      return unless @lifecycle.capture_parent_task(linger: @options.linger)
-      Maintenance.start(@lifecycle.parent_task, @options.mechanism, @tasks)
+    # Idempotent: first call wins. Subsequent calls (including from
+    # later bind/connect invocations) with a different +parent+ are
+    # silently ignored.
+    #
+    # @param parent [#async, nil] optional Async parent
+    #
+    def capture_parent_task(parent: nil)
+      return unless @lifecycle.capture_parent_task(parent: parent, linger: @options.linger)
+      Maintenance.start(@lifecycle.barrier, @options.mechanism, @tasks)
     end
 
 
@@ -432,11 +494,13 @@ module OMQ
     private
 
     def spawn_connection(io, as_server:, endpoint: nil)
-      task = @lifecycle.parent_task&.async(transient: true, annotation: "conn #{endpoint}") do
+      task = @lifecycle.barrier&.async(transient: true, annotation: "conn #{endpoint}") do
         done      = Async::Promise.new
         lifecycle = ConnectionLifecycle.new(self, endpoint: endpoint, done: done)
         lifecycle.handshake!(io, as_server: as_server)
         done.wait
+      rescue Async::Stop, Async::Cancel
+        # socket barrier stopped — cascade teardown
       rescue Async::Queue::ClosedError
         # connection dropped during drain — message re-staged
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST
@@ -471,7 +535,7 @@ module OMQ
 
     def start_accept_loops(listener)
       return unless listener.respond_to?(:start_accept_loops)
-      listener.start_accept_loops(@lifecycle.parent_task) do |io|
+      listener.start_accept_loops(@lifecycle.barrier) do |io|
         handle_accepted(io, endpoint: listener.endpoint)
       end
     end
@@ -483,19 +547,19 @@ module OMQ
     end
 
 
-    def close_connections
-      @connections.values.each(&:close!)
-    end
-
-
     def close_connections_at(endpoint)
       @connections.values.select { |lc| lc.endpoint == endpoint }.each(&:close!)
     end
 
 
-    def stop_tasks
-      routing.stop rescue nil
-      @tasks.each { |t| t.stop rescue nil }
+    # Cascades teardown through the socket-level barrier. Stopping the
+    # barrier cancels every tracked task: connection supervisors (whose
+    # `ensure lost!` runs the ordered disconnect side effects), accept
+    # loops, reconnect loops, heartbeat, maintenance. After the cascade,
+    # clears the legacy +@tasks+ list.
+    #
+    def tear_down_barrier
+      @lifecycle.barrier&.stop
       @tasks.clear
     end
 

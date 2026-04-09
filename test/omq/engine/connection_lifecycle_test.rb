@@ -8,6 +8,7 @@ class FakeEngine
               :reconnect_calls, :peer_connected, :all_peers_gone_resolved
 
   attr_accessor :connection_wrapper
+  attr_reader :barrier
 
   def initialize
     @connections             = {}
@@ -17,6 +18,7 @@ class FakeEngine
     @reconnect_calls         = []
     @all_peers_gone_resolved = 0
     @peer_connected          = FakePromise.new
+    @barrier                 = Async::Barrier.new
   end
 
   def routing = self

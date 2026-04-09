@@ -81,23 +81,18 @@ module OMQ
       private
 
       def start_conn_send_pump(conn, q)
-        task = @engine.spawn_pump_task(annotation: "send pump") do
+        task = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             parts = q.dequeue
             frame = parts.first&.b
             next if frame.nil? || frame.empty?
             flag   = frame.getbyte(0)
             prefix = frame.byteslice(1..) || "".b
-            begin
-              case flag
-              when 0x01
-                conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
-              when 0x00
-                conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
-              end
-            rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-              @engine.connection_lost(conn)
-              break
+            case flag
+            when 0x01
+              conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
+            when 0x00
+              conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
             end
           end
         end

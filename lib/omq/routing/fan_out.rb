@@ -123,7 +123,7 @@ module OMQ
 
 
       def start_subscription_listener(conn)
-        @tasks << @engine.spawn_pump_task(annotation: "subscription listener") do
+        @tasks << @engine.spawn_conn_pump_task(conn, annotation: "subscription listener") do
           loop do
             frame = conn.read_frame
             next unless frame.command?
@@ -135,8 +135,6 @@ module OMQ
               on_cancel(conn, cmd.data)
             end
           end
-        rescue *CONNECTION_LOST
-          @engine.connection_lost(conn)
         end
       end
 
@@ -159,7 +157,7 @@ module OMQ
 
 
       def start_conn_send_pump_normal(conn, q, use_wire)
-        @engine.spawn_pump_task(annotation: "send pump") do
+        @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
@@ -167,9 +165,6 @@ module OMQ
               conn.flush
               batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
             end
-          rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-            @engine.connection_lost(conn)
-            break
           end
         end
       end
@@ -187,21 +182,16 @@ module OMQ
 
 
       def start_conn_send_pump_conflate(conn, q)
-        @engine.spawn_pump_task(annotation: "send pump") do
+        @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
             # Keep only the latest message that matches the subscription.
             latest = batch.reverse.find { |parts| subscribed?(conn, parts.first || EMPTY_BINARY) }
             next unless latest
-            begin
-              conn.write_message(latest)
-              conn.flush
-              @engine.emit_verbose_monitor_event(:message_sent, parts: latest)
-            rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-              @engine.connection_lost(conn)
-              break
-            end
+            conn.write_message(latest)
+            conn.flush
+            @engine.emit_verbose_monitor_event(:message_sent, parts: latest)
           end
         end
       end

@@ -8,12 +8,12 @@ module OMQ
     # if no traffic is seen within +timeout+ seconds.
     #
     module Heartbeat
-      # @param parent_task [Async::Task]
+      # @param parent [Async::Task, Async::Barrier] parent to spawn under
       # @param conn [Connection]
       # @param options [Options]
       # @param tasks [Array]
       #
-      def self.start(parent_task, conn, options, tasks)
+      def self.start(parent, conn, options, tasks)
         interval = options.heartbeat_interval
         return unless interval
 
@@ -21,7 +21,7 @@ module OMQ
         timeout = options.heartbeat_timeout || interval
         conn.touch_heartbeat
 
-        tasks << parent_task.async(transient: true, annotation: "heartbeat") do
+        tasks << parent.async(transient: true, annotation: "heartbeat") do
           loop do
             sleep interval
             conn.send_command(Protocol::ZMTP::Codec::Command.ping(ttl: ttl, context: "".b))
@@ -30,7 +30,7 @@ module OMQ
               break
             end
           end
-        rescue Async::Stop
+        rescue Async::Stop, Async::Cancel
         rescue *CONNECTION_LOST
           # connection closed
         end

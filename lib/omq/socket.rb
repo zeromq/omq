@@ -75,10 +75,18 @@ module OMQ
     # Binds to an endpoint.
     #
     # @param endpoint [String]
+    # @param parent [#async, nil] Async parent for the socket's task tree.
+    #   Accepts any object that responds to +#async+ — +Async::Task+,
+    #   +Async::Barrier+, +Async::Semaphore+. When given, every task
+    #   spawned under this socket (connection supervisors, reconnect
+    #   loops, heartbeat, monitor) is placed under +parent+, so callers
+    #   can coordinate teardown with their own Async tree. Only the
+    #   *first* bind/connect call captures the parent — subsequent
+    #   calls ignore the kwarg.
     # @return [void]
     #
-    def bind(endpoint)
-      ensure_parent_task
+    def bind(endpoint, parent: nil)
+      ensure_parent_task(parent: parent)
       Reactor.run do
         @engine.bind(endpoint)
         @last_tcp_port = @engine.last_tcp_port
@@ -89,10 +97,11 @@ module OMQ
     # Connects to an endpoint.
     #
     # @param endpoint [String]
+    # @param parent [#async, nil] see {#bind}.
     # @return [void]
     #
-    def connect(endpoint)
-      ensure_parent_task
+    def connect(endpoint, parent: nil)
+      ensure_parent_task(parent: parent)
       Reactor.run { @engine.connect(endpoint) }
     end
 
@@ -201,12 +210,27 @@ module OMQ
     end
 
 
-    # Closes the socket and releases all resources.
+    # Closes the socket and releases all resources. Drains pending sends
+    # up to +linger+ seconds, then cascades teardown through the
+    # socket-level Async::Barrier — every connection's per-connection
+    # barrier is stopped, cancelling every pump.
     #
     # @return [nil]
     #
     def close
       Reactor.run { @engine.close }
+      nil
+    end
+
+
+    # Immediate hard stop. Skips the linger drain and cascades teardown
+    # through the socket-level Async::Barrier. Intended for crash-path
+    # cleanup or when the caller already knows no pending sends matter.
+    #
+    # @return [nil]
+    #
+    def stop
+      Reactor.run { @engine.stop }
       nil
     end
 
@@ -254,8 +278,8 @@ module OMQ
     # Must be called OUTSIDE Reactor.run so that non-Async callers
     # get the IO thread's root task, not an ephemeral work task.
     #
-    def ensure_parent_task
-      @engine.capture_parent_task
+    def ensure_parent_task(parent: nil)
+      @engine.capture_parent_task(parent: parent)
     end
 
 
