@@ -25,19 +25,19 @@ ruby bench/report.rb --update-readme
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 597.2k msg/s / 38.2 MB/s | 176.7k msg/s / 11.3 MB/s | 208.6k msg/s / 13.4 MB/s |
-| 1 KiB | 582.2k msg/s / 596 MB/s | 163.3k msg/s / 167 MB/s | 161.0k msg/s / 165 MB/s |
-| 8 KiB | 607.9k msg/s / 4.98 GB/s | 79.4k msg/s / 650 MB/s | 78.3k msg/s / 641 MB/s |
-| 64 KiB | 608.4k msg/s / 39.87 GB/s | 19.7k msg/s / 1.29 GB/s | 16.3k msg/s / 1.07 GB/s |
+| 64 B | 625.1k msg/s / 40.0 MB/s | 187.1k msg/s / 12.0 MB/s | 235.3k msg/s / 15.1 MB/s |
+| 1 KiB | 612.5k msg/s / 627 MB/s | 180.1k msg/s / 184 MB/s | 179.9k msg/s / 184 MB/s |
+| 8 KiB | 658.4k msg/s / 5.39 GB/s | 91.5k msg/s / 750 MB/s | 94.9k msg/s / 777 MB/s |
+| 64 KiB | 652.9k msg/s / 42.79 GB/s | 20.3k msg/s / 1.33 GB/s | 17.8k msg/s / 1.17 GB/s |
 
 ### 3 peers
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 459.7k msg/s / 29.4 MB/s | 164.6k msg/s / 10.5 MB/s | 188.4k msg/s / 12.1 MB/s |
-| 1 KiB | 449.8k msg/s / 461 MB/s | 152.1k msg/s / 156 MB/s | 148.8k msg/s / 152 MB/s |
-| 8 KiB | 448.4k msg/s / 3.67 GB/s | 79.6k msg/s / 652 MB/s | 74.2k msg/s / 608 MB/s |
-| 64 KiB | 445.4k msg/s / 29.19 GB/s | 18.3k msg/s / 1.20 GB/s | 16.0k msg/s / 1.05 GB/s |
+| 64 B | 487.4k msg/s / 31.2 MB/s | 123.1k msg/s / 7.88 MB/s | 200.9k msg/s / 12.8 MB/s |
+| 1 KiB | 491.6k msg/s / 503 MB/s | 140.1k msg/s / 144 MB/s | 164.2k msg/s / 168 MB/s |
+| 8 KiB | 490.0k msg/s / 4.01 GB/s | 84.0k msg/s / 688 MB/s | 85.5k msg/s / 700 MB/s |
+| 64 KiB | 478.1k msg/s / 31.33 GB/s | 18.7k msg/s / 1.22 GB/s | 17.7k msg/s / 1.16 GB/s |
 
 <!-- END push_pull -->
 
@@ -56,10 +56,10 @@ Latency is `1 / msgs_s` converted to µs.
 <!-- BEGIN req_rep -->
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 16.4 µs | 64.4 µs | 84.8 µs |
-| 1 KiB | 16.5 µs | 70.2 µs | 89.3 µs |
-| 8 KiB | 16.3 µs | 79.2 µs | 96.7 µs |
-| 64 KiB | 16.7 µs | 123 µs | 150 µs |
+| 64 B | 15.0 µs | 58.7 µs | 72.4 µs |
+| 1 KiB | 14.9 µs | 63.3 µs | 77.0 µs |
+| 8 KiB | 15.3 µs | 70.2 µs | 82.2 µs |
+| 64 KiB | 14.9 µs | 108 µs | 133 µs |
 
 <!-- END req_rep -->
 
