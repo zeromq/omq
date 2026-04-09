@@ -7,7 +7,12 @@
 require_relative "../bench_helper"
 
 BenchHelper.run("PUB/SUB", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload|
-  pub = OMQ::PUB.new
+  # PUB defaults to on_mute: :drop_newest so one slow subscriber can't
+  # back-pressure the publisher. This bench measures sustained fan-out
+  # throughput under matched producer/consumer rates — drops would make
+  # the receive loop wait forever for missing messages — so we opt into
+  # :block here to get strict delivery.
+  pub = OMQ::PUB.new(on_mute: :block)
   BenchHelper.apply_security(pub, transport, role: :server)
   pub.bind(ep)
   ep = BenchHelper.resolve_endpoint(transport, pub)
