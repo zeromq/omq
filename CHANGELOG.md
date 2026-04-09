@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Revert to per-socket HWM with work-stealing send pumps.** One shared
+  bounded send queue per socket, drained by N per-connection send pumps
+  that race to dequeue. Slow peers' pumps simply stop pulling; fast peers
+  absorb the load. Strictly better PUSH semantics than libzmq's strict
+  per-pipe round-robin (a known footgun where one slow worker stalls the
+  whole pipeline). Removes `StagingQueue`, per-connection queue maps, the
+  double-drain race in `add_*`, the disconnect-prepend ordering pretense,
+  and the `@cycle` / next-connection machinery. See `DESIGN.md`
+  "Per-socket HWM (not per-connection)" for full reasoning.
+- **`RoundRobin` batch cap is now dual: 256 messages OR 512 KB**, whichever
+  hits first (previously 64 messages). The old cap was too aggressive for
+  large messages — with 64 KB payloads it forced a flush every ~4 MB,
+  capping multi-peer push_pull throughput at ~50 % of what the network
+  could handle. Dual cap lets large-message workloads batch ~8 messages
+  per cycle while small-message workloads still yield quickly enough to
+  keep other work-stealing pumps fair. push_pull +5–40 % across transports
+  and sizes; router_dealer +5–15 %.
+- **Send pumps batched under a single mutex.** RoundRobin, ConnSendPump
+  and Pair now drain batches through
+  `Protocol::ZMTP::Connection#write_messages`, collapsing N lock
+  acquire/release pairs into one per batch. The size==1 path still uses
+  `send_message` (write+flush in one lock) to avoid an extra round-trip
+  at low throughput. push_pull inproc +18–28 %, tcp/ipc flat to +17 %.
+
+### Fixed
+
+- **PUSH/PULL round-robin test.** Previously asserted strict 1-msg-per-peer
+  distribution — a libzmq-ism OMQ never promised — and was silently
+  "passing" with 0 assertions and a 10 s Async-block timeout that masked a
+  hang. New test verifies both peers receive nonzero load over TCP.
+
+### Benchmarks
+
+- Report throughput in bytes/s alongside msgs/s.
+- Regenerated `bench/README.md` PUSH/PULL and REQ/REP tables: push_pull
+  throughput up 5–40 %, req_rep round-trip latency down 5–15 %.
+
 ## 0.15.5 — 2026-04-08
 
 - **`max_message_size` now defaults to `nil` (unlimited)** — previous
