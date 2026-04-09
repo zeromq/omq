@@ -99,13 +99,18 @@ module OMQ
 
 
       # Spawns a send pump for one connection. Drains the shared send
-      # queue, batches up to BATCH_CAP messages per cycle, writes to its
-      # peer, and yields. The cap is what enforces work-stealing fairness
-      # across the N per-conn pumps -- without it, the first pump that
-      # wakes up would drain the entire queue in one non-blocking burst
-      # before any other pump got a turn (TCP send buffers absorb bursts
-      # without forcing a fiber yield). On disconnect, the in-flight
-      # batch is dropped and the engine reconnect kicks in.
+      # queue, writes to its peer, and yields. On disconnect, the
+      # in-flight batch is dropped and the engine reconnect kicks in.
+      #
+      # Each batch is capped at BATCH_MSG_CAP messages OR BATCH_BYTE_CAP
+      # bytes, whichever hits first. The cap exists for fairness when
+      # multiple peers share the queue: without it, the first pump that
+      # wakes up drains the entire queue in one non-blocking burst
+      # before any other pump runs (TCP send buffers absorb bursts
+      # without forcing a fiber yield). 512 KB lets large-message
+      # workloads batch naturally (8 × 64 KB per batch) while keeping
+      # per-pump latency bounded enough that small-message multi-peer
+      # fairness still benefits.
       #
       # @param conn [Connection]
       #
@@ -126,16 +131,16 @@ module OMQ
       end
 
 
-      # Per-cycle batch cap. Bounded by BATCH_CAP messages so other
-      # per-conn pumps get a turn at the shared send queue.
-      #
-      BATCH_CAP = 64
+      BATCH_MSG_CAP  = 256
+      BATCH_BYTE_CAP = 512 * 1024
 
       def drain_send_queue_capped(batch)
-        while batch.size < BATCH_CAP
+        bytes = batch[0].sum(&:bytesize)
+        while batch.size < BATCH_MSG_CAP && bytes < BATCH_BYTE_CAP
           msg = @send_queue.dequeue(timeout: 0)
           break unless msg
           batch << msg
+          bytes += msg.sum(&:bytesize)
         end
       end
 
