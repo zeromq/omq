@@ -25,19 +25,19 @@ ruby bench/report.rb --update-readme
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 597.2k msg/s | 176.7k msg/s | 208.6k msg/s |
-| 1 KiB | 582.2k msg/s | 163.3k msg/s | 161.0k msg/s |
-| 8 KiB | 607.9k msg/s | 79.4k msg/s | 78.3k msg/s |
-| 64 KiB | 608.4k msg/s | 19.7k msg/s | 16.3k msg/s |
+| 64 B | 597.2k msg/s / 38.2 MB/s | 176.7k msg/s / 11.3 MB/s | 208.6k msg/s / 13.4 MB/s |
+| 1 KiB | 582.2k msg/s / 596 MB/s | 163.3k msg/s / 167 MB/s | 161.0k msg/s / 165 MB/s |
+| 8 KiB | 607.9k msg/s / 4.98 GB/s | 79.4k msg/s / 650 MB/s | 78.3k msg/s / 641 MB/s |
+| 64 KiB | 608.4k msg/s / 39.87 GB/s | 19.7k msg/s / 1.29 GB/s | 16.3k msg/s / 1.07 GB/s |
 
 ### 3 peers
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 64 B | 459.7k msg/s | 164.6k msg/s | 188.4k msg/s |
-| 1 KiB | 449.8k msg/s | 152.1k msg/s | 148.8k msg/s |
-| 8 KiB | 448.4k msg/s | 79.6k msg/s | 74.2k msg/s |
-| 64 KiB | 445.4k msg/s | 18.3k msg/s | 16.0k msg/s |
+| 64 B | 459.7k msg/s / 29.4 MB/s | 164.6k msg/s / 10.5 MB/s | 188.4k msg/s / 12.1 MB/s |
+| 1 KiB | 449.8k msg/s / 461 MB/s | 152.1k msg/s / 156 MB/s | 148.8k msg/s / 152 MB/s |
+| 8 KiB | 448.4k msg/s / 3.67 GB/s | 79.6k msg/s / 652 MB/s | 74.2k msg/s / 608 MB/s |
+| 64 KiB | 445.4k msg/s / 29.19 GB/s | 18.3k msg/s / 1.20 GB/s | 16.0k msg/s / 1.05 GB/s |
 
 <!-- END push_pull -->
 

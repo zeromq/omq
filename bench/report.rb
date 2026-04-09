@@ -45,21 +45,37 @@ if options[:update_readme]
   abort "No runs found in #{RESULTS_PATH}" unless latest
   latest_rows = rows.select { |r| r[:run_id] == latest }
 
-  # Look up a specific cell's msgs_s from the latest run.
+  # Look up a specific cell's row from the latest run.
   cell = lambda do |pattern, transport, peers, msg_size|
-    r = latest_rows.find { |x| x[:pattern] == pattern && x[:transport] == transport && x[:peers] == peers && x[:msg_size] == msg_size }
-    r && r[:msgs_s]
+    latest_rows.find { |x| x[:pattern] == pattern && x[:transport] == transport && x[:peers] == peers && x[:msg_size] == msg_size }
   end
 
   fmt_rate = lambda do |v|
-    next "—" unless v
+    next nil unless v
     if    v >= 1e6 then "%.2fM msg/s" % (v / 1e6)
     elsif v >= 1e3 then "%.1fk msg/s" % (v / 1e3)
     else                "%.0f msg/s"  % v
     end
   end
 
-  fmt_latency_us = lambda do |v|
+  fmt_mbps = lambda do |v|
+    next nil unless v
+    if    v >= 1000 then "%.2f GB/s" % (v / 1000.0)
+    elsif v >= 100  then "%.0f MB/s" % v
+    elsif v >= 10   then "%.1f MB/s" % v
+    else                 "%.2f MB/s" % v
+    end
+  end
+
+  fmt_throughput = lambda do |r|
+    next "—" unless r
+    rate = fmt_rate.call(r[:msgs_s])
+    mb   = fmt_mbps.call(r[:mbps])
+    [rate, mb].compact.join(" / ")
+  end
+
+  fmt_latency_us = lambda do |r|
+    v = r && r[:msgs_s]
     next "—" unless v && v > 0
     us = 1_000_000.0 / v
     if    us >= 100 then "%.0f µs"  % us
@@ -78,7 +94,7 @@ if options[:update_readme]
       out << "| Message size | #{TRANSPORTS.join(' | ')} |\n"
       out << "|---|#{TRANSPORTS.map { '---' }.join('|')}|\n"
       sizes.each do |size|
-        values = TRANSPORTS.map { |t| fmt_rate.call(cell.call("push_pull", t, peers, size)) }
+        values = TRANSPORTS.map { |t| fmt_throughput.call(cell.call("push_pull", t, peers, size)) }
         out << "| #{SIZE_LABELS[size]} | #{values.join(' | ')} |\n"
       end
       out << "\n"
