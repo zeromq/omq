@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 — 2026-04-09
 
 ### Changed
 
@@ -17,10 +17,13 @@
   `ConnectionSetup` is absorbed and removed. `ConnectionRecord` collapses away
   — `@connections` now stores lifecycles directly.
 
-### Fixed
-
-- **`disconnect(endpoint)` now emits `:disconnected`** on the monitor queue.
-  Previously silent because `close_connections_at` bypassed `connection_lost`.
+- **Consolidate socket-level state into `Engine::SocketLifecycle`.** Six ivars
+  (`@state`, `@peer_connected`, `@all_peers_gone`, `@reconnect_enabled`,
+  `@parent_task`, `@on_io_thread`) move into one cohesive object with an
+  explicit 4-state transition table (`:new → :open → :closing → :closed`).
+  `Engine#closed?`, `#peer_connected`, `#all_peers_gone`, `#parent_task`
+  remain as delegators — public API unchanged. Parallels
+  `ConnectionLifecycle` in naming and shape. Pure refactor, no behavior change.
 
 - **Revert to per-socket HWM with work-stealing send pumps.** One shared
   bounded send queue per socket, drained by N per-connection send pumps
@@ -48,6 +51,8 @@
 
 ### Fixed
 
+- **`disconnect(endpoint)` now emits `:disconnected`** on the monitor queue.
+  Previously silent because `close_connections_at` bypassed `connection_lost`.
 - **PUSH/PULL round-robin test.** Previously asserted strict 1-msg-per-peer
   distribution — a libzmq-ism OMQ never promised — and was silently
   "passing" with 0 assertions and a 10 s Async-block timeout that masked a

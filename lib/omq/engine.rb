@@ -5,6 +5,7 @@ require_relative "engine/recv_pump"
 require_relative "engine/heartbeat"
 require_relative "engine/reconnect"
 require_relative "engine/connection_lifecycle"
+require_relative "engine/socket_lifecycle"
 require_relative "engine/maintenance"
 
 module OMQ
@@ -56,46 +57,43 @@ module OMQ
     # @param options [Options]
     #
     def initialize(socket_type, options)
-      @socket_type       = socket_type
-      @options           = options
-      @routing           = nil
-      @connections       = {} # connection => ConnectionLifecycle
-      @dialed            = Set.new # endpoints we called connect() on (reconnect intent)
-      @listeners         = []
-      @tasks             = []
-      @state             = :open
-      @last_endpoint     = nil
-      @last_tcp_port     = nil
-      @peer_connected    = Async::Promise.new
-      @all_peers_gone    = Async::Promise.new
-      @reconnect_enabled = true
-      @parent_task       = nil
-      @on_io_thread      = false
-      @fatal_error       = nil
-      @monitor_queue     = nil
-      @verbose_monitor   = false
+      @socket_type     = socket_type
+      @options         = options
+      @routing         = nil
+      @connections     = {} # connection => ConnectionLifecycle
+      @dialed          = Set.new # endpoints we called connect() on (reconnect intent)
+      @listeners       = []
+      @tasks           = []
+      @lifecycle       = SocketLifecycle.new
+      @last_endpoint   = nil
+      @last_tcp_port   = nil
+      @fatal_error     = nil
+      @monitor_queue   = nil
+      @verbose_monitor = false
     end
 
 
-    # @return [Async::Promise] resolves when first peer completes handshake
-    # @return [Async::Promise] resolves when all peers disconnect (after having had peers)
     # @return [Hash{Connection => ConnectionLifecycle}] active connections
-    # @return [Async::Task, nil] root task for spawning subtrees
     # @return [Array<Async::Task>] background tasks (pumps, heartbeat, reconnect)
+    # @return [SocketLifecycle] socket-level state + signaling
     #
-    attr_reader :peer_connected, :all_peers_gone, :connections, :parent_task, :tasks
+    attr_reader :connections, :tasks, :lifecycle
 
-    # @!attribute [w] reconnect_enabled
-    #   @param value [Boolean] enable or disable auto-reconnect
     # @!attribute [w] monitor_queue
     #   @param value [Async::Queue, nil] queue for monitor events
     #
-    attr_writer :reconnect_enabled, :monitor_queue
+    attr_writer :monitor_queue
     attr_accessor :verbose_monitor
 
-    # @return [Boolean] true if the engine has been closed
-    #
-    def closed? = @state == :closed
+
+    # Delegated to {SocketLifecycle}.
+    def peer_connected    = @lifecycle.peer_connected
+    def all_peers_gone    = @lifecycle.all_peers_gone
+    def parent_task       = @lifecycle.parent_task
+    def closed?           = @lifecycle.closed?
+    def reconnect_enabled=(value)
+      @lifecycle.reconnect_enabled = value
+    end
 
     # Optional proc that wraps new connections (e.g. for serialization).
     # Called with the raw connection; must return the (possibly wrapped) connection.
@@ -103,7 +101,7 @@ module OMQ
     attr_accessor :connection_wrapper
 
 
-    # Spawns an inproc reconnect retry task under @parent_task.
+    # Spawns an inproc reconnect retry task under the socket's parent task.
     #
     # @param endpoint [String]
     # @yield [interval] the retry loop body
@@ -111,7 +109,7 @@ module OMQ
     def spawn_inproc_retry(endpoint)
       ri  = @options.reconnect_interval
       ivl = ri.is_a?(Range) ? ri.begin : ri
-      @tasks << @parent_task.async(transient: true, annotation: "inproc reconnect #{endpoint}") do
+      @tasks << @lifecycle.parent_task.async(transient: true, annotation: "inproc reconnect #{endpoint}") do
         yield ivl
       rescue Async::Stop
       end
@@ -302,12 +300,11 @@ module OMQ
     end
 
 
-    # Resolves {@all_peers_gone} if we had peers and now have none.
+    # Resolves `all_peers_gone` if we had peers and now have none.
     # Called by ConnectionLifecycle during teardown.
     #
     def resolve_all_peers_gone_if_empty
-      return unless @peer_connected.resolved? && @connections.empty?
-      @all_peers_gone.resolve(true)
+      @lifecycle.resolve_all_peers_gone_if_empty(@connections)
     end
 
 
@@ -316,8 +313,8 @@ module OMQ
     #
     def maybe_reconnect(endpoint)
       return unless endpoint && @dialed.include?(endpoint)
-      return unless @state == :open && @reconnect_enabled
-      Reconnect.schedule(endpoint, @options, @parent_task, self)
+      return unless @lifecycle.open? && @lifecycle.reconnect_enabled
+      Reconnect.schedule(endpoint, @options, @lifecycle.parent_task, self)
     end
 
 
@@ -326,12 +323,12 @@ module OMQ
     # @return [void]
     #
     def close
-      return unless @state == :open
-      @state = :closing
+      return unless @lifecycle.open?
+      @lifecycle.start_closing!
       stop_listeners unless @connections.empty?
       drain_send_queues(@options.linger) if @options.linger.nil? || @options.linger > 0
-      @state = :closed
-      Reactor.untrack_linger(@options.linger) if @on_io_thread
+      @lifecycle.finish_closing!
+      Reactor.untrack_linger(@options.linger) if @lifecycle.on_io_thread
       stop_listeners
       close_connections
       stop_tasks
@@ -370,14 +367,14 @@ module OMQ
     # @param error [Exception]
     #
     def signal_fatal_error(error)
-      return unless @state == :open
+      return unless @lifecycle.open?
       @fatal_error = begin
         raise OMQ::SocketDeadError, "internal error killed #{@socket_type} socket"
       rescue => wrapped
         wrapped
       end
       routing.recv_queue.push(nil) rescue nil
-      @peer_connected.resolve(nil) rescue nil
+      @lifecycle.peer_connected.resolve(nil) rescue nil
     end
 
 
@@ -387,15 +384,8 @@ module OMQ
     # callers get the IO thread's root task, not an ephemeral work task.
     #
     def capture_parent_task
-      return if @parent_task
-      if Async::Task.current?
-        @parent_task = Async::Task.current
-      else
-        @parent_task  = Reactor.root_task
-        @on_io_thread = true
-        Reactor.track_linger(@options.linger)
-      end
-      Maintenance.start(@parent_task, @options.mechanism, @tasks)
+      return unless @lifecycle.capture_parent_task(linger: @options.linger)
+      Maintenance.start(@lifecycle.parent_task, @options.mechanism, @tasks)
     end
 
 
@@ -442,7 +432,7 @@ module OMQ
     private
 
     def spawn_connection(io, as_server:, endpoint: nil)
-      task = @parent_task&.async(transient: true, annotation: "conn #{endpoint}") do
+      task = @lifecycle.parent_task&.async(transient: true, annotation: "conn #{endpoint}") do
         done      = Async::Promise.new
         lifecycle = ConnectionLifecycle.new(self, endpoint: endpoint, done: done)
         lifecycle.handshake!(io, as_server: as_server)
@@ -469,7 +459,7 @@ module OMQ
 
 
     def schedule_reconnect(endpoint, delay: nil)
-      Reconnect.schedule(endpoint, @options, @parent_task, self, delay: delay)
+      Reconnect.schedule(endpoint, @options, @lifecycle.parent_task, self, delay: delay)
     end
 
 
@@ -481,7 +471,7 @@ module OMQ
 
     def start_accept_loops(listener)
       return unless listener.respond_to?(:start_accept_loops)
-      listener.start_accept_loops(@parent_task) do |io|
+      listener.start_accept_loops(@lifecycle.parent_task) do |io|
         handle_accepted(io, endpoint: listener.endpoint)
       end
     end
