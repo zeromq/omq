@@ -51,6 +51,12 @@
 
 ### Fixed
 
+- **PUB/XPUB/RADIO fan-out now honors `on_mute`.** Per-subscriber send queues
+  were hardcoded to `:block`, so a slow subscriber would back-pressure the
+  publisher despite PUB/XPUB/RADIO defaulting to `on_mute: :drop_newest`.
+  Fan-out now builds each subscriber's queue with the socket's `on_mute`
+  strategy — slow subscribers silently drop their own messages without
+  stalling the publisher or other subscribers.
 - **`disconnect(endpoint)` now emits `:disconnected`** on the monitor queue.
   Previously silent because `close_connections_at` bypassed `connection_lost`.
 - **PUSH/PULL round-robin test.** Previously asserted strict 1-msg-per-peer

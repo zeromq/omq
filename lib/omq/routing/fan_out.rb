@@ -83,7 +83,7 @@ module OMQ
       # @param conn [Connection]
       #
       def add_fan_out_send_connection(conn)
-        q = Routing.build_queue(@engine.options.send_hwm, :block)
+        q = Routing.build_queue(@engine.options.send_hwm, @engine.options.on_mute)
         @conn_queues[conn] = q
         start_conn_send_pump(conn, q)
       end
@@ -107,10 +107,11 @@ module OMQ
       # are respected: a message enqueued before the async subscription listener
       # has processed SUBSCRIBE commands will still be delivered correctly.
       #
-      # Per-connection queues use :block (Async::LimitedQueue) for
-      # backpressure: when a subscriber's queue is full, the publisher
-      # yields until the send pump drains it. This matches the old
-      # shared-queue behavior and keeps the publisher fiber-friendly.
+      # Per-connection queues honor the socket's on_mute strategy.
+      # PUB/XPUB/RADIO default to :drop_newest so one slow subscriber
+      # silently drops its own messages without stalling the publisher
+      # or other subscribers. Applications can opt in to :block for
+      # strict backpressure.
       #
       # @param parts [Array<String>]
       #

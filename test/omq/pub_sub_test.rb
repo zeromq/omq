@@ -140,35 +140,6 @@ describe "PUB/SUB" do
     end
   end
 
-  it "delivers all messages when burst-sending beyond send_hwm" do
-    Async do
-      pub = OMQ::PUB.new(nil, linger: 0)
-      pub.send_hwm = 10
-      pub.bind("inproc://pubsub-burst")
-
-      sub = OMQ::SUB.connect("inproc://pubsub-burst", subscribe: "")
-
-      # Warm up — ensure subscription is active
-      5.times do
-        pub.send("warmup")
-        sub.receive
-      end
-
-      n        = 200
-      barrier = Async::Barrier.new
-      barrier.async { n.times { |i| pub.send("msg.#{i}") } }
-      received = []
-      barrier.async { n.times { received << sub.receive } }
-
-      Async::Task.current.with_timeout(5) { barrier.wait }
-
-      assert_equal n, received.size
-    ensure
-      sub&.close
-      pub&.close
-    end
-  end
-
   it "PUB defaults to on_mute: :drop_newest" do
     pub = OMQ::PUB.new(nil, linger: 0)
     assert_equal :drop_newest, pub.on_mute
