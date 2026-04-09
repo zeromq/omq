@@ -38,7 +38,7 @@ describe "QueueReadable" do
       pull.read_timeout = 0.05
 
       Async do |task|
-        task.sleep 0.1
+        sleep 0.1
         push.send("hello")
       end
 
