@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.16.1 — 2026-04-09
+
+### Changed
+
+- **Depend on `protocol-zmtp ~> 0.4`.** Picks up the batched
+  `Connection#write_messages` used by the work-stealing send pumps and
+  the zero-alloc frame-header path on the unencrypted hot send path.
+
+### Fixed
+
+- **PUB/XPUB/RADIO fan-out now honors `on_mute`.** Per-subscriber send queues
+  were hardcoded to `:block`, so a slow subscriber would back-pressure the
+  publisher despite PUB/XPUB/RADIO defaulting to `on_mute: :drop_newest`.
+  Fan-out now builds each subscriber's queue with the socket's `on_mute`
+  strategy — slow subscribers silently drop their own messages without
+  stalling the publisher or other subscribers.
+
 ## 0.16.0 — 2026-04-09
 
 ### Changed
@@ -51,12 +68,6 @@
 
 ### Fixed
 
-- **PUB/XPUB/RADIO fan-out now honors `on_mute`.** Per-subscriber send queues
-  were hardcoded to `:block`, so a slow subscriber would back-pressure the
-  publisher despite PUB/XPUB/RADIO defaulting to `on_mute: :drop_newest`.
-  Fan-out now builds each subscriber's queue with the socket's `on_mute`
-  strategy — slow subscribers silently drop their own messages without
-  stalling the publisher or other subscribers.
 - **`disconnect(endpoint)` now emits `:disconnected`** on the monitor queue.
   Previously silent because `close_connections_at` bypassed `connection_lost`.
 - **PUSH/PULL round-robin test.** Previously asserted strict 1-msg-per-peer
