@@ -72,6 +72,56 @@ describe "PUSH/PULL over inproc" do
       pull2&.close
     end
   end
+  it "distributes across peers in recv-then-send loop (pipe pattern)" do
+    Async do
+      # Source → pipe_pull → pipe_push → [sink_a, sink_b]
+      pipe_pull = OMQ::PULL.bind("ipc://@omq_test_pipe_in_#{$$}")
+      sink_a    = OMQ::PULL.bind("ipc://@omq_test_pipe_out_a_#{$$}")
+      sink_b    = OMQ::PULL.bind("ipc://@omq_test_pipe_out_b_#{$$}")
+
+      source = OMQ::PUSH.new(nil, linger: 5)
+      source.connect("ipc://@omq_test_pipe_in_#{$$}")
+
+      pipe_push = OMQ::PUSH.new(nil, linger: 5)
+      pipe_push.connect("ipc://@omq_test_pipe_out_a_#{$$}")
+      pipe_push.connect("ipc://@omq_test_pipe_out_b_#{$$}")
+
+      wait_connected(source)
+      sleep 0.001 until pipe_push.connection_count >= 2
+
+      n = 20
+      n.times { |i| source.send("msg-#{i}") }
+
+      # Pipe-style loop: receive one, send one, yield to let pumps drain
+      n.times do
+        parts = pipe_pull.receive
+        pipe_push.send(parts)
+        Async::Task.current.yield
+      end
+
+      source.close
+      pipe_push.close
+
+      sink_a.recv_timeout = 2
+      sink_b.recv_timeout = 2
+      counts = { a: 0, b: 0 }
+      barrier = Async::Barrier.new
+      barrier.async { loop { sink_a.receive; counts[:a] += 1 } rescue nil }
+      barrier.async { loop { sink_b.receive; counts[:b] += 1 } rescue nil }
+      barrier.wait
+
+      assert_equal n, counts[:a] + counts[:b], "all messages delivered"
+      assert counts[:a] > 0, "expected sink_a to receive some messages, got #{counts[:a]}"
+      assert counts[:b] > 0, "expected sink_b to receive some messages, got #{counts[:b]}"
+    ensure
+      pipe_pull&.close
+      pipe_push&.close
+      source&.close
+      sink_a&.close
+      sink_b&.close
+    end
+  end
+
   it "coerces non-string parts via #to_s" do
     Async do
       pull = OMQ::PULL.bind("inproc://pushpull-tos")

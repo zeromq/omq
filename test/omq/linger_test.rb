@@ -108,6 +108,52 @@ describe "Linger" do
     end
   end
 
+  it "drains in-flight messages across multiple peers before closing" do
+    Async do
+      pull_a = OMQ::PULL.bind("tcp://127.0.0.1:0")
+      pull_b = OMQ::PULL.bind("tcp://127.0.0.1:0")
+
+      push = OMQ::PUSH.new(nil, linger: 5)
+      push.connect("tcp://127.0.0.1:#{pull_a.last_tcp_port}")
+      push.connect("tcp://127.0.0.1:#{pull_b.last_tcp_port}")
+
+      # Wait for both peers so pumps exist for both connections.
+      sleep 0.001 until push.connection_count >= 2
+
+      # Large messages (64KB each) force IO yields during write_batch,
+      # opening a window where pump fibers have dequeued messages but
+      # haven't flushed them yet. This is the race condition:
+      # drain_send_queues sees an empty queue while pumps hold in-flight
+      # batches, proceeds to tear_down_barrier, and kills them.
+      n       = 20
+      payload = "X" * 65_536
+      n.times { |i| push.send(["#{i}:#{payload}"]) }
+      push.close
+
+      # Collect from both pulls — every message must arrive.
+      pull_a.recv_timeout = 2
+      pull_b.recv_timeout = 2
+      received = []
+      barrier  = Async::Barrier.new
+      [pull_a, pull_b].each do |pull|
+        barrier.async do
+          loop do
+            msg = pull.receive
+            received << msg.first.split(":").first.to_i
+          rescue IO::TimeoutError
+            break
+          end
+        end
+      end
+      barrier.wait
+
+      assert_equal n, received.size, "expected all #{n} messages delivered, got #{received.size}"
+    ensure
+      pull_a&.close
+      pull_b&.close
+    end
+  end
+
   it "actually delivers all messages before close completes over TCP" do
     Async do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")

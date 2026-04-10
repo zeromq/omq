@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.8 — 2026-04-10
+
+### Fixed
+
+- **Linger drain missed in-flight messages.** `RoundRobin#send_queues_drained?`
+  now tracks an `@in_flight` counter for messages dequeued by pump fibers but
+  not yet written. Previously, linger could tear down connections while pumps
+  still held unwritten batches, dropping messages silently.
+
 ## 0.17.7 — 2026-04-10
 
 ### Changed

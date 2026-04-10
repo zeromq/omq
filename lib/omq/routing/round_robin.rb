@@ -20,9 +20,10 @@ module OMQ
     #
     module RoundRobin
       # @return [Boolean] true when the shared send queue is empty
+      #   and no pump fiber is mid-write with a dequeued batch.
       #
       def send_queues_drained?
-        @send_queue.empty?
+        @send_queue.empty? && @in_flight == 0
       end
 
       private
@@ -36,6 +37,7 @@ module OMQ
         @send_queue      = Routing.build_queue(engine.options.send_hwm, :block)
         @direct_pipe     = nil
         @conn_send_tasks = {}  # conn => send pump task
+        @in_flight       = 0   # messages dequeued but not yet written
       end
 
 
@@ -126,7 +128,12 @@ module OMQ
           loop do
             batch = [@send_queue.dequeue]
             drain_send_queue_capped(batch)
-            write_batch(conn, batch)
+            @in_flight += batch.size
+            begin
+              write_batch(conn, batch)
+            ensure
+              @in_flight -= batch.size
+            end
             batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
             Async::Task.current.yield
           end
