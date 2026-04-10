@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.5 — 2026-04-10
+
+### Fixed
+
+- **Handshake timeout.** `ConnectionLifecycle#handshake!` now wraps
+  the ZMTP greeting/handshake exchange with a timeout (reconnect
+  interval, floor 0.5s). Prevents a hang when a non-ZMQ service
+  accepts the TCP connection but never sends a ZMTP greeting (e.g.
+  macOS AirPlay Receiver on port 5000). On timeout the connection
+  tears down with `reconnect: true`, so the retry loop picks up.
+
 ## 0.17.4 — 2026-04-10
 
 ### Fixed

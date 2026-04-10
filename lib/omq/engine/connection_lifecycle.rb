@@ -82,11 +82,11 @@ module OMQ
           mechanism:        @engine.options.mechanism&.dup,
           max_message_size: @engine.options.max_message_size,
         )
-        conn.handshake!
+        Async::Task.current.with_timeout(handshake_timeout) { conn.handshake! }
         Heartbeat.start(@barrier, conn, @engine.options, @engine.tasks)
         ready!(conn)
         @conn
-      rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
+      rescue Protocol::ZMTP::Error, *CONNECTION_LOST, Async::TimeoutError => error
         @engine.emit_monitor_event(:handshake_failed, endpoint: @endpoint, detail: { error: error })
         conn&.close
         # Full tear-down with reconnect: without this, spawn_connection's
@@ -186,6 +186,18 @@ module OMQ
         # the supervisor task, which is NOT in the barrier — so there
         # is no self-stop risk.
         @barrier.stop
+      end
+
+
+      # Handshake timeout: same logic as TCP.connect_timeout — derived
+      # from reconnect_interval (floor 0.5s). Prevents a hang when the
+      # peer accepts the TCP connection but never sends a ZMTP greeting
+      # (e.g. a non-ZMQ service on the same port).
+      #
+      def handshake_timeout
+        ri = @engine.options.reconnect_interval
+        ri = ri.end if ri.is_a?(Range)
+        [ri, 0.5].max
       end
 
 
