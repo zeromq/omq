@@ -89,8 +89,9 @@ describe "PUSH/PULL over inproc" do
       wait_connected(source)
       sleep 0.001 until pipe_push.connection_count >= 2
 
-      n = 20
-      n.times { |i| source.send("msg-#{i}") }
+      n       = 1000
+      payload = "X" * 1024
+      n.times { |i| source.send("#{i}:#{payload}") }
 
       # Pipe-style loop: receive one, send one, yield to let pumps drain
       n.times do
@@ -102,12 +103,18 @@ describe "PUSH/PULL over inproc" do
       source.close
       pipe_push.close
 
-      sink_a.recv_timeout = 2
-      sink_b.recv_timeout = 2
-      counts = { a: 0, b: 0 }
+      counts  = { a: 0, b: 0 }
+      total   = 0
       barrier = Async::Barrier.new
-      barrier.async { loop { sink_a.receive; counts[:a] += 1 } rescue nil }
-      barrier.async { loop { sink_b.receive; counts[:b] += 1 } rescue nil }
+      [[:a, sink_a], [:b, sink_b]].each do |key, sink|
+        barrier.async do
+          loop do
+            sink.receive
+            counts[key] += 1
+            barrier.stop if (total += 1) >= n
+          end
+        end
+      end
       barrier.wait
 
       assert_equal n, counts[:a] + counts[:b], "all messages delivered"

@@ -131,8 +131,6 @@ describe "Linger" do
       push.close
 
       # Collect from both pulls — every message must arrive.
-      pull_a.recv_timeout = 2
-      pull_b.recv_timeout = 2
       received = []
       barrier  = Async::Barrier.new
       [pull_a, pull_b].each do |pull|
@@ -140,8 +138,7 @@ describe "Linger" do
           loop do
             msg = pull.receive
             received << msg.first.split(":").first.to_i
-          rescue IO::TimeoutError
-            break
+            barrier.stop if received.size >= n
           end
         end
       end
