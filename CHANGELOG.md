@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.4 — 2026-04-10
+
+### Fixed
+
+- **Connect timeout at the transport level.** `TCP.connect` now uses
+  `::Socket.tcp(host, port, connect_timeout:)` instead of
+  `TCPSocket.new`. The timeout is derived from the reconnect interval
+  (floor 0.5s). Fixes a hang on macOS where a non-blocking IPv6
+  `connect(2)` to `::1` via kqueue never delivers `ECONNREFUSED` when
+  nothing is listening — `TCPSocket.new` blocked the fiber indefinitely
+  because `Async::Task#with_timeout` cannot interrupt C-level blocking
+  calls. `::Socket.tcp` uses kernel-level `connect_timeout:` which works
+  regardless of the scheduler.
+
 ## 0.17.3 — 2026-04-10
 
 ### Fixed

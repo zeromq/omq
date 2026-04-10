@@ -56,26 +56,13 @@ module OMQ
           sleep quantized_wait(delay) if delay > 0
           break if @engine.closed?
           begin
-            Async::Task.current.with_timeout(connect_timeout) do
-              @engine.transport_for(@endpoint).connect(@endpoint, @engine)
-            end
+            @engine.transport_for(@endpoint).connect(@endpoint, @engine)
             break
-          rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error, Async::TimeoutError
+          rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error
             delay = next_delay(delay, max_delay)
             @engine.emit_monitor_event(:connect_retried, endpoint: @endpoint, detail: { interval: delay })
           end
         end
-      end
-
-
-      # Connect timeout: cap each attempt at the reconnect interval so a
-      # hung connect(2) (e.g. macOS kqueue + IPv6 ECONNREFUSED not delivered)
-      # doesn't block the retry loop. Floor at 0.5s for real-network latency.
-      #
-      def connect_timeout
-        ri = @options.reconnect_interval
-        ri = ri.end if ri.is_a?(Range)
-        [ri, 0.5].max
       end
 
 
