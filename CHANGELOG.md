@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.3 — 2026-04-10
+
+### Fixed
+
+- **Connect timeout in reconnect loop.** Each connect attempt is now
+  capped at the reconnect interval (floor 0.5s) via
+  `Async::Task#with_timeout`. Fixes a hang on macOS where a non-blocking
+  IPv6 `connect(2)` to `::1` via kqueue never delivers `ECONNREFUSED`
+  when nothing is listening — the fiber would block indefinitely,
+  stalling the entire reconnect loop.
+
+### Changed
+
+- **Extracted `Reconnect#retry_loop`.** The reconnect retry loop is now
+  a separate private method, keeping `#run` focused on task spawning and
+  error handling.
+
 ## 0.17.2 — 2026-04-10
 
 ### Fixed

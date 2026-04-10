@@ -37,21 +37,8 @@ module OMQ
       # @return [void]
       #
       def run(parent_task, delay: nil)
-        delay, max_delay = init_delay(delay)
-
         @engine.tasks << parent_task.async(transient: true, annotation: "reconnect #{@endpoint}") do
-          loop do
-            break if @engine.closed?
-            sleep quantized_wait(delay) if delay > 0
-            break if @engine.closed?
-            begin
-              @engine.transport_for(@endpoint).connect(@endpoint, @engine)
-              break
-            rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error
-              delay = next_delay(delay, max_delay)
-              @engine.emit_monitor_event(:connect_retried, endpoint: @endpoint, detail: { interval: delay })
-            end
-          end
+          retry_loop(delay: delay)
         rescue Async::Stop
         rescue => error
           @engine.signal_fatal_error(error)
@@ -59,6 +46,38 @@ module OMQ
       end
 
       private
+
+
+      def retry_loop(delay: nil)
+        delay, max_delay = init_delay(delay)
+
+        loop do
+          break if @engine.closed?
+          sleep quantized_wait(delay) if delay > 0
+          break if @engine.closed?
+          begin
+            Async::Task.current.with_timeout(connect_timeout) do
+              @engine.transport_for(@endpoint).connect(@endpoint, @engine)
+            end
+            break
+          rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error, Async::TimeoutError
+            delay = next_delay(delay, max_delay)
+            @engine.emit_monitor_event(:connect_retried, endpoint: @endpoint, detail: { interval: delay })
+          end
+        end
+      end
+
+
+      # Connect timeout: cap each attempt at the reconnect interval so a
+      # hung connect(2) (e.g. macOS kqueue + IPv6 ECONNREFUSED not delivered)
+      # doesn't block the retry loop. Floor at 0.5s for real-network latency.
+      #
+      def connect_timeout
+        ri = @options.reconnect_interval
+        ri = ri.end if ri.is_a?(Range)
+        [ri, 0.5].max
+      end
+
 
       # Wall-clock quantized sleep: wait until the next +delay+-sized
       # grid tick. Multiple clients reconnecting with the same interval
