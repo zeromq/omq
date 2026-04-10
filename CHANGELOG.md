@@ -47,6 +47,14 @@
   shutdown paths (peer disconnect, `#close`, `#stop`) converge on the
   same ordered `tear_down!` sequence.
 
+- **`DESIGN.md` synced with post-barrier-refactor reality.** Rewrote
+  the Task tree and Engine lifecycle sections to reflect the socket-
+  level `Async::Barrier`, per-connection nested barrier, supervisor
+  pattern, `Socket#stop`, and user-provided `parent:` kwarg. Added a
+  new Cancellation safety subsection documenting that wire writes in
+  protocol-zmtp are wrapped in `Async::Task#defer_cancel` so cascade
+  teardown during a mid-frame write can't desync the peer's framer.
+
 - **IPC connect to an existing `SOCK_DGRAM` socket file** now surfaces
   as a connect-time failure with backoff retry instead of crashing
   the pump. `Errno::EPROTOTYPE` added to `CONNECTION_FAILED` (not

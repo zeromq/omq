@@ -46,30 +46,62 @@ OMQ brings all of this to Ruby without C extensions or FFI.
 
 ## Task tree
 
-Every socket spawns a tree of Async tasks. All tasks are **transient** --
-they don't prevent the reactor from exiting when user code finishes.
-The reactor stays alive during linger because `Socket#close` blocks
-(inside the user's fiber) until send queues drain -- transient tasks
-are cleaned up afterward.
+A bare `OMQ::PUSH.new` spawns nothing. The first `#bind` or `#connect`
+captures the caller's Async parent and lazily creates a
+**socket-level `Async::Barrier`** under it. From that point on, every
+pump, listener, reconnect loop, and per-connection supervisor lives
+under that one barrier, so teardown is a single call -- `barrier.stop`
+cascade-cancels every descendant at once. The parent capture is
+one-shot: subsequent bind/connect calls reuse the same barrier.
+
+All spawned tasks are **transient** so they don't prevent the reactor
+from exiting when user code finishes. The reactor stays alive during
+linger because `Socket#close` blocks (inside the user's fiber) until
+send queues drain.
 
 ```
-Async (user code)
-|-- tcp accept tcp://...              per bind endpoint
-|-- conn tcp://... [accepted]         per accepted peer
-|   |-- heartbeat                     PING/PONG keepalive
-|   |-- recv pump                     conn -> recv_queue (or reaper for write-only)
-|   +-- (subscription listener)       PUB/RADIO: reads SUBSCRIBE/JOIN commands
-|-- conn tcp://... [connected]        per outgoing peer
-|   |-- heartbeat
-|   +-- recv pump
-|   +-- send pump                     conn <- send_queue (per-connection)
-+-- reconnect tcp://...               outgoing endpoint retry loop
+parent_task                            Async::Task.current, Reactor root,
+|                                      or user's parent (bind/connect parent:)
++-- SocketLifecycle#barrier            Async::Barrier -- single cascade handle
+    |
+    |-- listener accept loops          one per bind endpoint
+    |-- mechanism maintenance          CURVE key refresh, etc.
+    |-- reconnect loops                one per dialed endpoint
+    |
+    |-- conn <ep> task                 spawn_connection (handshake + done.wait)
+    |-- conn <ep> supervisor           waits on per-conn barrier, runs lost!
+    |
+    +-- (ConnectionLifecycle#barrier, nested under socket barrier)
+        |-- send pump                  per-connection, work-stealing on socket queue
+        |-- recv pump                  or reaper for write-only sockets
+        |-- heartbeat                  PING/PONG keepalive
+        +-- (subscription listener)    PUB/XPUB/RADIO only
 ```
 
-**Per-connection subtree.** Each connection gets its own task whose children
-are the heartbeat, recv pump (or reaper), the send pump, and any protocol
-listeners. When the connection dies, the entire subtree is cleaned up by
-Async. No orphaned tasks, no reparenting.
+**Two barriers.** `SocketLifecycle#barrier` is the socket-level cascade
+handle -- `Engine#close`/`#stop` call `.stop` on it once and every
+descendant unwinds. `ConnectionLifecycle#barrier` is a nested per-connection
+barrier (its parent is the socket barrier) so a supervisor can detect
+"one of *this* connection's pumps exited" via `@barrier.wait { ... }` and
+cascade-cancel only that connection's siblings -- without taking down
+peers on other connections.
+
+**Supervisor pattern.** Each connection has a supervisor task spawned
+on the *socket* barrier (deliberately not on the per-conn barrier) that
+waits for the first pump to finish and runs `lost!` in `ensure`. Placing
+the supervisor outside the per-conn barrier avoids the self-stop footgun:
+`tear_down!` can safely call `@barrier.stop` on the per-conn barrier
+because the current task (the supervisor) is not a member of it. If the
+supervisor were inside, stopping the barrier would raise `Async::Cancel`
+on itself synchronously and unwind mid-teardown.
+
+**User-provided parents.** `Socket#bind(ep, parent: my_barrier)` and
+`Socket#connect(ep, parent: ...)` wire the socket barrier under the
+caller's Async parent -- any object responding to `#async`
+(`Async::Task`, `Async::Barrier`, `Async::Semaphore`). The whole socket
+subtree then participates in the caller's teardown tree: stopping the
+caller's barrier cascades through the socket barrier and every pump.
+The first bind/connect captures the parent; subsequent calls are no-ops.
 
 **Send pumps are per-connection, queue is per-socket.** Each connection runs
 its own send pump fiber that dequeues from the *socket-level* send queue and
@@ -82,8 +114,8 @@ to all matching subscribers.
 
 **Reaper tasks.** Write-only sockets (PUSH, SCATTER) have no recv pump.
 Instead, a "reaper" task calls `receive_message` which blocks until the peer
-disconnects, then triggers `connection_lost`. Without it, a dead peer is only
-detected on the next send.
+disconnects -- the supervisor observes the pump exit and runs `lost!`.
+Without the reaper, a dead peer is only detected on the next send.
 
 ## Engine lifecycle
 
@@ -111,9 +143,23 @@ close
   |-- stop listeners (if connections exist)
   |-- linger: drain send queues (keep listeners if no peers yet)
   |-- stop remaining listeners
-  |-- close all connections
-  +-- stop routing + reconnect tasks
+  |-- socket barrier.stop  -- cascade-cancels every pump, supervisor,
+  |                           reconnect loop, accept loop in one call
+  +-- routing.stop
 ```
+
+**Close vs. stop.** `Socket#close` is the graceful verb: linger drain,
+then cascade. `Socket#stop` skips the linger drain and goes straight to
+`barrier.stop` -- used when the caller wants an immediate hard stop
+(e.g., on signal, or when the caller's own parent barrier is being
+stopped and pending sends should be dropped).
+
+**Convergent teardown.** `Socket#close`, `Socket#stop`, and
+peer-disconnect (supervisor-driven `lost!`) all funnel into the same
+`ConnectionLifecycle#tear_down!` with identical ordering: routing
+removal -> connection close -> monitor event -> done-promise resolve ->
+per-conn `barrier.stop`. The state guard (`:closed`) makes it idempotent
+so racing pumps can't double-fire side effects.
 
 **Linger.** On close, send queues are drained for up to `linger` seconds.
 If no peers are connected, listeners stay open so late-arriving peers can
@@ -198,6 +244,27 @@ pushes the remainder that didn't fill a buffer.
 For fan-out (PUB/RADIO), one published message is written to all matching
 subscribers before flushing -- so N subscribers see 1 flush each, not N
 flushes per message.
+
+## Cancellation safety
+
+The `barrier.stop` cascade can deliver `Async::Cancel` to a send-pump
+fiber at any await point. The unencrypted ZMTP path issues two
+separate `@io.write` calls per frame (header, then body), so a cancel
+arriving between them would leave the peer's framer reading a body
+that never arrives -- unrecoverable without closing the connection.
+
+`Protocol::ZMTP::Connection` wraps every wire-write entry point
+(`send_message`, `write_message`, `write_messages`, `write_wire`,
+`send_command`) in `Async::Task#defer_cancel`. Cancellation requested
+during a write is held until the block exits at a frame boundary, then
+re-raised normally. The mechanism is orthogonal to the connection's
+internal `Mutex` -- the mutex serializes thread races, `defer_cancel`
+serializes fiber cancellations. Both are required.
+
+`defer_cancel` only delays cancellation arriving from outside the
+block. Exceptions raised by the write itself (`EPIPE`, `EOFError`,
+`ECONNRESET`) propagate immediately -- that's the peer-disconnect
+path the supervisor relies on.
 
 ## Recv pump fairness
 
