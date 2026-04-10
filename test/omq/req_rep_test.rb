@@ -40,4 +40,22 @@ describe "REQ/REP over inproc" do
       rep&.close
     end
   end
+
+  it "round-trips nil parts as empty frames" do
+    Async do
+      rep = OMQ::REP.bind("inproc://reqrep-nil")
+      req = OMQ::REQ.connect("inproc://reqrep-nil")
+
+      req.send(["hello", nil, "world"])
+      request = rep.receive
+      assert_equal ["hello", "", "world"], request
+
+      rep.send([nil, "reply", nil])
+      reply = req.receive
+      assert_equal ["", "reply", ""], reply
+    ensure
+      req&.close
+      rep&.close
+    end
+  end
 end

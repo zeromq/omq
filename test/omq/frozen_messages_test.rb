@@ -85,6 +85,37 @@ describe "received messages are deep-frozen" do
       end
     end
 
+    it "converts nil parts to empty binary frames" do
+      Async do
+        push = OMQ::PUSH.bind("inproc://frozen-send-nil")
+        pull = OMQ::PULL.connect("inproc://frozen-send-nil")
+
+        push << ["hello", nil, "world"]
+        msg = pull.receive
+        assert_equal ["hello", "", "world"], msg
+        assert_deep_frozen msg
+        msg.each { |p| assert_equal Encoding::BINARY, p.encoding }
+      ensure
+        push&.close
+        pull&.close
+      end
+    end
+
+    it "reuses the same empty part object for multiple nils" do
+      Async do
+        push = OMQ::PUSH.bind("inproc://frozen-send-nil2")
+        pull = OMQ::PULL.connect("inproc://frozen-send-nil2")
+
+        push << [nil, nil]
+        msg = pull.receive
+        assert_equal ["", ""], msg
+        assert_same msg[0], msg[1]
+      ensure
+        push&.close
+        pull&.close
+      end
+    end
+
     it "handles already-frozen input" do
       Async do
         push = OMQ::PUSH.bind("inproc://frozen-send-prefrozen")

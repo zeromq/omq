@@ -42,10 +42,10 @@ module OMQ
 
       # Fast path: skip map when all parts are already frozen binary.
       if parts.frozen?
-        return parts if parts.all? { |p| p.frozen? && p.encoding == Encoding::BINARY }
+        return parts if parts.all? { |p| p.is_a?(String) && p.frozen? && p.encoding == Encoding::BINARY }
         parts = parts.map { |p| frozen_binary(p) }
       else
-        unless parts.all? { |p| p.frozen? && p.encoding == Encoding::BINARY }
+        unless parts.all? { |p| p.is_a?(String) && p.frozen? && p.encoding == Encoding::BINARY }
           parts.map! { |p| frozen_binary(p) }
         end
       end
@@ -53,8 +53,11 @@ module OMQ
     end
 
 
-    def frozen_binary(str)
-      s = str.to_str
+    EMPTY_PART = "".b.freeze
+
+    def frozen_binary(obj)
+      return EMPTY_PART if obj.nil?
+      s = obj.to_s
       return s if s.frozen? && s.encoding == Encoding::BINARY
       s.b.freeze
     end

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Message parts coerced via `#to_s`.** `#frozen_binary` now calls
+  `#to_s` instead of `#to_str`, so `nil` becomes an empty frame and
+  integers/symbols are converted automatically. A cached `EMPTY_PART`
+  avoids allocations for nil parts.
+
 ## 0.17.7 — 2026-04-10
 
 ### Changed

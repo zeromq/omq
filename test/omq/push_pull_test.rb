@@ -72,25 +72,14 @@ describe "PUSH/PULL over inproc" do
       pull2&.close
     end
   end
-  it "rejects non-string parts with TypeError" do
+  it "coerces non-string parts via #to_s" do
     Async do
-      push = OMQ::PUSH.bind("inproc://pushpull-type")
-      assert_raises(NoMethodError) { push.send([123]) }
-      assert_raises(NoMethodError) { push.send([:symbol]) }
-      assert_raises(NoMethodError) { push.send([nil]) }
-    ensure
-      push&.close
-    end
-  end
+      pull = OMQ::PULL.bind("inproc://pushpull-tos")
+      push = OMQ::PUSH.connect("inproc://pushpull-tos")
 
-  it "accepts objects that respond to #to_str" do
-    Async do
-      pull = OMQ::PULL.bind("inproc://pushpull-tostr")
-      push = OMQ::PUSH.connect("inproc://pushpull-tostr")
-
-      push.send([Pathname.new("/tmp")])
+      push.send([123, :symbol, nil, Pathname.new("/tmp")])
       msg = pull.receive
-      assert_equal ["/tmp"], msg
+      assert_equal ["123", "symbol", "", "/tmp"], msg
     ensure
       push&.close
       pull&.close
