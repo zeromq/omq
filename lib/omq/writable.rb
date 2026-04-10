@@ -39,10 +39,15 @@ module OMQ
     def freeze_message(message)
       parts = message.is_a?(Array) ? message : [message]
       raise ArgumentError, "message has no parts" if parts.empty?
+
+      # Fast path: skip map when all parts are already frozen binary.
       if parts.frozen?
+        return parts if parts.all? { |p| p.frozen? && p.encoding == Encoding::BINARY }
         parts = parts.map { |p| frozen_binary(p) }
       else
-        parts.map! { |p| frozen_binary(p) }
+        unless parts.all? { |p| p.frozen? && p.encoding == Encoding::BINARY }
+          parts.map! { |p| frozen_binary(p) }
+        end
       end
       parts.freeze
     end

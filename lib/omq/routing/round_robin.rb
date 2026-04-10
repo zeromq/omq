@@ -154,10 +154,7 @@ module OMQ
         if batch.size == 1
           conn.send_message(transform_send(batch[0]))
         else
-          # Single mutex acquisition for the whole batch (up to
-          # BATCH_MSG_CAP messages). transform_send is identity for
-          # most routings and only allocates a new parts array for REQ.
-          conn.write_messages(batch.map { |parts| transform_send(parts) })
+          conn.write_messages(batch)
           conn.flush
         end
       end

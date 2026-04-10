@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.7 — 2026-04-10
+
+### Changed
+
+- **Reduced allocations on hot paths.** `freeze_message` short-circuits
+  when all parts are already frozen binary (zero-alloc fast path).
+  `write_batch` passes the batch directly instead of `.map`-ing through
+  `transform_send` — only REQ overrides the transform and it never
+  batches. Up to +55% throughput on small messages (PUSH/PULL IPC 64B).
+
 ## 0.17.6 — 2026-04-10
 
 ### Fixed
