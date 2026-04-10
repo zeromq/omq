@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.6 — 2026-04-10
+
+### Fixed
+
+- **Silence Async warning on handshake timeout.** `spawn_connection`
+  now rescues `Async::TimeoutError` so a timed-out ZMTP handshake
+  doesn't emit an "unhandled exception" warning from the Async task.
+
 ## 0.17.5 — 2026-04-10
 
 ### Fixed

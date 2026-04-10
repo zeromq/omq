@@ -479,8 +479,8 @@ module OMQ
         # socket barrier stopped — cascade teardown
       rescue Async::Queue::ClosedError
         # connection dropped during drain — message re-staged
-      rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-        # handshake failed or connection lost — subtree cleaned up
+      rescue Protocol::ZMTP::Error, *CONNECTION_LOST, Async::TimeoutError
+        # handshake failed, connection lost, or handshake timed out
       ensure
         lifecycle&.close!
       end
