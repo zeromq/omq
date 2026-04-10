@@ -89,7 +89,11 @@ module OMQ
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
         @engine.emit_monitor_event(:handshake_failed, endpoint: @endpoint, detail: { error: error })
         conn&.close
-        transition!(:closed)
+        # Full tear-down with reconnect: without this, spawn_connection's
+        # ensure-block close! sees :closed and skips maybe_reconnect,
+        # leaving the endpoint dead. Race is exposed when a peer RSTs
+        # mid-handshake (e.g. LINGER 0 close against an in-flight connect).
+        tear_down!(reconnect: true)
         raise
       end
 

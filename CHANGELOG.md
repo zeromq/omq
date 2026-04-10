@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.2 — 2026-04-10
+
+### Fixed
+
+- **Reconnect after handshake failure.** When a peer RST'd a TCP
+  connection mid-ZMTP-handshake (e.g. `LINGER 0` close against an
+  in-flight connect), `ConnectionLifecycle#handshake!` called
+  `transition!(:closed)` directly, bypassing `tear_down!` and its
+  `maybe_reconnect` call. `spawn_connection`'s `ensure close!` then
+  saw the state already `:closed` and did nothing — the endpoint died
+  silently with no reconnect ever scheduled. Now the handshake rescue
+  goes through `tear_down!(reconnect: true)`, emitting `:disconnected`
+  and scheduling reconnect like any other connection loss.
+
 ## 0.17.1 — 2026-04-10
 
 ### Changed

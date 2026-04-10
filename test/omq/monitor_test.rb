@@ -58,7 +58,9 @@ describe "Socket#monitor" do
       push.close
       sleep 0.01 # let monitor drain
 
-      types = events.map(&:type)
+      # Filter retry events: after :disconnected, the reconnect loop may
+      # fire :connect_retried before push.close runs. Orthogonal to lifecycle.
+      types = events.map(&:type).reject { |t| t == :connect_retried }
       assert_equal :connect_delayed,      types[0]
       assert_equal :connected,            types[1]
       assert_equal :handshake_succeeded,  types[2]
