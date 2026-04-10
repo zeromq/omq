@@ -316,9 +316,7 @@ module OMQ
       @options.recv_timeout   = recv_timeout if recv_timeout
       @options.conflate       = conflate
       @options.on_mute        = on_mute      if on_mute
-      @recv_buffer = []
-      @recv_mutex  = Mutex.new
-      @engine      = case backend
+      @engine                 = case backend
                      when nil, :ruby
                        Engine.new(socket_type, @options)
                      when :ffi

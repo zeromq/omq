@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 — 2026-04-10
+
+### Changed
+
+- **`Readable#receive` no longer prefetches a batch.** Each `#receive`
+  call dequeues exactly one message from the engine recv queue. The
+  per-socket prefetch buffer (`@recv_buffer` + `@recv_mutex`) and
+  `dequeue_recv_batch` are gone, along with `Readable::RECV_BATCH_SIZE`.
+  Simpler code; ~5–10% inproc microbench regression accepted (tcp/ipc
+  unchanged — wire I/O dominates dispatch overhead).
 
 ### Added
 

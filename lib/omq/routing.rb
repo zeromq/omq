@@ -70,8 +70,7 @@ module OMQ
     #
     def self.drain_send_queue(queue, batch)
       loop do
-        msg = queue.dequeue(timeout: 0)
-        break unless msg
+        msg = queue.dequeue(timeout: 0) or break
         batch << msg
       end
     end

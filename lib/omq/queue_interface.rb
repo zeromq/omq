@@ -16,13 +16,7 @@ module OMQ
     # @raise [IO::TimeoutError] if timeout exceeded
     #
     def dequeue(timeout: @options.read_timeout)
-      msg = @recv_mutex.synchronize { @recv_buffer.shift }
-      return msg if msg
-
-      batch = Reactor.run { with_timeout(timeout) { @engine.dequeue_recv_batch(Readable::RECV_BATCH_SIZE) } }
-      msg = batch.shift
-      @recv_mutex.synchronize { @recv_buffer.concat(batch) } unless batch.empty?
-      msg
+      Reactor.run { with_timeout(timeout) { @engine.dequeue_recv } }
     end
 
     alias_method :pop, :dequeue

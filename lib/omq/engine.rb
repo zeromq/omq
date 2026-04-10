@@ -235,30 +235,6 @@ module OMQ
     end
 
 
-    # Dequeues up to +max+ messages or +max_bytes+ total. Blocks
-    # on the first, then drains non-blocking.
-    #
-    # @param max [Integer] message count limit
-    # @param max_bytes [Integer] byte size limit
-    # @return [Array<Array<String>>]
-    #
-    def dequeue_recv_batch(max, max_bytes: 1 << 20)
-      raise @fatal_error if @fatal_error
-      queue = routing.recv_queue
-      msg   = queue.dequeue
-      raise @fatal_error if msg.nil? && @fatal_error
-      batch = [msg]
-      bytes = msg.sum(&:bytesize)
-      while batch.size < max && bytes < max_bytes
-        msg = queue.dequeue(timeout: 0)
-        break unless msg
-        batch << msg
-        bytes += msg.sum(&:bytesize)
-      end
-      batch
-    end
-
-
     # Pushes a nil sentinel into the recv queue, unblocking a
     # pending {#dequeue_recv} with a nil return value.
     #
