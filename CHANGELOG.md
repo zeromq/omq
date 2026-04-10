@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.17.1 — 2026-04-10
+
+### Changed
+
+- **Reconnect sleeps are wall-clock quantized.** `Engine::Reconnect`
+  now sleeps until the next `delay`-sized grid tick instead of `delay`
+  from now (same math as `Async::Loop.quantized`). Multiple clients
+  reconnecting with the same interval wake up at the same instant,
+  collapsing staggered retries into aligned waves — easier to reason
+  about for observability and cache-warmup, and a server coming back
+  up sees one batch of accepts instead of a smear. Wall-clock (not
+  monotonic) on purpose: the grid has to line up across processes.
+  Anti-jitter by design. Exponential backoff still works: each
+  iteration quantizes to its own (growing) interval's grid, and
+  clients at the same backoff stage still align with each other.
+
 ## 0.17.0 — 2026-04-10
 
 ### Changed

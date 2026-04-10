@@ -60,3 +60,40 @@ describe "Reconnect#next_delay" do
     end
   end
 end
+
+
+describe "Reconnect#quantized_wait" do
+  def build_reconnect
+    options = OMQ::Options.new
+    OMQ::Engine::Reconnect.send(:new, nil, "tcp://127.0.0.1:5555", options)
+  end
+
+  it "waits until the next wall-clock grid tick" do
+    r = build_reconnect
+    # t=12.3, delay=1.0 → wait = 1.0 - 0.3 = 0.7 → next tick at t=13.0
+    assert_in_delta 0.7, r.send(:quantized_wait, 1.0, 12.3), 1e-9
+  end
+
+  it "returns the full delay when exactly on a grid boundary" do
+    r = build_reconnect
+    # t=10.0, delay=1.0 → 10.0 % 1.0 == 0 → wait = 1.0 - 0 = 1.0 (not 0)
+    # guarding against the zero-wait degenerate case.
+    assert_equal 1.0, r.send(:quantized_wait, 1.0, 10.0)
+  end
+
+  it "aligns sub-second intervals to a fine grid" do
+    r = build_reconnect
+    # t=5.17, delay=0.1 → 5.17 % 0.1 ≈ 0.07 → wait ≈ 0.03
+    assert_in_delta 0.03, r.send(:quantized_wait, 0.1, 5.17), 1e-9
+  end
+
+  it "aligns clients that are out of phase to the same boundary" do
+    r = build_reconnect
+    # Two clients call at different moments within the same 1s window.
+    # They should both wake at the same next-second boundary (43.0).
+    wait_a = r.send(:quantized_wait, 1.0, 42.1)
+    wait_b = r.send(:quantized_wait, 1.0, 42.8)
+    assert_in_delta 43.0, 42.1 + wait_a, 1e-9
+    assert_in_delta 43.0, 42.8 + wait_b, 1e-9
+  end
+end

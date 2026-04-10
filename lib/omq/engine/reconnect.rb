@@ -42,7 +42,7 @@ module OMQ
         @engine.tasks << parent_task.async(transient: true, annotation: "reconnect #{@endpoint}") do
           loop do
             break if @engine.closed?
-            sleep delay if delay > 0
+            sleep quantized_wait(delay) if delay > 0
             break if @engine.closed?
             begin
               @engine.transport_for(@endpoint).connect(@endpoint, @engine)
@@ -59,6 +59,25 @@ module OMQ
       end
 
       private
+
+      # Wall-clock quantized sleep: wait until the next +delay+-sized
+      # grid tick. Multiple clients reconnecting with the same interval
+      # wake up at the same instant, collapsing staggered retries into
+      # aligned waves. Same math as +Async::Loop.quantized+.
+      #
+      # Wall-clock (not monotonic) on purpose: the grid has to line up
+      # across processes, and monotonic clocks don't share an origin.
+      # Anti-jitter by design — if you want spread, don't call this.
+      #
+      # @param delay [Numeric] grid interval in seconds
+      # @param now [Float] wall-clock time in seconds (injectable for tests)
+      # @return [Float] seconds to sleep, always in (0, delay]
+      #
+      def quantized_wait(delay, now = Time.now.to_f)
+        wait = delay - (now % delay)
+        wait.positive? ? wait : delay
+      end
+
 
       def init_delay(delay)
         ri = @options.reconnect_interval
