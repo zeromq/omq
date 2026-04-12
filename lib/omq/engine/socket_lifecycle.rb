@@ -6,6 +6,13 @@ module OMQ
     # the first-peer / last-peer signaling promises, the reconnect flag,
     # and the captured parent task for the socket's task tree.
     #
+    # Scope boundary: SocketLifecycle is per-socket and outlives every
+    # individual peer link. ConnectionLifecycle is per-connection and
+    # handles one handshake → ready → closed arc beneath it. Roughly:
+    # SocketLifecycle answers "is this socket open and do we have any
+    # peers?", ConnectionLifecycle answers "is this specific peer link
+    # ready / lost?".
+    #
     # Engine delegates state queries here and uses it to coordinate the
     # ordering of close-time side effects. This consolidates six ivars
     # (`@state`, `@peer_connected`, `@all_peers_gone`, `@reconnect_enabled`,
@@ -13,9 +20,12 @@ module OMQ
     # explicit transitions.
     #
     class SocketLifecycle
-      class InvalidTransition < RuntimeError; end
+      class InvalidTransition < RuntimeError
+      end
+
 
       STATES = %i[new open closing closed].freeze
+
 
       TRANSITIONS = {
         new:     %i[open closed].freeze,
@@ -28,11 +38,14 @@ module OMQ
       # @return [Symbol]
       attr_reader :state
 
+
       # @return [Async::Promise] resolves with the first connected peer
       attr_reader :peer_connected
 
+
       # @return [Async::Promise] resolves once all peers are gone (after having had peers)
       attr_reader :all_peers_gone
+
 
       # @return [Async::Task, Async::Barrier, Async::Semaphore, nil] root of
       #   the socket's task tree (may be user-provided via +parent:+ on
@@ -40,14 +53,17 @@ module OMQ
       #   Async task or the shared Reactor root)
       attr_reader :parent_task
 
+
       # @return [Boolean] true if parent_task is the shared Reactor thread
       attr_reader :on_io_thread
+
 
       # @return [Async::Barrier] holds every socket-scoped task (connection
       #   supervisors, reconnect loops, heartbeat, monitor, accept loops).
       #   {Engine#stop} and {Engine#close} call +barrier.stop+ to cascade
       #   teardown through every per-connection barrier in one shot.
       attr_reader :barrier
+
 
       # @return [Boolean] whether auto-reconnect is enabled
       attr_accessor :reconnect_enabled
@@ -128,6 +144,7 @@ module OMQ
 
       private
 
+
       def transition!(new_state)
         allowed = TRANSITIONS[@state]
         unless allowed&.include?(new_state)
@@ -135,6 +152,7 @@ module OMQ
         end
         @state = new_state
       end
+
     end
   end
 end

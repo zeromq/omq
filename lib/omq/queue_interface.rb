@@ -16,10 +16,12 @@ module OMQ
     # @raise [IO::TimeoutError] if timeout exceeded
     #
     def dequeue(timeout: @options.read_timeout)
-      Reactor.run { with_timeout(timeout) { @engine.dequeue_recv } }
+      Reactor.run(timeout:) { @engine.dequeue_recv }
     end
 
+
     alias_method :pop, :dequeue
+
 
     # Waits for the next message indefinitely (ignores read_timeout).
     #

@@ -153,12 +153,14 @@ All sockets are thread-safe. Default HWM is 1000 messages per socket. `max_messa
 
 | Pattern | Send | Receive | When HWM full |
 |---------|------|---------|---------------|
-| **REQ** / **REP** | Round-robin / route-back | Fair-queue | Block |
+| **REQ** / **REP** | Work-stealing / route-back | Fair-queue | Block |
 | **PUB** / **SUB** | Fan-out to subscribers | Subscription filter | Drop |
-| **PUSH** / **PULL** | Round-robin to workers | Fair-queue | Block |
-| **DEALER** / **ROUTER** | Round-robin / identity-route | Fair-queue | Block |
+| **PUSH** / **PULL** | Work-stealing to workers | Fair-queue | Block |
+| **DEALER** / **ROUTER** | Work-stealing / identity-route | Fair-queue | Block |
 | **XPUB** / **XSUB** | Fan-out (subscription events) | Fair-queue | Drop |
 | **PAIR** | Exclusive 1-to-1 | Exclusive 1-to-1 | Block |
+
+> **Work-stealing vs. round-robin.** libzmq uses strict per-pipe round-robin for outbound load balancing — message N goes to peer N mod K regardless of whether that peer is busy. OMQ uses **work-stealing**: one shared send queue per socket and N pump fibers that race to drain it. Whichever pump is ready next picks up the next batch, so a slow peer can't stall the pipeline. The trade-off: distribution is not strict round-robin under bursts. If a producer enqueues a large burst before any pump fiber gets scheduled, the first pump to wake will dequeue up to one whole batch (256 messages or 512 KB, whichever hits first) in a single non-blocking drain — so a tight `n.times { sock << msg }` loop on a small `n` may dump everything on one peer. Slow or steady producers don't see this: each pump dequeues one message, writes, re-parks, and the FIFO wait queue gives every pump a fair turn. Burst distribution also evens out once the burst exceeds one pump's batch cap. See [DESIGN.md](DESIGN.md#per-socket-hwm-not-per-connection) for the full reasoning.
 
 #### Draft (single-frame only)
 
@@ -166,9 +168,9 @@ These require the `omq-draft` gem.
 
 | Pattern | Send | Receive | When HWM full |
 |---------|------|---------|---------------|
-| **CLIENT** / **SERVER** | Round-robin / routing-ID | Fair-queue | Block |
+| **CLIENT** / **SERVER** | Work-stealing / routing-ID | Fair-queue | Block |
 | **RADIO** / **DISH** | Group fan-out | Group filter | Drop |
-| **SCATTER** / **GATHER** | Round-robin | Fair-queue | Block |
+| **SCATTER** / **GATHER** | Work-stealing | Fair-queue | Block |
 | **PEER** | Routing-ID | Fair-queue | Block |
 | **CHANNEL** | Exclusive 1-to-1 | Exclusive 1-to-1 | Block |
 

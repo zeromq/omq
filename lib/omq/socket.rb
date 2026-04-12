@@ -88,7 +88,7 @@ module OMQ
     def bind(endpoint, parent: nil)
       ensure_parent_task(parent: parent)
       Reactor.run do
-        @engine.bind(endpoint)
+        @engine.bind(endpoint) # TODO: use timeout?
         @last_tcp_port = @engine.last_tcp_port
       end
     end
@@ -102,7 +102,7 @@ module OMQ
     #
     def connect(endpoint, parent: nil)
       ensure_parent_task(parent: parent)
-      Reactor.run { @engine.connect(endpoint) }
+      Reactor.run { @engine.connect(endpoint) } # TODO: use timeout?
     end
 
 
@@ -112,7 +112,7 @@ module OMQ
     # @return [void]
     #
     def disconnect(endpoint)
-      Reactor.run { @engine.disconnect(endpoint) }
+      Reactor.run { @engine.disconnect(endpoint) } # TODO: use timeout?
     end
 
 
@@ -122,7 +122,7 @@ module OMQ
     # @return [void]
     #
     def unbind(endpoint)
-      Reactor.run { @engine.unbind(endpoint) }
+      Reactor.run { @engine.unbind(endpoint) } # TODO: use timeout?
     end
 
 
@@ -183,9 +183,11 @@ module OMQ
     #
     def monitor(verbose: false, &block)
       ensure_parent_task
-      queue = Async::LimitedQueue.new(64)
-      @engine.monitor_queue = queue
+
+      queue                   = Async::LimitedQueue.new(64)
+      @engine.monitor_queue   = queue
       @engine.verbose_monitor = verbose
+
       Reactor.run do
         @engine.parent_task.async(transient: true, annotation: "monitor") do
           while (event = queue.dequeue)
@@ -218,7 +220,7 @@ module OMQ
     # @return [nil]
     #
     def close
-      Reactor.run { @engine.close }
+      Reactor.run { @engine.close } # TODO: use timeout?
       nil
     end
 
@@ -230,7 +232,7 @@ module OMQ
     # @return [nil]
     #
     def stop
-      Reactor.run { @engine.stop }
+      Reactor.run { @engine.stop } # TODO: use timeout?
       nil
     end
 
@@ -253,42 +255,13 @@ module OMQ
     end
 
 
-    private
-
-
-    # Runs a block with a timeout. Uses Async's with_timeout if inside
-    # a reactor, otherwise falls back to Timeout.timeout.
-    #
-    # @param seconds [Numeric]
-    # @raise [IO::TimeoutError]
-    #
-    def with_timeout(seconds, &block)
-      return yield if seconds.nil?
-      if Async::Task.current?
-        Async::Task.current.with_timeout(seconds, &block)
-      else
-        Timeout.timeout(seconds, &block)
-      end
-    rescue Async::TimeoutError, Timeout::Error
-      raise IO::TimeoutError, "timed out"
-    end
-
-
-    # Sets the engine's parent task before the first bind or connect.
-    # Must be called OUTSIDE Reactor.run so that non-Async callers
-    # get the IO thread's root task, not an ephemeral work task.
-    #
-    def ensure_parent_task(parent: nil)
-      @engine.capture_parent_task(parent: parent)
-    end
-
-
-    # Connects or binds based on endpoint prefix convention.
+    # Connects or binds based on endpoint prefix convention. Called
+    # from subclass initializers (including out-of-tree socket types).
     #
     # @param endpoints [String, nil]
     # @param default [Symbol] :connect or :bind
     #
-    def _attach(endpoints, default:)
+    def attach_endpoints(endpoints, default:)
       return unless endpoints
       case endpoints
       when /\A@(.+)\z/
@@ -301,29 +274,42 @@ module OMQ
     end
 
 
-    # Initializes engine and options for a socket type.
+    # Initializes engine and options for a socket type. Called from
+    # subclass initializers (including out-of-tree socket types).
     #
     # @param socket_type [Symbol]
     # @param linger [Integer]
     #
-    def _init_engine(socket_type, linger:, send_hwm: nil, recv_hwm: nil,
-                     send_timeout: nil, recv_timeout: nil, conflate: false,
-                     on_mute: nil, backend: nil)
+    def init_engine(socket_type, linger:, send_hwm: nil, recv_hwm: nil,
+                    send_timeout: nil, recv_timeout: nil, conflate: false,
+                    on_mute: nil, backend: nil)
       @options = Options.new(linger: linger)
-      @options.send_hwm      = send_hwm     if send_hwm
-      @options.recv_hwm      = recv_hwm     if recv_hwm
-      @options.send_timeout   = send_timeout if send_timeout
-      @options.recv_timeout   = recv_timeout if recv_timeout
-      @options.conflate       = conflate
-      @options.on_mute        = on_mute      if on_mute
-      @engine                 = case backend
-                     when nil, :ruby
-                       Engine.new(socket_type, @options)
-                     when :ffi
-                       FFI::Engine.new(socket_type, @options)
-                     else
-                       raise ArgumentError, "unknown backend: #{backend}"
-                     end
+      @options.send_hwm     = send_hwm     if send_hwm
+      @options.recv_hwm     = recv_hwm     if recv_hwm
+      @options.send_timeout = send_timeout if send_timeout
+      @options.recv_timeout = recv_timeout if recv_timeout
+      @options.conflate     = conflate
+      @options.on_mute      = on_mute      if on_mute
+      @engine = case backend
+      when nil, :ruby
+        Engine.new(socket_type, @options)
+      when :ffi
+        FFI::Engine.new(socket_type, @options)
+      else
+        raise ArgumentError, "unknown backend: #{backend}"
+      end
+    end
+
+
+    private
+
+
+    # Sets the engine's parent task before the first bind or connect.
+    # Must be called OUTSIDE Reactor.run so that non-Async callers
+    # get the IO thread's root task, not an ephemeral work task.
+    #
+    def ensure_parent_task(parent: nil)
+      @engine.capture_parent_task(parent: parent)
     end
   end
 end

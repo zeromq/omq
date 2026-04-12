@@ -21,15 +21,21 @@ module OMQ
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
+
             if batch.size == 1
-              conn.write_message(batch[0])
+              conn.write_message batch.first
             else
-              conn.write_messages(batch)
+              conn.write_messages batch
             end
+
             conn.flush
-            batch.each { |parts| engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
+
+            batch.each do |parts|
+              engine.emit_verbose_monitor_event :message_sent, parts: parts
+            end
           end
         end
+
         tasks << task
         task
       end

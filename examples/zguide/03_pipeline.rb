@@ -20,7 +20,7 @@ describe 'Pipeline' do
   it 'distributes work across multiple workers and collects results' do
     vent_ep = 'inproc://zg03_vent'
     sink_ep = 'inproc://zg03_sink'
-    n_tasks   = 20
+    n_tasks   = 1000
     n_workers = 3
     results   = []
     worker_counts = Hash.new(0)
@@ -36,37 +36,50 @@ describe 'Pipeline' do
           results << msg
           worker_id = msg.split(':').first
           worker_counts[worker_id] += 1
-          puts "  sink: #{msg}"
         end
       end
 
       # Ventilator
       vent = OMQ::PUSH.bind(vent_ep)
 
-      # Workers
-      workers = n_workers.times.map do |id|
+      # Workers — create the sockets up front so we can wait on each
+      # one's peer_connected promise before the ventilator starts
+      # sending. PUSH work-stealing batches eagerly on inproc, so if
+      # we let the vent flood while only worker-0 has attached, it
+      # will drain the entire queue before its siblings show up.
+      worker_sockets = n_workers.times.map do |id|
+        pull = OMQ::PULL.connect(vent_ep)
+        push = OMQ::PUSH.connect(sink_ep)
+        pull.recv_timeout = 2
+        [id, pull, push]
+      end
+
+      barrier = Async::Barrier.new
+      worker_sockets.each do |_, pull, push|
+        barrier.async { pull.peer_connected.wait }
+        barrier.async { push.peer_connected.wait }
+      end
+      barrier.wait
+
+      workers = worker_sockets.map do |id, pull, push|
         task.async do
-          pull = OMQ::PULL.connect(vent_ep)
-          push = OMQ::PUSH.connect(sink_ep)
-          pull.recv_timeout = 2
           loop do
             t = pull.receive.first
             break if t == 'END'
             push << "worker-#{id}:#{t}"
-            sleep 0 # yield so PUSH send pump can deliver
           rescue IO::TimeoutError
             break
           end
-          sleep 0 # flush remaining sends
         ensure
           pull.close
           push.close
         end
       end
 
-      # Let workers connect
-      sleep 0.02
-
+      # Send enough tasks to exceed one worker pump's batch cap
+      # (256 messages). PUSH is work-stealing — the first pump to
+      # wake grabs a whole batch — so to see all workers participate
+      # we need more messages than one batch can hold.
       n_tasks.times { |i| vent << "task-#{i}" }
       n_workers.times { vent << 'END' }
 

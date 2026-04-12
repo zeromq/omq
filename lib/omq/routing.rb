@@ -15,16 +15,17 @@ module OMQ
   # the socket's send/recv queues.
   #
   module Routing
-    # Shared frozen empty binary string to avoid repeated allocations.
-    EMPTY_BINARY = "".b.freeze
-
-
     # Plugin registry for socket types not built into omq.
     # Populated by sister gems via +Routing.register+.
     #
     @registry = {}
 
+
     class << self
+      # @return [Hash{Symbol => Class}] plugin registry
+      attr_reader :registry
+
+
       # Registers a routing strategy class for a socket type.
       # Called by omq-draft (and other plugins) at require time.
       #

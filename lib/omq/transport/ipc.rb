@@ -19,7 +19,7 @@ module OMQ
         # @return [Listener]
         #
         def bind(endpoint, engine)
-          path = parse_path(endpoint)
+          path      = parse_path(endpoint)
           sock_path = to_socket_path(path)
 
           # Remove stale socket file for file-based paths
@@ -45,17 +45,31 @@ module OMQ
           engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
         end
 
+
+        # Applies SO_SNDBUF / SO_RCVBUF to +sock+ from the socket's
+        # {Options}. No-op when both are nil (OS default).
+        #
+        # @param sock [UNIXSocket, UNIXServer]
+        # @param options [Options]
+        #
         def apply_buffer_sizes(sock, options)
-          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options.sndbuf) if options.sndbuf
-          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf) if options.rcvbuf
+          if options.sndbuf
+            sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options.sndbuf)
+          end
+
+          if options.rcvbuf
+            sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf)
+          end
         end
 
+
         private
+
 
         # Extracts path from "ipc://path".
         #
         def parse_path(endpoint)
-          endpoint.sub(%r{\Aipc://}, "")
+          endpoint.delete_prefix("ipc://")
         end
 
 
@@ -65,7 +79,7 @@ module OMQ
           if abstract?(path)
             "\0#{path[1..]}"
           else
-            path
+            path # TODO: return Pathname
           end
         end
 
@@ -92,7 +106,7 @@ module OMQ
 
         # @param endpoint [String] the IPC endpoint URI
         # @param server [UNIXServer]
-        # @param path [String] filesystem or abstract namespace path
+        # @param path [String] filesystem or abstract namespace path # TODO: Pathname
         # @param engine [Engine]
         #
         def initialize(endpoint, server, path, engine)
@@ -111,11 +125,15 @@ module OMQ
         # @yieldparam io [IO::Stream::Buffered]
         #
         def start_accept_loops(parent_task, &on_accepted)
-          @task = parent_task.async(transient: true, annotation: "ipc accept #{@endpoint}") do
+          annotation = "ipc accept #{@endpoint}"
+          @task = parent_task.async(transient: true, annotation:) do
             loop do
               client = @server.accept
               IPC.apply_buffer_sizes(client, @engine.options)
-              Async::Task.current.defer_stop { on_accepted.call(IO::Stream::Buffered.wrap(client)) }
+              Async::Task.current.defer_stop do
+                # TODO use yield
+                on_accepted.call(IO::Stream::Buffered.wrap(client))
+              end
             end
           rescue Async::Stop
           rescue IOError
@@ -135,11 +153,13 @@ module OMQ
         def stop
           @task&.stop
           @server.close rescue nil
+
           # Clean up socket file for file-based paths
-          unless @path.start_with?("@")
+          unless @path.start_with?("@") # TODO: check if it's a Pathname instead
             File.delete(@path) rescue nil
           end
         end
+
       end
     end
   end

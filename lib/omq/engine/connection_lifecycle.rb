@@ -2,7 +2,15 @@
 
 module OMQ
   class Engine
-    # Owns the full arc of one connection: handshake → ready → closed.
+    # Owns the full arc of *one* connection: handshake → ready → closed.
+    #
+    # Scope boundary: ConnectionLifecycle tracks a single peer link
+    # (one ZMTP connection or one inproc DirectPipe). SocketLifecycle
+    # owns the socket-wide state above it — first-peer/last-peer
+    # signaling, reconnect enable flag, the parent task tree, and the
+    # open → closing → closed transitions that gate close-time drain.
+    # A socket has exactly one SocketLifecycle and zero-or-more
+    # ConnectionLifecycles beneath it.
     #
     # Centralizes the ordering of side effects (monitor events, routing
     # registration, promise resolution, reconnect scheduling) so the
@@ -19,9 +27,13 @@ module OMQ
     # lost connection.
     #
     class ConnectionLifecycle
-      class InvalidTransition < RuntimeError; end
+
+      class InvalidTransition < RuntimeError
+      end
+
 
       STATES = %i[new handshaking ready closed].freeze
+
 
       TRANSITIONS = {
         new:         %i[handshaking ready closed].freeze,
@@ -34,11 +46,14 @@ module OMQ
       # @return [Protocol::ZMTP::Connection, Transport::Inproc::DirectPipe, nil]
       attr_reader :conn
 
+
       # @return [String, nil]
       attr_reader :endpoint
 
+
       # @return [Symbol] current state
       attr_reader :state
+
 
       # @return [Async::Barrier] holds all per-connection pump tasks
       #   (send pump, recv pump, reaper, heartbeat). When the connection
@@ -58,6 +73,7 @@ module OMQ
         @done     = done
         @state    = :new
         @conn     = nil
+
         # Nest the per-connection barrier under the socket-level barrier
         # so every pump spawned via +@barrier.async+ is also tracked by
         # the socket barrier — {Engine#stop}/{Engine#close} cascade
@@ -74,21 +90,26 @@ module OMQ
       #
       def handshake!(io, as_server:)
         transition!(:handshaking)
-        conn = Protocol::ZMTP::Connection.new(
-          io,
+        conn = Protocol::ZMTP::Connection.new io,
           socket_type:      @engine.socket_type.to_s,
           identity:         @engine.options.identity,
           as_server:        as_server,
           mechanism:        @engine.options.mechanism&.dup,
-          max_message_size: @engine.options.max_message_size,
-        )
-        Async::Task.current.with_timeout(handshake_timeout) { conn.handshake! }
+          max_message_size: @engine.options.max_message_size
+
+        Async::Task.current.with_timeout(handshake_timeout) do
+          conn.handshake!
+        end
+
         Heartbeat.start(@barrier, conn, @engine.options, @engine.tasks)
         ready!(conn)
         @conn
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST, Async::TimeoutError => error
-        @engine.emit_monitor_event(:handshake_failed, endpoint: @endpoint, detail: { error: error })
+        @engine.emit_monitor_event :handshake_failed,
+          endpoint: @endpoint, detail: { error: error }
+
         conn&.close
+
         # Full tear-down with reconnect: without this, spawn_connection's
         # ensure-block close! sees :closed and skips maybe_reconnect,
         # leaving the endpoint dead. Race is exposed when a peer RSTs
@@ -128,6 +149,7 @@ module OMQ
 
       private
 
+
       def ready!(conn)
         conn  = @engine.connection_wrapper.call(conn) if @engine.connection_wrapper
         @conn = conn
@@ -136,6 +158,7 @@ module OMQ
         @engine.routing.connection_added(@conn)
         @engine.peer_connected.resolve(@conn)
         transition!(:ready)
+
         # No supervisor if nothing to supervise: inproc DirectPipes
         # wire the recv/send paths synchronously (no task-based pumps),
         # and isolated unit tests use a FakeEngine without pumps at all.
@@ -182,6 +205,7 @@ module OMQ
         @done&.resolve(true)
         @engine.resolve_all_peers_gone_if_empty
         @engine.maybe_reconnect(@endpoint) if reconnect
+
         # Cancel every sibling pump of this connection. The caller is
         # the supervisor task, which is NOT in the barrier — so there
         # is no self-stop risk.

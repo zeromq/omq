@@ -13,7 +13,16 @@ module OMQ
     # of a megamorphic `transform.call` dispatch inside a shared loop.
     #
     class RecvPump
+      # Max messages read from one connection before yielding to the
+      # scheduler. Prevents a busy peer from starving its siblings in
+      # fair-queue recv sockets.
       FAIRNESS_MESSAGES = 64
+
+
+      # Max bytes read from one connection before yielding. Only counted
+      # for ZMTP connections (inproc skips the check). Complements
+      # {FAIRNESS_MESSAGES}: small-message floods are bounded by count,
+      # large-message floods by bytes.
       FAIRNESS_BYTES    = 1 << 20 # 1 MB
 
 
@@ -67,6 +76,14 @@ module OMQ
       private
 
 
+      # Recv loop with per-message transform (e.g. Marshal.load for
+      # cross-Ractor transport). Kept separate from {#start_direct} so
+      # YJIT sees a monomorphic transform.call site.
+      #
+      # @param parent [Async::Task, Async::Barrier]
+      # @param transform [Proc]
+      # @return [Async::Task]
+      #
       def start_with_transform(parent, transform)
         conn, recv_queue, engine, count_bytes = @conn, @recv_queue, @engine, @count_bytes
 
@@ -93,6 +110,11 @@ module OMQ
       end
 
 
+      # Recv loop without transform — the hot path for native OMQ use.
+      #
+      # @param parent [Async::Task, Async::Barrier]
+      # @return [Async::Task]
+      #
       def start_direct(parent)
         conn, recv_queue, engine, count_bytes = @conn, @recv_queue, @engine, @count_bytes
 
@@ -116,6 +138,7 @@ module OMQ
           @engine.signal_fatal_error(error)
         end
       end
+
     end
   end
 end

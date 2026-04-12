@@ -112,6 +112,7 @@ module OMQ
         #
         def encrypted? = false
 
+
         # No-op — inproc has no IO buffer to flush.
         #
         # @return [nil]
@@ -127,11 +128,16 @@ module OMQ
         def receive_message
           loop do
             item = @receive_queue.dequeue
+
             raise EOFError, "connection closed" if item.nil?
+
             if item.is_a?(Array) && item.first == :command
-              yield Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true) if block_given?
+              if block_given?
+                yield Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true)
+              end
               next
             end
+
             return item
           end
         end
@@ -157,6 +163,7 @@ module OMQ
           loop do
             item = @receive_queue.dequeue
             raise EOFError, "connection closed" if item.nil?
+
             if item.is_a?(Array) && item.first == :command
               return Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true)
             end
@@ -174,11 +181,18 @@ module OMQ
           @send_queue&.enqueue(nil) # close sentinel
         end
 
+
         private
 
+
         def apply_transform(parts)
-          @direct_recv_transform ? @direct_recv_transform.call(parts).freeze : parts
+          if @direct_recv_transform
+            @direct_recv_transform.call(parts).freeze
+          else
+            parts
+          end
         end
+
       end
     end
   end

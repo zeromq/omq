@@ -20,6 +20,7 @@ module OMQ
     #
     @transports = {}
 
+
     class << self
       # @return [Hash{String => Module}] registered transports
       attr_reader :transports
@@ -83,6 +84,10 @@ module OMQ
     #   @param value [Async::Queue, nil] queue for monitor events
     #
     attr_writer :monitor_queue
+
+
+    # @return [Boolean] when true, every monitor event is also printed
+    #   to stderr for debugging. Set via {Socket#monitor}.
     attr_accessor :verbose_monitor
 
 
@@ -95,6 +100,7 @@ module OMQ
     def reconnect_enabled=(value)
       @lifecycle.reconnect_enabled = value
     end
+
 
     # Optional proc that wraps new connections (e.g. for serialization).
     # Called with the raw connection; must return the (possibly wrapped) connection.
@@ -399,7 +405,7 @@ module OMQ
     def signal_fatal_error(error)
       return unless @lifecycle.open?
       @fatal_error = begin
-        raise OMQ::SocketDeadError, "internal error killed #{@socket_type} socket"
+        raise SocketDeadError, "internal error killed #{@socket_type} socket"
       rescue => wrapped
         wrapped
       end
@@ -467,7 +473,9 @@ module OMQ
         raise ArgumentError, "unsupported transport: #{endpoint}"
     end
 
+
     private
+
 
     def spawn_connection(io, as_server:, endpoint: nil)
       task = @lifecycle.barrier&.async(transient: true, annotation: "conn #{endpoint}") do
@@ -488,6 +496,11 @@ module OMQ
     end
 
 
+    # TODO: replace the 1 ms busy-poll with a promise/condition that
+    # the send pump resolves when its queue hits empty. The loop exists
+    # because there is currently no signal for "send queue fully
+    # drained"; fixing it cleanly requires plumbing a notifier through
+    # every routing strategy, so it is flagged rather than fixed here.
     def drain_send_queues(timeout)
       return unless @routing.respond_to?(:send_queues_drained?)
       deadline = timeout ? Async::Clock.now + timeout : nil

@@ -38,6 +38,7 @@ module OMQ
     IO::Stream::ConnectionResetError,
   ]
 
+
   # Errors raised when a peer cannot be reached.
   CONNECTION_FAILED = [
     Errno::ECONNREFUSED,
@@ -57,7 +58,7 @@ module OMQ
     CONNECTION_LOST.freeze
     CONNECTION_FAILED.freeze
     Engine.transports.freeze
-    Routing.instance_variable_get(:@registry).freeze
+    Routing.registry.freeze
   end
 end
 

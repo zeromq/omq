@@ -198,7 +198,18 @@ The simpler model -- one shared queue, N work-stealing pumps -- gives:
 - **Better PUSH semantics.** Strict per-pipe round-robin is a known libzmq
   footgun ("one slow worker stalls the pipeline"). Work-stealing routes
   messages to whichever consumer is ready, which is what a load balancer
-  should do.
+  should do. **User-visible consequence under bursts:** distribution is
+  not strict round-robin. If a producer enqueues a burst before any pump
+  fiber is scheduled, the first pump to wake dequeues up to one whole
+  batch (`BATCH_MSG_CAP` messages or `BATCH_BYTE_CAP` bytes, whichever
+  hits first) in a single non-blocking drain — so a tight
+  `n.times { sock << msg }` loop with small `n` may dump everything on
+  one peer. Slow or steady producers don't see this: each pump dequeues
+  one message, writes, re-parks at the back of the FIFO wait queue,
+  and the next enqueue wakes the next pump. Burst distribution evens
+  out once the burst exceeds one pump's batch cap. This applies to
+  every work-stealing routing strategy (PUSH, SCATTER, DEALER, REQ,
+  PAIR, CLIENT, CHANNEL).
 - **Honest HWM accounting.** `send_hwm = 1000` means 1000 messages, not
   1000 per peer.
 - **No staging.** Messages enqueued before any peer connects sit in the

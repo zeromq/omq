@@ -13,8 +13,8 @@ module OMQ
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
     def initialize(endpoints = nil, linger: 0, on_mute: :drop_newest, conflate: false, backend: nil)
-      _init_engine(:PUB, linger: linger, on_mute: on_mute, conflate: conflate, backend: backend)
-      _attach(endpoints, default: :bind)
+      init_engine(:PUB, linger: linger, on_mute: on_mute, conflate: conflate, backend: backend)
+      attach_endpoints(endpoints, default: :bind)
     end
   end
 
@@ -36,8 +36,8 @@ module OMQ
     # @param on_mute [Symbol] :block (default), :drop_newest, or :drop_oldest
     #
     def initialize(endpoints = nil, linger: 0, subscribe: nil, on_mute: :block, backend: nil)
-      _init_engine(:SUB, linger: linger, on_mute: on_mute, backend: backend)
-      _attach(endpoints, default: :connect)
+      init_engine(:SUB, linger: linger, on_mute: on_mute, backend: backend)
+      attach_endpoints(endpoints, default: :connect)
       self.subscribe(subscribe) unless subscribe.nil?
     end
 
@@ -75,8 +75,8 @@ module OMQ
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
     def initialize(endpoints = nil, linger: 0, on_mute: :drop_newest, backend: nil)
-      _init_engine(:XPUB, linger: linger, on_mute: on_mute, backend: backend)
-      _attach(endpoints, default: :bind)
+      init_engine(:XPUB, linger: linger, on_mute: on_mute, backend: backend)
+      attach_endpoints(endpoints, default: :bind)
     end
   end
 
@@ -95,8 +95,8 @@ module OMQ
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
     def initialize(endpoints = nil, linger: 0, subscribe: nil, on_mute: :block, backend: nil)
-      _init_engine(:XSUB, linger: linger, on_mute: on_mute, backend: backend)
-      _attach(endpoints, default: :connect)
+      init_engine(:XSUB, linger: linger, on_mute: on_mute, backend: backend)
+      attach_endpoints(endpoints, default: :connect)
       send("\x01#{subscribe}".b) unless subscribe.nil?
     end
   end

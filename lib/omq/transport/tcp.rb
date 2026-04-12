@@ -18,7 +18,7 @@ module OMQ
         #
         def bind(endpoint, engine)
           host, port = self.parse_endpoint(endpoint)
-          host = "0.0.0.0" if host == "*"
+          host = "0.0.0.0" if host == "*" # FIXME: support IPv6, see omq-cli v0.11.2
 
           addrs = Addrinfo.getaddrinfo(host, port, nil, :STREAM, nil, ::Socket::AI_PASSIVE)
           raise ::Socket::ResolutionError, "no addresses for #{host}" if addrs.empty?
@@ -85,9 +85,20 @@ module OMQ
         end
 
 
+        # Applies SO_SNDBUF / SO_RCVBUF to +sock+ from the socket's
+        # {Options}. No-op when both are nil (OS default).
+        #
+        # @param sock [Socket, TCPSocket]
+        # @param options [Options]
+        #
         def apply_buffer_sizes(sock, options)
-          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options.sndbuf) if options.sndbuf
-          sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf) if options.rcvbuf
+          if options.sndbuf
+            sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options.sndbuf)
+          end
+
+          if options.rcvbuf
+            sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf)
+          end
         end
       end
 
@@ -130,11 +141,16 @@ module OMQ
         #
         def start_accept_loops(parent_task, &on_accepted)
           @tasks = @servers.map do |server|
-            parent_task.async(transient: true, annotation: "tcp accept #{@endpoint}") do
+            # TODO: use this server's exact host:port (@endpoint might not be unique)
+            annotation = "tcp accept #{@endpoint}"
+            parent_task.async(transient: true, annotation:) do
               loop do
                 client = server.accept
                 TCP.apply_buffer_sizes(client, @engine.options)
-                Async::Task.current.defer_stop { on_accepted.call(IO::Stream::Buffered.wrap(client)) }
+                Async::Task.current.defer_stop do
+                  # TODO: why not yield?
+                  on_accepted.call(IO::Stream::Buffered.wrap(client))
+                end
               end
             rescue Async::Stop
             rescue IOError

@@ -1,5 +1,59 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Renamed `Socket#_attach` → `#attach_endpoints` and `#_init_engine` →
+  `#init_engine`.** Both are now public so plugin gems can call them
+  without reaching into private API. Internal callers updated.
+
+- **Routing registry exposed via `Routing.registry`.** `omq.rb`'s
+  `freeze_for_ractors!` no longer reaches in via `instance_variable_get`.
+
+### Fixed
+
+- **Test helper deadlock.** `Kernel#Async` override in `test_helper.rb`
+  was wrapping every `Async do` block in a `with_timeout`, including
+  the reactor thread's own root task. With a 1s timeout the reactor
+  task died mid-suite and subsequent `Reactor.run` calls hung forever.
+  The override now only wraps blocks running on the main thread.
+
+- **`wait_connected` test helper uses `Async::Barrier`** for parallel
+  fork-join across all sockets instead of a sequential `Async{}` array.
+
+- **`examples/zguide/03_pipeline.rb` flake.** The example sent 20 tasks
+  to 3 PUSH workers and asserted that all three got some — but PUSH
+  work-stealing on inproc lets the first pump fiber to wake grab a
+  whole batch (256 messages) before yielding, so worker-0 always took
+  everything. Fixed by waiting on each worker's `peer_connected`
+  promise via `Async::Barrier` and bumping the burst above one
+  pump's batch cap.
+
+### Documentation
+
+- **Documented work-stealing as a deviation from libzmq.** README
+  routing tables now say "Work-stealing" instead of "Round-robin"
+  for PUSH/REQ/DEALER/SCATTER/CLIENT, with a callout explaining the
+  burst-vs-steady distribution behavior. DESIGN.md's "Per-socket HWM"
+  section gained a user-visible-consequence note covering the same.
+
+- **Lifecycle boundary docs.** `ConnectionLifecycle` and
+  `SocketLifecycle` now carry explicit class-level comments
+  delimiting their scopes (per-connection arc vs. per-socket state)
+  and referencing each other.
+
+- **API doc fill-in.** Added missing YARD comments on
+  `RecvPump::FAIRNESS_MESSAGES` / `FAIRNESS_BYTES`,
+  `RecvPump#start_with_transform` / `#start_direct`, several
+  `FanOut` send-pump methods, and the TCP/IPC `apply_buffer_sizes`
+  helpers.
+
+- **`Engine#drain_send_queues` flagged with TODO.** The 1 ms busy-poll
+  is non-trivial to fix cleanly (needs a "queue fully drained" signal
+  threaded through every routing strategy), so it's marked rather
+  than reworked here.
+
 ## 0.17.8 — 2026-04-10
 
 ### Fixed

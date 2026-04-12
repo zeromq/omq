@@ -10,6 +10,7 @@ module OMQ
       include RoundRobin
       include FairRecv
 
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -23,6 +24,7 @@ module OMQ
       # @return [FairQueue]
       #
       attr_reader :recv_queue
+
 
       # @param connection [Connection]
       #

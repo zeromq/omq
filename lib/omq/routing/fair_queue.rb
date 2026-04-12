@@ -104,7 +104,9 @@ module OMQ
         @drain.empty? && @queues.all?(&:empty?)
       end
 
+
       private
+
 
       # Drains orphaned queues first (preserves FIFO for disconnected
       # peers), then tries each active queue once in round-robin order.
@@ -162,16 +164,25 @@ module OMQ
       # @param timeout [Numeric, nil] dequeue timeout
       # @return [Array<String>, nil]
       #
-      def dequeue(timeout: nil) = @inner.dequeue(timeout: timeout)
+      def dequeue(timeout: nil)
+        @inner.dequeue(timeout: timeout)
+      end
+
 
       # @return [Boolean]
       #
-      def empty?                = @inner.empty?
+      def empty?
+        @inner.empty?
+      end
+
 
       # @param item [Object, nil]
       # @return [void]
       #
-      def push(item)            = @inner.push(item)
+      def push(item)
+        @inner.push(item)
+      end
+
     end
   end
 end

@@ -45,6 +45,7 @@ module OMQ
         end
       end
 
+
       private
 
 
@@ -60,7 +61,8 @@ module OMQ
             break
           rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error
             delay = next_delay(delay, max_delay)
-            @engine.emit_monitor_event(:connect_retried, endpoint: @endpoint, detail: { interval: delay })
+            @engine.emit_monitor_event :connect_retried,
+                                       endpoint: @endpoint, detail: { interval: delay }
           end
         end
       end
@@ -106,6 +108,7 @@ module OMQ
           ri
         end
       end
+
     end
   end
 end

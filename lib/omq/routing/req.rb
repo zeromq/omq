@@ -10,6 +10,10 @@ module OMQ
       include RoundRobin
       include FairRecv
 
+      # Shared frozen empty binary string to avoid repeated allocations.
+      EMPTY_BINARY = ::Protocol::ZMTP::Codec::EMPTY_BINARY
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -64,11 +68,16 @@ module OMQ
         @tasks.clear
       end
 
+
       private
+
 
       # REQ prepends empty delimiter frame on the wire.
       #
-      def transform_send(parts) = [EMPTY_BINARY, *parts]
+      def transform_send(parts)
+        [EMPTY_BINARY, *parts]
+      end
+
     end
   end
 end

@@ -17,9 +17,14 @@ module OMQ
     # their #initialize.
     #
     module FanOut
+      # Shared frozen empty binary string to avoid repeated allocations.
+      EMPTY_BINARY = ::Protocol::ZMTP::Codec::EMPTY_BINARY
+
+
       # @return [Async::Promise] resolves when the first subscriber joins
       #
       attr_reader :subscriber_joined
+
 
       # @return [Boolean] true when all per-connection send queues are empty
       #
@@ -27,7 +32,9 @@ module OMQ
         @conn_queues.values.all?(&:empty?)
       end
 
+
       private
+
 
       def init_fan_out(engine)
         @connections        = Set.new
@@ -156,6 +163,15 @@ module OMQ
       end
 
 
+      # Send pump variant for non-conflate fan-out: dequeues, batch-drains,
+      # writes each subscribed message, then flushes once.
+      #
+      # @param conn [Connection]
+      # @param q [Async::LimitedQueue, DropQueue]
+      # @param use_wire [Boolean] true iff the encoded wire bytes can
+      #   be shared across peers (unencrypted ZMTP)
+      # @return [Async::Task]
+      #
       def start_conn_send_pump_normal(conn, q, use_wire)
         @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
@@ -170,31 +186,52 @@ module OMQ
       end
 
 
+      # Writes every batch entry whose topic matches a subscription on
+      # +conn+ to +conn+'s write buffer. Does not flush.
+      #
+      # @return [Boolean] true iff at least one message was written
+      #
       def write_matching_batch(conn, batch, use_wire)
         sent = false
         batch.each do |parts|
           next unless subscribed?(conn, parts.first || EMPTY_BINARY)
-          use_wire ? conn.write_wire(Protocol::ZMTP::Codec::Frame.encode_message(parts)) : conn.write_message(parts)
+          if use_wire
+            conn.write_wire(Protocol::ZMTP::Codec::Frame.encode_message(parts))
+          else
+            conn.write_message(parts)
+          end
           sent = true
         end
         sent
       end
 
 
+      # Send pump variant for conflate mode: keeps only the latest
+      # subscribed message per batch. Stale duplicates are dropped.
+      #
+      # @param conn [Connection]
+      # @param q [Async::LimitedQueue, DropQueue]
+      # @return [Async::Task]
+      #
       def start_conn_send_pump_conflate(conn, q)
         @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
+
             # Keep only the latest message that matches the subscription.
-            latest = batch.reverse.find { |parts| subscribed?(conn, parts.first || EMPTY_BINARY) }
+            latest = batch.reverse.find do |parts|
+              subscribed?(conn, parts.first || EMPTY_BINARY)
+            end
             next unless latest
+
             conn.write_message(latest)
             conn.flush
             @engine.emit_verbose_monitor_event(:message_sent, parts: latest)
           end
         end
       end
+
     end
   end
 end

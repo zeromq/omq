@@ -37,7 +37,10 @@ module OMQ
         #
         def bind(endpoint, engine)
           @mutex.synchronize do
-            raise ArgumentError, "endpoint already bound: #{endpoint}" if @registry.key?(endpoint)
+            if @registry.key?(endpoint)
+              raise ArgumentError, "endpoint already bound: #{endpoint}"
+            end
+
             @registry[endpoint] = engine
 
             # Wake any pending connects
@@ -96,34 +99,55 @@ module OMQ
         def establish_link(client_engine, server_engine, endpoint)
           client_type = client_engine.socket_type
           server_type = server_engine.socket_type
+
           unless Protocol::ZMTP::VALID_PEERS[client_type]&.include?(server_type)
             raise Protocol::ZMTP::Error,
                   "incompatible socket types: #{client_type} cannot connect to #{server_type}"
           end
+
           needs_cmds = needs_commands?(client_engine, server_engine, client_type, server_type)
-          client_pipe, server_pipe = make_pipe_pair(client_engine, server_engine, client_type, server_type, needs_cmds)
+          client_pipe, server_pipe = make_pipe_pair client_engine, server_engine,
+                                                    client_type, server_type, needs_cmds
+
           client_engine.connection_ready(client_pipe, endpoint: endpoint)
           server_engine.connection_ready(server_pipe, endpoint: endpoint)
         end
 
 
+        # Decides whether a DirectPipe pair needs command queues.
+        # DirectPipe's fast path skips queues entirely; command queues
+        # are only needed for socket types that exchange ZMTP commands
+        # (e.g. ROUTER/DEALER identity, PUB/SUB subscriptions) or when
+        # either side enables QoS ≥ 1.
+        #
+        # @return [Boolean]
+        #
         def needs_commands?(ce, se, ct, st)
-          COMMAND_TYPES.include?(ct) || COMMAND_TYPES.include?(st) ||
-            ce.options.qos >= 1 || se.options.qos >= 1
+          return true if COMMAND_TYPES.include?(ct) || COMMAND_TYPES.include?(st)
+          return true if ce.options.qos >= 1 || se.options.qos >= 1
+          false
         end
 
 
+        # Builds a bidirectional {DirectPipe} pair for client + server.
+        # When +needs_cmds+ is false the pipes have no command queues
+        # (fast path — all traffic bypasses Async::Queue entirely).
+        #
+        # @return [Array(DirectPipe, DirectPipe)] client, server
+        #
         def make_pipe_pair(ce, se, ct, st, needs_cmds)
           if needs_cmds
             a_to_b = Async::Queue.new
             b_to_a = Async::Queue.new
           end
+
           client = DirectPipe.new(send_queue: needs_cmds ? a_to_b : nil,
                                   receive_queue: needs_cmds ? b_to_a : nil,
                                   peer_identity: se.options.identity, peer_type: st.to_s)
           server = DirectPipe.new(send_queue: needs_cmds ? b_to_a : nil,
                                   receive_queue: needs_cmds ? a_to_b : nil,
                                   peer_identity: ce.options.identity, peer_type: ct.to_s)
+
           client.peer = server
           server.peer = client
           [client, server]
@@ -136,11 +160,20 @@ module OMQ
           ri      = engine.options.reconnect_interval
           timeout = ri.is_a?(Range) ? ri.begin : ri
           promise = Async::Promise.new
-          @mutex.synchronize { @waiters[endpoint] << promise }
+
+          @mutex.synchronize do
+            @waiters[endpoint] << promise
+          end
+
           if promise.wait?(timeout: timeout)
-            @mutex.synchronize { @registry[endpoint] }
+            @mutex.synchronize do
+              @registry[endpoint]
+            end
           else
-            @mutex.synchronize { @waiters[endpoint].delete(promise) }
+            @mutex.synchronize do
+              @waiters[endpoint].delete(promise)
+            end
+
             start_connect_retry(endpoint, engine)
             nil
           end
@@ -158,6 +191,7 @@ module OMQ
             loop do
               sleep ivl
               bound_engine = @mutex.synchronize { @registry[endpoint] }
+
               if bound_engine
                 establish_link(engine, bound_engine, endpoint)
                 break

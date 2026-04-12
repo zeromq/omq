@@ -15,11 +15,14 @@ module OMQ
   # thread are dispatched to the IO thread via {.run}.
   #
   module Reactor
+    THREAD_NAME = 'omq-io'
+
     @mutex      = Mutex.new
     @thread     = nil
     @root_task  = nil
     @work_queue = nil
     @lingers    = Hash.new(0) # linger value → count of active sockets
+
 
     class << self
       # Returns the root Async task inside the shared IO thread.
@@ -29,15 +32,19 @@ module OMQ
       #
       def root_task
         return @root_task if @root_task
+
         @mutex.synchronize do
           return @root_task if @root_task
-          ready       = Thread::Queue.new
-          @work_queue = Async::Queue.new
-          @thread     = Thread.new { run_reactor(ready) }
-          @thread.name = "omq-io"
-          @root_task = ready.pop
+
+          ready        = Thread::Queue.new
+          @work_queue  = Async::Queue.new
+          @thread      = Thread.new { run_reactor(ready) }
+          @thread.name = THREAD_NAME
+          @root_task   = ready.pop
+
           at_exit { stop! }
         end
+
         @root_task
       end
 
@@ -50,16 +57,20 @@ module OMQ
       #
       # @return [Object] the block's return value
       #
-      def run(&block)
-        if Async::Task.current?
-          yield
+      def run(timeout: nil, &block)
+        task = Async::Task.current?
+
+        if task
+          if timeout
+            task.with_timeout(timeout, IO::TimeoutError) { yield }
+          else
+            yield
+          end
         else
-          result = Thread::Queue.new
+          result = Async::Promise.new
           root_task # ensure started
-          @work_queue.push([block, result])
-          status, value = result.pop
-          raise value if status == :error
-          value
+          @work_queue.push([block, result, timeout])
+          result.wait
         end
       end
 
@@ -90,16 +101,20 @@ module OMQ
       #
       def stop!
         return unless @thread&.alive?
+
         max_linger = @lingers.empty? ? 0 : @lingers.keys.max
         @work_queue&.push(nil)
         @thread&.join(max_linger + 1)
+
         @thread     = nil
         @root_task  = nil
         @work_queue = nil
         @lingers    = Hash.new(0)
       end
 
+
       private
+
 
       # Runs the shared Async reactor.
       #
@@ -111,18 +126,24 @@ module OMQ
       def run_reactor(ready)
         Async do |task|
           ready.push(task)
+
           loop do
-            item = @work_queue.dequeue
-            break if item.nil?
-            block, result = item
-            task.async do
-              result.push([:ok, block.call])
-            rescue => e
-              result.push([:error, e])
+            item = @work_queue.dequeue or break
+            block, result, timeout = item
+
+            task.async do |t|
+              if timeout
+                result.fulfill do
+                  t.with_timeout(timeout, IO::TimeoutError) { block.call }
+                end
+              else
+                result.fulfill { block.call }
+              end
             end
           end
         end
       end
+
     end
   end
 end
