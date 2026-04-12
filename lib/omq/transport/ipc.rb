@@ -79,7 +79,7 @@ module OMQ
           if abstract?(path)
             "\0#{path[1..]}"
           else
-            path # TODO: return Pathname
+            path
           end
         end
 
@@ -106,7 +106,7 @@ module OMQ
 
         # @param endpoint [String] the IPC endpoint URI
         # @param server [UNIXServer]
-        # @param path [String] filesystem or abstract namespace path # TODO: Pathname
+        # @param path [String] filesystem or abstract namespace path
         # @param engine [Engine]
         #
         def initialize(endpoint, server, path, engine)
@@ -154,7 +154,7 @@ module OMQ
           @server.close rescue nil
 
           # Clean up socket file for file-based paths
-          unless @path.start_with?("@") # TODO: check if it's a Pathname instead
+          unless @path.start_with?("@")
             File.delete(@path) rescue nil
           end
         end
