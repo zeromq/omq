@@ -17,23 +17,19 @@ module OMQ
         # @return [Listener]
         #
         def bind(endpoint, engine)
-          host, port = self.parse_endpoint(endpoint)
-          host = "0.0.0.0" if host == "*" # FIXME: support IPv6, see omq-cli v0.11.2
+          host, port  = self.parse_endpoint(endpoint)
+          lookup_host = normalize_bind_host(host)
 
-          addrs = Addrinfo.getaddrinfo(host, port, nil, :STREAM, nil, ::Socket::AI_PASSIVE)
-          raise ::Socket::ResolutionError, "no addresses for #{host}" if addrs.empty?
+          # Socket.tcp_server_sockets coordinates ephemeral ports across
+          # address families and sets IPV6_V6ONLY so IPv4 and IPv6
+          # wildcards don't collide on Linux.
+          servers = ::Socket.tcp_server_sockets(lookup_host, port)
+          raise ::Socket::ResolutionError, "no addresses for #{host.inspect}" if servers.empty?
 
-          servers     = []
-          actual_port = nil
-
-          addrs.each do |addr|
-            server = TCPServer.new(addr.ip_address, actual_port || port)
-            actual_port ||= server.local_address.ip_port
-            servers << server
-          end
-
-          host_part = host.include?(":") ? "[#{host}]" : host
-          resolved  = "tcp://#{host_part}:#{actual_port}"
+          actual_port  = servers.first.local_address.ip_port
+          display_host = host == "*" ? "*" : (lookup_host || "*")
+          host_part    = display_host.include?(":") ? "[#{display_host}]" : display_host
+          resolved     = "tcp://#{host_part}:#{actual_port}"
           Listener.new(resolved, servers, actual_port, engine)
         end
 
@@ -45,7 +41,8 @@ module OMQ
         #
         def validate_endpoint!(endpoint)
           host, _port = parse_endpoint(endpoint)
-          Addrinfo.getaddrinfo(host, nil, nil, :STREAM) if host
+          lookup_host = normalize_bind_host(host)
+          Addrinfo.getaddrinfo(lookup_host, nil, nil, :STREAM) if lookup_host
         end
 
 
@@ -57,9 +54,51 @@ module OMQ
         #
         def connect(endpoint, engine)
           host, port = self.parse_endpoint(endpoint)
-          sock = ::Socket.tcp(host, port, connect_timeout: connect_timeout(engine.options))
+          host       = normalize_connect_host(host)
+          sock       = ::Socket.tcp(host, port, connect_timeout: connect_timeout(engine.options))
           apply_buffer_sizes(sock, engine.options)
           engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
+        end
+
+
+        # Normalizes the bind host:
+        #   "*"                    → nil (dual-stack wildcard via AI_PASSIVE)
+        #   "" / nil / "localhost" → loopback_host (::1 on IPv6-capable hosts, else 127.0.0.1)
+        #   else                   → unchanged
+        #
+        def normalize_bind_host(host)
+          case host
+          when "*" then nil
+          when nil, "", "localhost" then loopback_host
+          else host
+          end
+        end
+
+
+        # Normalizes the connect host: "", nil, "*", and "localhost" all
+        # map to the loopback host. Everything else is passed through so
+        # real hostnames still go through the resolver + Happy Eyeballs.
+        #
+        def normalize_connect_host(host)
+          case host
+          when nil, "", "*", "localhost" then loopback_host
+          else host
+          end
+        end
+
+
+        # Loopback address preference for bind/connect normalization.
+        # Returns "::1" when the host has at least one non-loopback,
+        # non-link-local IPv6 address, otherwise "127.0.0.1".
+        #
+        def loopback_host
+          @loopback_host ||= begin
+            has_ipv6 = ::Socket.getifaddrs.any? do |ifa|
+              addr = ifa.addr
+              addr&.ipv6? && !addr.ipv6_loopback? && !addr.ipv6_linklocal?
+            end
+            has_ipv6 ? "::1" : "127.0.0.1"
+          end
         end
 
 
@@ -114,13 +153,13 @@ module OMQ
         #
         attr_reader :port
 
-        # @return [Array<TCPServer>] bound server sockets
+        # @return [Array<Socket>] bound server sockets
         #
         attr_reader :servers
 
 
         # @param endpoint [String] resolved endpoint URI
-        # @param servers [Array<TCPServer>]
+        # @param servers [Array<Socket>]
         # @param port [Integer] bound port number
         # @param engine [Engine]
         #
@@ -139,17 +178,16 @@ module OMQ
         # @param parent_task [Async::Task]
         # @yieldparam io [IO::Stream::Buffered]
         #
-        def start_accept_loops(parent_task, &on_accepted)
+        def start_accept_loops(parent_task)
           @tasks = @servers.map do |server|
             # TODO: use this server's exact host:port (@endpoint might not be unique)
             annotation = "tcp accept #{@endpoint}"
             parent_task.async(transient: true, annotation:) do
               loop do
-                client = server.accept
+                client, _addr = server.accept
                 TCP.apply_buffer_sizes(client, @engine.options)
                 Async::Task.current.defer_stop do
-                  # TODO: why not yield?
-                  on_accepted.call(IO::Stream::Buffered.wrap(client))
+                  yield IO::Stream::Buffered.wrap(client)
                 end
               end
             rescue Async::Stop

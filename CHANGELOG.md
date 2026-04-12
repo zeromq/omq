@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.19.0 — 2026-04-12
+
+### Changed
+
+- **`OMQ::Transport::TCP` normalizes host shorthands.** `tcp://*:PORT`
+  now binds *dual-stack* (both `0.0.0.0` and `::` on the same port,
+  with `IPV6_V6ONLY` set) rather than IPv4-only `0.0.0.0`, matching
+  [Puma v8.0.0's behavior](https://github.com/puma/puma/releases/tag/v8.0.0).
+  `tcp://:PORT`, `tcp://localhost:PORT`, and `tcp://*:PORT` on the
+  connect side all normalize to the loopback host — `::1` on
+  IPv6-capable machines (at least one non-loopback, non-link-local
+  IPv6 address), otherwise `127.0.0.1`. Explicit addresses
+  (`0.0.0.0`, `::`, `127.0.0.1`, `::1`) pass through unchanged.
+  Documented in `GETTING_STARTED.md` under "TCP host shorthands".
+  This normalization previously lived in `omq-cli` and is now
+  shared by all callers.
+
+- **TCP accept loop uses `Socket.tcp_server_sockets`** instead of
+  manually iterating `Addrinfo.getaddrinfo` + `TCPServer.new`.
+  `tcp_server_sockets` handles dual-stack port coordination and
+  `IPV6_V6ONLY` automatically. `Listener#servers` now holds
+  `Socket` instances rather than `TCPServer`; `#accept` returns
+  `[client, addrinfo]` pairs, which the accept loop destructures.
+
+- **`Listener#start_accept_loops` uses `yield`** instead of capturing
+  the block as an explicit `&on_accepted` proc. The block is bound
+  to the enclosing method even when invoked from inside a spawned
+  `Async::Task`, so the explicit capture was unnecessary. Applies
+  to both TCP and IPC transports.
+
 ## 0.18.0 — 2026-04-12
 
 ### Changed

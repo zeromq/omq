@@ -501,6 +501,38 @@ Async do
 end
 ```
 
+### TCP host shorthands
+
+`OMQ::Transport::TCP` normalizes a few host shorthands before binding
+or connecting. The behavior is deliberately symmetric between bind and
+connect so the same endpoint string works on both sides.
+
+| URL                   | Bind                                   | Connect           |
+|-----------------------|----------------------------------------|-------------------|
+| `tcp://*:PORT`        | dual-stack wildcard (`0.0.0.0` + `::`) | loopback host     |
+| `tcp://:PORT`         | loopback host                          | loopback host     |
+| `tcp://localhost:PORT`| loopback host                          | loopback host     |
+| `tcp://127.0.0.1:PORT`| pass-through (IPv4 only)               | pass-through      |
+| `tcp://[::1]:PORT`    | pass-through (IPv6 only)               | pass-through      |
+| `tcp://0.0.0.0:PORT`  | pass-through (IPv4 wildcard only)      | pass-through      |
+| `tcp://[::]:PORT`     | pass-through (IPv6 wildcard only)      | pass-through      |
+| `tcp://host.name:PORT`| resolver + bind to each address        | resolver + Happy Eyeballs |
+
+**Loopback host** is `::1` when the machine has at least one
+non-loopback, non-link-local IPv6 address, otherwise `127.0.0.1`.
+Detected once via `Socket.getifaddrs` and memoized for the process.
+See `OMQ::Transport::TCP.loopback_host`.
+
+**Dual-stack wildcard** (`tcp://*:PORT`) binds both `0.0.0.0` and `::`
+on the same port, with `IPV6_V6ONLY` set so the two wildcards don't
+collide on Linux. Implemented on top of `Socket.tcp_server_sockets`,
+which also coordinates ephemeral port allocation across the two
+families.
+
+Explicit addresses (`0.0.0.0`, `::`, `127.0.0.1`, `::1`) pass through
+unchanged — use them when you want to opt out of dual-stack and bind
+exactly one family.
+
 ---
 
 ## Bind vs. connect

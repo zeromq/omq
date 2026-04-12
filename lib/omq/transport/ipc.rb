@@ -124,15 +124,14 @@ module OMQ
         # @param parent_task [Async::Task]
         # @yieldparam io [IO::Stream::Buffered]
         #
-        def start_accept_loops(parent_task, &on_accepted)
+        def start_accept_loops(parent_task)
           annotation = "ipc accept #{@endpoint}"
           @task = parent_task.async(transient: true, annotation:) do
             loop do
               client = @server.accept
               IPC.apply_buffer_sizes(client, @engine.options)
               Async::Task.current.defer_stop do
-                # TODO use yield
-                on_accepted.call(IO::Stream::Buffered.wrap(client))
+                yield IO::Stream::Buffered.wrap(client)
               end
             end
           rescue Async::Stop
