@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.19.2 — 2026-04-13
+
+### Added
+
+- **`:disconnected` monitor events carry the underlying error.** When
+  a connection drops due to a `Protocol::ZMTP::Error` (oversized
+  frame, bad framing, zstd bytebomb, nonce exhaustion, …) or a
+  `CONNECTION_LOST` error, the `:disconnected` event's `detail` hash
+  now includes `error:` (the exception instance) and `reason:` (its
+  message). Peer tooling can match on `detail[:error].is_a?(...)` to
+  enforce its own policy — e.g. `omq-cli` terminates the command on
+  `Protocol::ZMTP::Error`, while the library keeps the libzmq-parity
+  behavior of silently dropping the offending connection and
+  reconnecting.
+- **`OMQ::Socket#engine` public reader.** The socket's engine is now
+  a documented (if low-level) accessor for peer tooling that needs
+  to reach into internals — notably so `omq-cli`'s monitor callback
+  can call `sock.engine.signal_fatal_error(error)` without
+  `instance_variable_get`. Not part of the stable user API.
+
+### Fixed
+
+- **`signal_fatal_error` preserves the underlying cause.** The
+  resulting `SocketDeadError` now chains back to the original error
+  via `Exception#cause` regardless of whether `signal_fatal_error`
+  is called from inside a rescue block or from a monitor callback
+  (where `$!` is `nil`). Uses a raise-in-rescue helper to force the
+  cause chain. The wrapped error's message also includes the
+  original reason so tooling that only logs the top-level message
+  still shows what happened.
+
 ## 0.19.1 — 2026-04-13
 
 ### Fixed

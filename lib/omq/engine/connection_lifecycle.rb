@@ -133,8 +133,18 @@ module OMQ
       # routing removal, monitor event, reconnect scheduling.
       # Idempotent: a no-op if already :closed.
       #
-      def lost!
-        tear_down!(reconnect: true)
+      def lost!(reason: nil)
+        tear_down!(reconnect: true, reason: reason || @disconnect_reason)
+      end
+
+
+      # Records the exception that took down a pump task so that the
+      # supervisor can surface it in the :disconnected monitor event.
+      # First writer wins — subsequent pumps unwinding on the same
+      # teardown don't overwrite the original cause.
+      #
+      def record_disconnect_reason(error)
+        @disconnect_reason ||= error
       end
 
 
@@ -187,21 +197,20 @@ module OMQ
           end
         rescue Async::Stop, Async::Cancel
           # socket or supervisor cancelled externally (socket closing)
-        rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          # expected pump exit on disconnect
         ensure
           lost!
         end
       end
 
 
-      def tear_down!(reconnect:)
+      def tear_down!(reconnect:, reason: nil)
         return if @state == :closed
         transition!(:closed)
         @engine.connections.delete(@conn)
         @engine.routing.connection_removed(@conn) if @conn
         @conn&.close rescue nil
-        @engine.emit_monitor_event(:disconnected, endpoint: @endpoint)
+        detail = reason ? { error: reason, reason: reason.message } : nil
+        @engine.emit_monitor_event(:disconnected, endpoint: @endpoint, detail: detail)
         @done&.resolve(true)
         @engine.resolve_all_peers_gone_if_empty
         @engine.maybe_reconnect(@endpoint) if reconnect

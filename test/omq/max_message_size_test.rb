@@ -20,10 +20,10 @@ describe "max_message_size" do
       rep.send("ok")
       req.receive
 
-      # Oversized message — connection should be closed
+      # Oversized message — connection should be dropped
       req.send("x" * 100)
 
-      # REP should not receive it (connection closed)
+      # REP should not receive it (connection dropped, reconnect loop)
       rep.read_timeout = 0.02
       assert_raises(IO::TimeoutError) { rep.receive }
     ensure
@@ -101,7 +101,7 @@ describe "max_message_size" do
       req = OMQ::REQ.new(nil, linger: 0)
       req.connect("tcp://127.0.0.1:#{port}")
 
-      # First frame ok, second exceeds limit
+      # First frame ok, second exceeds limit — connection dropped
       req.send(["small", "x" * 100])
 
       rep.read_timeout = 0.02

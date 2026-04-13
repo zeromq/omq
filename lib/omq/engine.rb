@@ -386,8 +386,12 @@ module OMQ
 
       lifecycle.barrier.async(transient: true, annotation: annotation) do
         yield
-      rescue Async::Stop, Async::Cancel, Protocol::ZMTP::Error, *CONNECTION_LOST
-        # normal shutdown / expected disconnect / sibling tore us down
+      rescue Async::Stop, Async::Cancel
+        # normal shutdown / sibling tore us down
+      rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
+        # expected disconnect — stash reason for the :disconnected
+        # monitor event, then let the lifecycle reconnect as usual
+        lifecycle.record_disconnect_reason(error)
       rescue => error
         signal_fatal_error(error)
       end
@@ -395,22 +399,32 @@ module OMQ
 
 
     # Wraps an unexpected pump error as {OMQ::SocketDeadError} and
-    # unblocks any callers waiting on the recv queue.
-    #
-    # Must be called from inside a rescue block so that +error+ is
-    # +$!+ and Ruby sets it as +#cause+ on the new exception.
+    # unblocks any callers waiting on the recv queue. The original
+    # error is preserved as +#cause+ so callers can surface the real
+    # reason.
     #
     # @param error [Exception]
     #
     def signal_fatal_error(error)
       return unless @lifecycle.open?
-      @fatal_error = begin
-        raise SocketDeadError, "internal error killed #{@socket_type} socket"
-      rescue => wrapped
-        wrapped
-      end
+      @fatal_error = build_fatal_error(error)
       routing.recv_queue.push(nil) rescue nil
       @lifecycle.peer_connected.resolve(nil) rescue nil
+    end
+
+
+    # Constructs a SocketDeadError whose +cause+ is +error+. Uses the
+    # raise-in-rescue idiom because Ruby only sets +cause+ on an
+    # exception when it is raised from inside a rescue block -- works
+    # regardless of the original caller's +$!+ state.
+    def build_fatal_error(error)
+      raise error
+    rescue
+      begin
+        raise SocketDeadError, "#{@socket_type} socket killed: #{error.message}"
+      rescue SocketDeadError => wrapped
+        wrapped
+      end
     end
 
 

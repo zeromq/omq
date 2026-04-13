@@ -98,6 +98,41 @@ describe "Socket#monitor" do
     end
   end
 
+  # -- Disconnect reason -----------------------------------------------------
+
+  it "includes the ZMTP error message in :disconnected detail" do
+    Async do
+      events = []
+      pull   = OMQ::PULL.new(nil, linger: 0)
+      pull.max_message_size = 10
+      pull.monitor { |e| events << e }
+
+      pull.bind("tcp://127.0.0.1:0")
+      port = pull.last_tcp_port
+
+      push = OMQ::PUSH.new(nil, linger: 0)
+      push.connect("tcp://127.0.0.1:#{port}")
+      wait_connected(push, pull)
+
+      push.send("x" * 100)
+      sleep 0.05 # let disconnected propagate
+
+      disconnected = events.find { |e| e.type == :disconnected }
+      refute_nil disconnected, "expected a :disconnected event"
+      refute_nil disconnected.detail, "expected :disconnected to carry detail"
+
+      error = disconnected.detail[:error]
+      assert_kind_of Protocol::ZMTP::Error, error, "expected detail[:error] to be a Protocol::ZMTP::Error"
+
+      reason = disconnected.detail[:reason]
+      refute_nil reason, "expected :disconnected detail to carry a reason"
+      assert_match(/max_message_size|message size|too (large|big)/i, reason)
+    ensure
+      push&.close
+      pull&.close
+    end
+  end
+
   # -- Reconnect events ------------------------------------------------------
 
   it "emits connect_delayed then connect_retried on failed connects" do

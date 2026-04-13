@@ -106,10 +106,12 @@ module OMQ
             task.yield
           end
         rescue Async::Stop, Async::Cancel
-        rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          # expected disconnect — supervisor will trigger teardown
+        rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
+          # expected disconnect — stash reason for the :disconnected
+          # monitor event, let the lifecycle reconnect as usual
+          engine.connections[conn]&.record_disconnect_reason(error)
         rescue => error
-          @engine.signal_fatal_error(error)
+          engine.signal_fatal_error(error)
         end
       end
 
@@ -136,10 +138,12 @@ module OMQ
             task.yield
           end
         rescue Async::Stop, Async::Cancel
-        rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-          # expected disconnect — supervisor will trigger teardown
+        rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
+          # expected disconnect — stash reason for the :disconnected
+          # monitor event, let the lifecycle reconnect as usual
+          engine.connections[conn]&.record_disconnect_reason(error)
         rescue => error
-          @engine.signal_fatal_error(error)
+          engine.signal_fatal_error(error)
         end
       end
 

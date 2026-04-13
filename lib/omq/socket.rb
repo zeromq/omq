@@ -16,6 +16,13 @@ module OMQ
     attr_reader :last_tcp_port
 
 
+    # @return [Engine] the socket's engine. Exposed for peer tooling
+    #   (omq-cli, omq-ffi, omq-ractor) that needs to reach into the
+    #   socket's internals — not part of the stable user API.
+    #
+    attr_reader :engine
+
+
     # Delegate socket option accessors to @options.
     #
     extend Forwardable
