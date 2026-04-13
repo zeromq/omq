@@ -4,6 +4,13 @@
 
 ### Changed
 
+- Engine no longer reaches into `routing.recv_queue` directly.
+  Routing strategies now expose `#dequeue_recv` and `#unblock_recv`
+  as the engine-facing recv contract. `FairRecv` provides the
+  shared implementation for fair-queued sockets; sub/xsub/xpub
+  delegate inline; write-only push/pub raise on dequeue and no-op
+  on unblock. Sharpens the routing interface and keeps Engine out
+  of queue internals.
 - `Writable#freeze_message` collapsed: single `all?` predicate
   check drives three outcomes (already-frozen-array fast path,
   freeze-in-place, convert-via-map/map!) instead of mirrored

@@ -26,6 +26,19 @@ module OMQ
       #
       attr_reader :recv_queue
 
+
+      # Engine-facing recv contract. Delegates to the FairQueue.
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      def unblock_recv
+        @recv_queue.push(nil)
+      end
+
+
       # @param connection [Connection]
       #
       def connection_added(connection)

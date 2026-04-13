@@ -7,6 +7,26 @@ module OMQ
     # Including classes must have @engine, @recv_queue (FairQueue), and @tasks.
     #
     module FairRecv
+      # Dequeues the next received message. Blocks until one is available.
+      # Engine-facing contract — Engine must not touch @recv_queue directly.
+      #
+      # @return [Array<String>, nil]
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel. Called by
+      # Engine on close (close_read) or fatal-error propagation.
+      #
+      # @return [void]
+      #
+      def unblock_recv
+        @recv_queue.push(nil)
+      end
+
+
       private
 
       # Creates a per-connection recv queue, registers it with @recv_queue,

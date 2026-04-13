@@ -235,7 +235,7 @@ module OMQ
     #
     def dequeue_recv
       raise @fatal_error if @fatal_error
-      msg = routing.recv_queue.dequeue
+      msg = routing.dequeue_recv
       raise @fatal_error if msg.nil? && @fatal_error
       msg
     end
@@ -245,7 +245,7 @@ module OMQ
     # pending {#dequeue_recv} with a nil return value.
     #
     def dequeue_recv_sentinel
-      routing.recv_queue.push(nil)
+      routing.unblock_recv
     end
 
 
@@ -408,7 +408,7 @@ module OMQ
     def signal_fatal_error(error)
       return unless @lifecycle.open?
       @fatal_error = build_fatal_error(error)
-      routing.recv_queue.push(nil) rescue nil
+      routing.unblock_recv rescue nil
       @lifecycle.peer_connected.resolve(nil) rescue nil
     end
 

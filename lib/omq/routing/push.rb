@@ -16,10 +16,20 @@ module OMQ
       end
 
 
-      # PUSH is write-only.
+      # PUSH is write-only. Engine-facing recv contract: dequeue raises,
+      # unblock is a no-op (fatal-error propagation still calls it).
       #
       def recv_queue
         raise "PUSH sockets cannot receive"
+      end
+
+
+      def dequeue_recv
+        raise "PUSH sockets cannot receive"
+      end
+
+
+      def unblock_recv
       end
 
 

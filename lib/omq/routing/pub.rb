@@ -20,10 +20,20 @@ module OMQ
       end
 
 
-      # PUB is write-only.
+      # PUB is write-only. Engine-facing recv contract: dequeue raises,
+      # unblock is a no-op (fatal-error propagation still calls it).
       #
       def recv_queue
         raise "PUB sockets cannot receive"
+      end
+
+
+      def dequeue_recv
+        raise "PUB sockets cannot receive"
+      end
+
+
+      def unblock_recv
       end
 
 
