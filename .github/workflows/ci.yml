@@ -16,4 +16,4 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
-    - run: timeout 120 bundle exec rake
+    - run: timeout 30 bundle exec rake
