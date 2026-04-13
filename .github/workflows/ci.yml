@@ -16,6 +16,4 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
-    - run: timeout 120 bundle exec rake test TESTOPTS="-v"
-      env:
-        RUBYOPT: "-W0"
+    - run: timeout 120 bundle exec rake
