@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `Writable#freeze_message` collapsed: single `all?` predicate
+  check drives three outcomes (already-frozen-array fast path,
+  freeze-in-place, convert-via-map/map!) instead of mirrored
+  fast/slow branches that each repeated the predicate.
+
 ## 0.19.2 — 2026-04-13
 
 ### Added

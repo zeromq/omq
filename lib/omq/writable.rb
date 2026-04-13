@@ -44,16 +44,20 @@ module OMQ
       parts = message.is_a?(Array) ? message : [message]
       raise ArgumentError, "message has no parts" if parts.empty?
 
-      # Fast path: skip map when all parts are already frozen binary.
+      all_ready = parts.all? { |p| p.is_a?(String) && p.frozen? && p.encoding == Encoding::BINARY }
+
+      # Already a frozen array of frozen binary strings → return as-is.
+      return parts if all_ready && parts.frozen?
+
+      # Items are ready; just freeze the outer array.
+      return parts.freeze if all_ready
+
+      # Items need conversion. Mutate in place when we can.
       if parts.frozen?
-        return parts if parts.all? { |p| p.is_a?(String) && p.frozen? && p.encoding == Encoding::BINARY }
-        parts = parts.map { |p| frozen_binary(p) }
+        parts.map { |p| frozen_binary(p) }.freeze
       else
-        unless parts.all? { |p| p.is_a?(String) && p.frozen? && p.encoding == Encoding::BINARY }
-          parts.map! { |p| frozen_binary(p) }
-        end
+        parts.map! { |p| frozen_binary(p) }.freeze
       end
-      parts.freeze
     end
 
 
