@@ -80,6 +80,7 @@ module OMQ
     #
     attr_reader :connections, :tasks, :lifecycle
 
+
     # @!attribute [w] monitor_queue
     #   @param value [Async::Queue, nil] queue for monitor events
     #
@@ -116,7 +117,9 @@ module OMQ
     def spawn_inproc_retry(endpoint)
       ri  = @options.reconnect_interval
       ivl = ri.is_a?(Range) ? ri.begin : ri
-      @tasks << @lifecycle.barrier.async(transient: true, annotation: "inproc reconnect #{endpoint}") do
+      ann = "inproc reconnect #{endpoint}"
+
+      @tasks << @lifecycle.barrier.async(transient: true, annotation: ann) do
         yield ivl
       rescue Async::Stop, Async::Cancel
       end
@@ -134,7 +137,9 @@ module OMQ
       capture_parent_task(parent: parent)
       transport = transport_for(endpoint)
       listener  = transport.bind(endpoint, self)
+
       start_accept_loops(listener)
+
       @listeners << listener
       @last_endpoint = listener.endpoint
       @last_tcp_port = listener.respond_to?(:port) ? listener.port : nil
@@ -155,6 +160,7 @@ module OMQ
       capture_parent_task(parent: parent)
       validate_endpoint!(endpoint)
       @dialed.add(endpoint)
+
       if endpoint.start_with?("inproc://")
         # Inproc connect is synchronous and instant
         transport = transport_for(endpoint)
@@ -188,6 +194,7 @@ module OMQ
     def unbind(endpoint)
       listener = @listeners.find { |l| l.endpoint == endpoint }
       return unless listener
+
       listener.stop
       @listeners.delete(listener)
       close_connections_at(endpoint)
@@ -235,8 +242,10 @@ module OMQ
     #
     def dequeue_recv
       raise @fatal_error if @fatal_error
+
       msg = routing.dequeue_recv
       raise @fatal_error if msg.nil? && @fatal_error
+
       msg
     end
 
@@ -274,6 +283,7 @@ module OMQ
       # pumps when the connection is lost.
       parent = @connections[conn]&.barrier || @lifecycle.barrier
       task   = RecvPump.start(parent, conn, recv_queue, self, transform)
+
       @tasks << task if task
       task
     end
@@ -316,11 +326,20 @@ module OMQ
     #
     def close
       return unless @lifecycle.open?
+
       @lifecycle.start_closing!
       stop_listeners unless @connections.empty?
-      drain_send_queues(@options.linger) if @options.linger.nil? || @options.linger > 0
+
+      if @options.linger.nil? || @options.linger > 0
+        drain_send_queues(@options.linger)
+      end
+
       @lifecycle.finish_closing!
-      Reactor.untrack_linger(@options.linger) if @lifecycle.on_io_thread
+
+      if @lifecycle.on_io_thread
+        Reactor.untrack_linger(@options.linger)
+      end
+
       stop_listeners
       tear_down_barrier
       routing.stop rescue nil
@@ -337,9 +356,14 @@ module OMQ
     #
     def stop
       return unless @lifecycle.alive?
+
       @lifecycle.start_closing! if @lifecycle.open?
       @lifecycle.finish_closing!
-      Reactor.untrack_linger(@options.linger) if @lifecycle.on_io_thread
+
+      if @lifecycle.on_io_thread
+        Reactor.untrack_linger(@options.linger)
+      end
+
       stop_listeners
       tear_down_barrier
       routing.stop rescue nil
@@ -407,6 +431,7 @@ module OMQ
     #
     def signal_fatal_error(error)
       return unless @lifecycle.open?
+
       @fatal_error = build_fatal_error(error)
       routing.unblock_recv rescue nil
       @lifecycle.peer_connected.resolve(nil) rescue nil
@@ -442,7 +467,10 @@ module OMQ
     # @param parent [#async, nil] optional Async parent
     #
     def capture_parent_task(parent: nil)
-      return unless @lifecycle.capture_parent_task(parent: parent, linger: @options.linger)
+      task = @lifecycle.capture_parent_task(parent: parent, linger: @options.linger)
+
+      return unless task
+
       Maintenance.start(@lifecycle.barrier, @options.mechanism, @tasks)
     end
 
@@ -491,8 +519,13 @@ module OMQ
     # +last_wire_size_in+.
     def emit_verbose_msg_received(conn, parts)
       return unless @verbose_monitor
+
       detail = { parts: parts }
-      detail[:wire_size] = conn.last_wire_size_in if conn.respond_to?(:last_wire_size_in)
+
+      if conn.respond_to?(:last_wire_size_in)
+        detail[:wire_size] = conn.last_wire_size_in
+      end
+
       emit_monitor_event(:message_received, detail: detail)
     end
 
@@ -504,9 +537,14 @@ module OMQ
     # @raise [ArgumentError] if the scheme is not registered
     #
     def transport_for(endpoint)
-      scheme = endpoint[/\A([^:]+):\/\//, 1]
-      self.class.transports[scheme] or
+      scheme    = endpoint[/\A([^:]+):\/\//, 1]
+      transport = self.class.transports[scheme]
+
+      unless transport
         raise ArgumentError, "unsupported transport: #{endpoint}"
+      end
+
+      transport
     end
 
 
@@ -528,6 +566,7 @@ module OMQ
       ensure
         lifecycle&.close!
       end
+
       @tasks << task if task
     end
 
@@ -539,7 +578,11 @@ module OMQ
     # every routing strategy, so it is flagged rather than fixed here.
     def drain_send_queues(timeout)
       return unless @routing.respond_to?(:send_queues_drained?)
-      deadline = timeout ? Async::Clock.now + timeout : nil
+
+      if timeout
+        deadline = Async::Clock.now + timeout
+      end
+
       until @routing.send_queues_drained?
         break if deadline && (deadline - Async::Clock.now) <= 0
         sleep 0.001
@@ -554,12 +597,16 @@ module OMQ
 
     def validate_endpoint!(endpoint)
       transport = transport_for(endpoint)
-      transport.validate_endpoint!(endpoint) if transport.respond_to?(:validate_endpoint!)
+
+      if transport.respond_to?(:validate_endpoint!)
+        transport.validate_endpoint!(endpoint)
+      end
     end
 
 
     def start_accept_loops(listener)
       return unless listener.respond_to?(:start_accept_loops)
+
       listener.start_accept_loops(@lifecycle.barrier) do |io|
         handle_accepted(io, endpoint: listener.endpoint)
       end

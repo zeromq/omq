@@ -71,6 +71,7 @@ module OMQ
         @tasks.each(&:stop)
         @tasks.clear
       end
+
     end
   end
 end

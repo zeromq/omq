@@ -110,5 +110,6 @@ module OMQ
         @registry[socket_type] or raise ArgumentError, "unknown socket type: #{socket_type.inspect}"
       end
     end
+
   end
 end

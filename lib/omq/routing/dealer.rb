@@ -11,6 +11,11 @@ module OMQ
       include FairRecv
 
 
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -19,11 +24,6 @@ module OMQ
         @tasks      = []
         init_round_robin(engine)
       end
-
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
 
       # @param connection [Connection]
@@ -58,6 +58,7 @@ module OMQ
         @tasks.each(&:stop)
         @tasks.clear
       end
+
     end
   end
 end

@@ -10,6 +10,11 @@ module OMQ
     #
     class XSub
 
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -20,11 +25,6 @@ module OMQ
         @conn_send_tasks = {}  # connection => send pump task
         @tasks           = []
       end
-
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
 
       # Engine-facing recv contract. Delegates to the FairQueue.
@@ -71,7 +71,9 @@ module OMQ
       # @param parts [Array<String>]
       #
       def enqueue(parts)
-        @connections.each { |conn| @conn_queues[conn]&.enqueue(parts) }
+        @connections.each do |conn|
+          @conn_queues[conn]&.enqueue(parts)
+        end
       end
 
 
@@ -91,16 +93,21 @@ module OMQ
         @conn_queues.values.all?(&:empty?)
       end
 
+
       private
+
 
       def start_conn_send_pump(conn, q)
         task = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             parts = q.dequeue
             frame = parts.first&.b
+
             next if frame.nil? || frame.empty?
+
             flag   = frame.getbyte(0)
             prefix = frame.byteslice(1..) || "".b
+
             case flag
             when 0x01
               conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
@@ -109,9 +116,11 @@ module OMQ
             end
           end
         end
+
         @conn_send_tasks[conn] = task
         @tasks << task
       end
+
     end
   end
 end

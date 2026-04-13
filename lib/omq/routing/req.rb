@@ -14,6 +14,11 @@ module OMQ
       EMPTY_BINARY = ::Protocol::ZMTP::Codec::EMPTY_BINARY
 
 
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -23,11 +28,6 @@ module OMQ
         @state           = :ready        # :ready or :waiting_reply
         init_round_robin(engine)
       end
-
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
 
       # @param connection [Connection]

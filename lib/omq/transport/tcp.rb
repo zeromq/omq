@@ -210,6 +210,7 @@ module OMQ
           @tasks.each(&:stop)
           @servers.each { |s| s.close rescue nil }
         end
+
       end
     end
   end

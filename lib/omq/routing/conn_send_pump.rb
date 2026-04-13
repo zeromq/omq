@@ -37,6 +37,7 @@ module OMQ
         tasks << task
         task
       end
+
     end
   end
 end

@@ -8,6 +8,11 @@ module OMQ
     #
     class Sub
 
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -17,11 +22,6 @@ module OMQ
         @subscriptions = Set.new
         @tasks         = []
       end
-
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
 
       # Engine-facing recv contract. Delegates to the FairQueue.
@@ -98,6 +98,7 @@ module OMQ
         @tasks.each(&:stop)
         @tasks.clear
       end
+
     end
   end
 end

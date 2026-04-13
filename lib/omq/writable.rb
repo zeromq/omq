@@ -7,6 +7,11 @@ module OMQ
   #
   module Writable
     include QueueWritable
+
+
+    EMPTY_PART = "".b.freeze
+
+
     # Sends a message.
     #
     # @param message [String, Array<String>] message parts
@@ -33,7 +38,19 @@ module OMQ
       send(message)
     end
 
+
+    # Waits until the socket is writable.
+    #
+    # @param timeout [Numeric, nil] timeout in seconds
+    # @return [true]
+    #
+    def wait_writable(timeout = @options.write_timeout)
+      true
+    end
+
+
     private
+
 
     # Converts a message into a frozen array of frozen binary strings.
     #
@@ -61,8 +78,6 @@ module OMQ
     end
 
 
-    EMPTY_PART = "".b.freeze
-
     def frozen_binary(obj)
       return EMPTY_PART if obj.nil?
       s = obj.to_s
@@ -70,15 +85,5 @@ module OMQ
       s.b.freeze
     end
 
-    public
-
-    # Waits until the socket is writable.
-    #
-    # @param timeout [Numeric, nil] timeout in seconds
-    # @return [true]
-    #
-    def wait_writable(timeout = @options.write_timeout)
-      true
-    end
   end
 end

@@ -7,6 +7,7 @@ module OMQ
     class Push
       include RoundRobin
 
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -63,6 +64,7 @@ module OMQ
         @tasks.clear
       end
 
+
       private
 
 
@@ -76,6 +78,7 @@ module OMQ
           conn.receive_message # blocks until peer disconnects; then exits
         end
       end
+
     end
   end
 end

@@ -132,6 +132,7 @@ module OMQ
           msg = q.dequeue(timeout: 0)
           return msg if msg
         end
+
         nil
       end
     end

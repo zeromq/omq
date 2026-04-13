@@ -19,6 +19,9 @@ module OMQ
     # their #initialize.
     #
     module RoundRobin
+      BATCH_MSG_CAP  = 256
+      BATCH_BYTE_CAP = 512 * 1024
+
       # @return [Boolean] true when the shared send queue is empty
       #   and no pump fiber is mid-write with a dequeued batch.
       #
@@ -26,7 +29,9 @@ module OMQ
         @send_queue.empty? && @in_flight == 0
       end
 
+
       private
+
 
       # Initializes the shared send queue for the including class.
       #
@@ -83,6 +88,7 @@ module OMQ
       #
       def enqueue_round_robin(parts)
         pipe = @direct_pipe
+
         if pipe&.direct_recv_queue
           pipe.send_message(transform_send(parts))
         else
@@ -97,7 +103,9 @@ module OMQ
       # @param parts [Array<String>]
       # @return [Array<String>]
       #
-      def transform_send(parts) = parts
+      def transform_send(parts)
+        parts
+      end
 
 
       # Spawns a send pump for one connection. Drains the shared send
@@ -129,22 +137,25 @@ module OMQ
             batch = [@send_queue.dequeue]
             drain_send_queue_capped(batch)
             @in_flight += batch.size
+
             begin
               write_batch(conn, batch)
             ensure
               @in_flight -= batch.size
             end
-            batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
+
+            batch.each do |parts|
+              @engine.emit_verbose_msg_sent(conn, parts)
+            end
+
             Async::Task.current.yield
           end
         end
+
         @conn_send_tasks[conn] = task
         @tasks << task
       end
 
-
-      BATCH_MSG_CAP  = 256
-      BATCH_BYTE_CAP = 512 * 1024
 
       def drain_send_queue_capped(batch)
         bytes = batch_bytes(batch[0])
@@ -175,6 +186,7 @@ module OMQ
           conn.flush
         end
       end
+
     end
   end
 end

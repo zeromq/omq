@@ -14,6 +14,11 @@ module OMQ
     class XPub
       include FanOut
 
+      # @return [Async::LimitedQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -22,11 +27,6 @@ module OMQ
         @tasks      = []
         init_fan_out(engine)
       end
-
-
-      # @return [Async::LimitedQueue]
-      #
-      attr_reader :recv_queue
 
 
       # Engine-facing recv contract. Delegates to the bounded queue.
@@ -76,7 +76,9 @@ module OMQ
         @tasks.clear
       end
 
+
       private
+
 
       # Expose subscription to application as data message.
       #
@@ -92,6 +94,7 @@ module OMQ
         super
         @recv_queue.enqueue(["\x00#{prefix}".b])
       end
+
     end
   end
 end

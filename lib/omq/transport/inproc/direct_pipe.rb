@@ -110,14 +110,18 @@ module OMQ
 
         # @return [Boolean] always false; inproc pipes are never encrypted
         #
-        def encrypted? = false
+        def encrypted?
+          false
+        end
 
 
         # No-op — inproc has no IO buffer to flush.
         #
         # @return [nil]
         #
-        def flush = nil
+        def flush
+          nil
+        end
 
 
         # Receives a multi-frame message.

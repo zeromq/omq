@@ -14,6 +14,11 @@ module OMQ
       EMPTY_FRAME = "".b.freeze
 
 
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -25,10 +30,6 @@ module OMQ
         @tasks           = []
       end
 
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
       # @param connection [Connection]
       #

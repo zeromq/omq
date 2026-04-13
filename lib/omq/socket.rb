@@ -6,48 +6,7 @@ module OMQ
   # Socket base class.
   #
   class Socket
-    # @return [Options]
-    #
-    attr_reader :options
-
-
-    # @return [Integer, nil] last auto-selected TCP port
-    #
-    attr_reader :last_tcp_port
-
-
-    # @return [Engine] the socket's engine. Exposed for peer tooling
-    #   (omq-cli, omq-ffi, omq-ractor) that needs to reach into the
-    #   socket's internals — not part of the stable user API.
-    #
-    attr_reader :engine
-
-
-    # Delegate socket option accessors to @options.
-    #
     extend Forwardable
-
-    def_delegators :@options,
-      :send_hwm,              :send_hwm=,
-      :recv_hwm,              :recv_hwm=,
-      :linger,                :linger=,
-      :identity,              :identity=,
-      :recv_timeout,          :recv_timeout=,
-      :send_timeout,          :send_timeout=,
-      :read_timeout,          :read_timeout=,
-      :write_timeout,         :write_timeout=,
-      :router_mandatory,      :router_mandatory=,
-      :router_mandatory?,
-      :reconnect_interval,    :reconnect_interval=,
-      :heartbeat_interval,    :heartbeat_interval=,
-      :heartbeat_ttl,         :heartbeat_ttl=,
-      :heartbeat_timeout,     :heartbeat_timeout=,
-      :max_message_size,      :max_message_size=,
-      :sndbuf,                :sndbuf=,
-      :rcvbuf,                :rcvbuf=,
-      :on_mute,               :on_mute=,
-      :mechanism,             :mechanism=
-
 
     # Creates a new socket and binds it to the given endpoint.
     #
@@ -69,6 +28,47 @@ module OMQ
     def self.connect(endpoint, **opts)
       new(">#{endpoint}", **opts)
     end
+
+
+    # @return [Options]
+    #
+    attr_reader :options
+
+
+    # @return [Integer, nil] last auto-selected TCP port
+    #
+    attr_reader :last_tcp_port
+
+
+    # @return [Engine] the socket's engine. Exposed for peer tooling
+    #   (omq-cli, omq-ffi, omq-ractor) that needs to reach into the
+    #   socket's internals — not part of the stable user API.
+    #
+    attr_reader :engine
+
+
+    # Delegate socket option accessors to @options.
+    #
+    def_delegators :@options,
+      :send_hwm,              :send_hwm=,
+      :recv_hwm,              :recv_hwm=,
+      :linger,                :linger=,
+      :identity,              :identity=,
+      :recv_timeout,          :recv_timeout=,
+      :send_timeout,          :send_timeout=,
+      :read_timeout,          :read_timeout=,
+      :write_timeout,         :write_timeout=,
+      :router_mandatory,      :router_mandatory=,
+      :router_mandatory?,
+      :reconnect_interval,    :reconnect_interval=,
+      :heartbeat_interval,    :heartbeat_interval=,
+      :heartbeat_ttl,         :heartbeat_ttl=,
+      :heartbeat_timeout,     :heartbeat_timeout=,
+      :max_message_size,      :max_message_size=,
+      :sndbuf,                :sndbuf=,
+      :rcvbuf,                :rcvbuf=,
+      :on_mute,               :on_mute=,
+      :mechanism,             :mechanism=
 
 
     # @param endpoints [String, nil] optional endpoint with prefix convention
@@ -141,19 +141,27 @@ module OMQ
 
 
     # @return [Async::Promise] resolves when first peer completes handshake
-    def peer_connected   = @engine.peer_connected
+    def peer_connected
+      @engine.peer_connected
+    end
 
 
     # @return [Async::Promise] resolves when first subscriber joins (PUB/XPUB only)
-    def subscriber_joined = @engine.routing.subscriber_joined
+    def subscriber_joined
+      @engine.routing.subscriber_joined
+    end
 
 
     # @return [Async::Promise] resolves when all peers disconnect (after having had peers)
-    def all_peers_gone   = @engine.all_peers_gone
+    def all_peers_gone
+      @engine.all_peers_gone
+    end
 
 
     # @return [Integer] current number of peer connections
-    def connection_count = @engine.connections.size
+    def connection_count
+      @engine.connections.size
+    end
 
 
     # Signals end-of-stream on the receive side. A subsequent
@@ -270,6 +278,7 @@ module OMQ
     #
     def attach_endpoints(endpoints, default:)
       return unless endpoints
+
       case endpoints
       when /\A@(.+)\z/
         bind($1)
@@ -318,5 +327,6 @@ module OMQ
     def ensure_parent_task(parent: nil)
       @engine.capture_parent_task(parent: parent)
     end
+
   end
 end

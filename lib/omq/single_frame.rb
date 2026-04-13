@@ -19,5 +19,6 @@ module OMQ
       end
       super
     end
+
   end
 end

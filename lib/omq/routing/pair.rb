@@ -12,6 +12,12 @@ module OMQ
     class Pair
       include FairRecv
 
+
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -23,10 +29,6 @@ module OMQ
         @tasks      = []
       end
 
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
       # @param connection [Connection]
       # @raise [RuntimeError] if a connection already exists
@@ -83,24 +85,32 @@ module OMQ
         @send_queue.empty?
       end
 
+
       private
+
 
       def start_send_pump(conn)
         @send_pump = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             batch = [@send_queue.dequeue]
             Routing.drain_send_queue(@send_queue, batch)
+
             if batch.size == 1
               conn.write_message(batch[0])
             else
               conn.write_messages(batch)
             end
+
             conn.flush
-            batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
+            batch.each do |parts|
+              @engine.emit_verbose_msg_sent(conn, parts)
+            end
           end
         end
+
         @tasks << @send_pump
       end
+
     end
   end
 end

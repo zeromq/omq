@@ -38,10 +38,16 @@ module OMQ
       def add_fair_recv_connection(conn, &transform)
         conn_q    = Routing.build_queue(@engine.options.recv_hwm, :block)
         signaling = SignalingQueue.new(conn_q, @recv_queue)
+
         @recv_queue.add_queue(conn, conn_q)
-        task      = @engine.start_recv_pump(conn, signaling, &transform)
-        @tasks << task if task
+
+        task = @engine.start_recv_pump(conn, signaling, &transform)
+
+        if task
+          @tasks << task
+        end
       end
+
     end
   end
 end

@@ -12,6 +12,13 @@ module OMQ
     #
     class Router
       include FairRecv
+
+
+      # @return [FairQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -24,10 +31,6 @@ module OMQ
         @tasks                   = []
       end
 
-
-      # @return [FairQueue]
-      #
-      attr_reader :recv_queue
 
       # @param connection [Connection]
       #

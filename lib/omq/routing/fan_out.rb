@@ -134,7 +134,9 @@ module OMQ
           loop do
             frame = conn.read_frame
             next unless frame.command?
+
             cmd = Protocol::ZMTP::Codec::Command.from_body(frame.body)
+
             case cmd.name
             when "SUBSCRIBE"
               on_subscribe(conn, cmd.data)
@@ -157,7 +159,13 @@ module OMQ
       #
       def start_conn_send_pump(conn, q)
         use_wire = conn.respond_to?(:write_wire) && !conn.encrypted?
-        task     = @conflate ? start_conn_send_pump_conflate(conn, q) : start_conn_send_pump_normal(conn, q, use_wire)
+
+        if @conflate
+          task = start_conn_send_pump_conflate(conn, q)
+        else
+          task = start_conn_send_pump_normal(conn, q, use_wire)
+        end
+
         @conn_send_tasks[conn] = task
         @tasks << task
       end
@@ -177,6 +185,7 @@ module OMQ
           loop do
             batch = [q.dequeue]
             Routing.drain_send_queue(q, batch)
+
             if write_matching_batch(conn, batch, use_wire)
               conn.flush
               batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
@@ -193,15 +202,19 @@ module OMQ
       #
       def write_matching_batch(conn, batch, use_wire)
         sent = false
+
         batch.each do |parts|
           next unless subscribed?(conn, parts.first || EMPTY_BINARY)
+
           if use_wire
             conn.write_wire(Protocol::ZMTP::Codec::Frame.encode_message(parts))
           else
             conn.write_message(parts)
           end
+
           sent = true
         end
+
         sent
       end
 
