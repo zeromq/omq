@@ -147,13 +147,23 @@ module OMQ
       BATCH_BYTE_CAP = 512 * 1024
 
       def drain_send_queue_capped(batch)
-        bytes = batch[0].sum(&:bytesize)
+        bytes = batch_bytes(batch[0])
         while batch.size < BATCH_MSG_CAP && bytes < BATCH_BYTE_CAP
           msg = @send_queue.dequeue(timeout: 0)
           break unless msg
           batch << msg
-          bytes += msg.sum(&:bytesize)
+          bytes += batch_bytes(msg)
         end
+      end
+
+
+      # Byte accounting for send-queue batching. Connection wrappers
+      # (e.g. OMQ::Ractor's MarshalConnection) may enqueue non-string
+      # parts that get transformed at write time — skip those for the
+      # fairness cap rather than crashing on #bytesize.
+      #
+      def batch_bytes(parts)
+        parts.sum { |p| p.respond_to?(:bytesize) ? p.bytesize : 0 }
       end
 
 

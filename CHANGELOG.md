@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.1 — 2026-04-13
+
+### Fixed
+
+- **Send-queue batch accounting tolerates non-string parts.**
+  `Routing::RoundRobin#drain_send_queue_capped` previously called
+  `#bytesize` directly on each message part for the fairness cap, which
+  crashed when a connection wrapper enqueued structured parts for later
+  transformation (notably `OMQ::Ractor`'s `MarshalConnection`, which
+  hands off live Ruby objects and marshals them in `#write_messages`).
+  The fairness cap now skips parts that don't respond to `#bytesize`.
+
 ## 0.19.0 — 2026-04-12
 
 ### Added
