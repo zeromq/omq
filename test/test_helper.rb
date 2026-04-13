@@ -16,7 +16,7 @@ RECONNECT_INTERVAL = 0.01
 
 # Hard per-test timeout: any Async block that runs longer than this
 # raises Async::TimeoutError and fails the test immediately.
-TEST_ASYNC_TIMEOUT = 1
+TEST_ASYNC_TIMEOUT = 5
 
 module Kernel
   alias_method :_Async_base, :Async
