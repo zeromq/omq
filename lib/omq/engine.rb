@@ -461,6 +461,28 @@ module OMQ
     end
 
 
+    # Emits a :message_sent verbose event and enriches it with the
+    # on-wire (post-compression) byte size if +conn+ exposes
+    # +last_wire_size_out+ (installed by ZMTP-Zstd etc.).
+    def emit_verbose_msg_sent(conn, parts)
+      return unless @verbose_monitor
+      detail = { parts: parts }
+      detail[:wire_size] = conn.last_wire_size_out if conn.respond_to?(:last_wire_size_out)
+      emit_monitor_event(:message_sent, detail: detail)
+    end
+
+
+    # Emits a :message_received verbose event and enriches it with the
+    # on-wire (pre-decompression) byte size if +conn+ exposes
+    # +last_wire_size_in+.
+    def emit_verbose_msg_received(conn, parts)
+      return unless @verbose_monitor
+      detail = { parts: parts }
+      detail[:wire_size] = conn.last_wire_size_in if conn.respond_to?(:last_wire_size_in)
+      emit_monitor_event(:message_received, detail: detail)
+    end
+
+
     # Looks up the transport module for an endpoint URI.
     #
     # @param endpoint [String] endpoint URI (e.g. "tcp://...", "inproc://...")

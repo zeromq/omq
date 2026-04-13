@@ -30,9 +30,7 @@ module OMQ
 
             conn.flush
 
-            batch.each do |parts|
-              engine.emit_verbose_monitor_event :message_sent, parts: parts
-            end
+            batch.each { |parts| engine.emit_verbose_msg_sent(conn, parts) }
           end
         end
 

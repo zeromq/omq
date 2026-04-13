@@ -134,7 +134,7 @@ module OMQ
             ensure
               @in_flight -= batch.size
             end
-            batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
+            batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
             Async::Task.current.yield
           end
         end

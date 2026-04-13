@@ -96,7 +96,7 @@ module OMQ
               conn.write_messages(batch)
             end
             conn.flush
-            batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
+            batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
           end
         end
         @tasks << @send_pump

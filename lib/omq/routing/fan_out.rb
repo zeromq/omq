@@ -179,7 +179,7 @@ module OMQ
             Routing.drain_send_queue(q, batch)
             if write_matching_batch(conn, batch, use_wire)
               conn.flush
-              batch.each { |parts| @engine.emit_verbose_monitor_event(:message_sent, parts: parts) }
+              batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
             end
           end
         end
@@ -227,7 +227,7 @@ module OMQ
 
             conn.write_message(latest)
             conn.flush
-            @engine.emit_verbose_monitor_event(:message_sent, parts: latest)
+            @engine.emit_verbose_msg_sent(conn, latest)
           end
         end
       end

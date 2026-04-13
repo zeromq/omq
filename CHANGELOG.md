@@ -2,6 +2,21 @@
 
 ## 0.19.0 — 2026-04-12
 
+### Added
+
+- **Verbose-monitor helpers `Engine#emit_verbose_msg_sent` and
+  `#emit_verbose_msg_received`.** Used by `RecvPump` and every
+  send-pump routing strategy (`conn_send_pump`, `round_robin`,
+  `pair`, `fan_out`) to emit `:message_sent` / `:message_received`
+  monitor events with a connection reference. When the connection
+  exposes `#last_wire_size_out` / `#last_wire_size_in` (as the
+  `omq-rfc-zstd` `CompressionConnection` wrapper does), the event
+  detail includes `wire_size:` so verbose traces can annotate
+  compressed message previews with the post-compression byte count.
+  `RecvPump` now emits the trace *before* enqueueing the message
+  so the monitor fiber runs before the application fiber, which
+  preserves log-before-body ordering at `-vvv`.
+
 ### Changed
 
 - **`OMQ::Transport::TCP` normalizes host shorthands.** `tcp://*:PORT`
