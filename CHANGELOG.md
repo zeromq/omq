@@ -15,6 +15,8 @@
   check drives three outcomes (already-frozen-array fast path,
   freeze-in-place, convert-via-map/map!) instead of mirrored
   fast/slow branches that each repeated the predicate.
+- Hot-path optimized. Avoid the overhead of `parts.sum(&:bytesize)`
+  and use `parts.sum { |p| p.bytesize }` instead.
 
 ## 0.19.2 — 2026-04-13
 

@@ -35,9 +35,10 @@ module OMQ
       #
       def connection_added(connection)
         add_fair_recv_connection(connection) do |msg|
-          delimiter = msg.index(&:empty?) || msg.size
+          delimiter = msg.index { |p| p.empty? } || msg.size
           envelope  = msg[0, delimiter]
           body      = msg[(delimiter + 1)..] || []
+
           @pending_replies << { conn: connection, envelope: envelope }
           body
         end

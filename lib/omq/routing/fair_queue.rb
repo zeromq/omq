@@ -74,7 +74,9 @@ module OMQ
         return try_dequeue if timeout == 0
 
         loop do
-          return nil if @closed && @drain.empty? && @queues.all?(&:empty?)
+          if @closed && @drain.empty? && @queues.all? { |q| q.empty? }
+            return nil
+          end
 
           msg = try_dequeue
           return msg if msg
@@ -101,7 +103,7 @@ module OMQ
       # @return [Boolean]
       #
       def empty?
-        @drain.empty? && @queues.all?(&:empty?)
+        @drain.empty? && @queues.all? { |q| q.empty? }
       end
 
 

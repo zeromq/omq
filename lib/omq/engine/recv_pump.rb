@@ -91,18 +91,22 @@ module OMQ
           loop do
             count = 0
             bytes = 0
+
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
               msg = transform.call(msg).freeze
+
               # Emit the verbose trace BEFORE enqueueing so the monitor
               # fiber is woken before the application fiber -- the
               # async scheduler is FIFO on the ready list, so this
               # preserves log-before-stdout ordering for -vvv traces.
               engine.emit_verbose_msg_received(conn, msg)
               recv_queue.enqueue(msg)
+
               count += 1
-              bytes += msg.sum(&:bytesize) if count_bytes
+              bytes += msg.sum { |part| part.bytesize } if count_bytes
             end
+
             task.yield
           end
         rescue Async::Stop, Async::Cancel
@@ -133,7 +137,7 @@ module OMQ
               engine.emit_verbose_msg_received(conn, msg)
               recv_queue.enqueue(msg)
               count += 1
-              bytes += msg.sum(&:bytesize) if count_bytes
+              bytes += msg.sum { |part| part.bytesize } if count_bytes
             end
             task.yield
           end
