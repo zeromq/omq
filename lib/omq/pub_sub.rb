@@ -7,15 +7,23 @@ module OMQ
     include Writable
 
     # @param endpoints [String, nil] endpoint to bind/connect
-    # @param linger [Integer] linger period in seconds
+    # @param linger [Numeric] linger period in seconds (Float::INFINITY = wait forever, 0 = drop)
+    # @param send_hwm [Integer, nil] send high water mark
+    # @param send_timeout [Numeric, nil] send timeout in seconds
     # @param on_mute [Symbol] mute strategy for slow subscribers
     # @param conflate [Boolean] keep only latest message per topic
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
-    def initialize(endpoints = nil, linger: 0, on_mute: :drop_newest, conflate: false, backend: nil)
-      init_engine(:PUB, linger: linger, on_mute: on_mute, conflate: conflate, backend: backend)
+    def initialize(endpoints = nil, linger: Float::INFINITY,
+                   send_hwm: nil, send_timeout: nil,
+                   on_mute: :drop_newest, conflate: false, backend: nil, &block)
+      init_engine(:PUB, send_hwm: send_hwm, send_timeout: send_timeout,
+                  on_mute: on_mute, conflate: conflate, backend: backend)
+      @options.linger = linger
       attach_endpoints(endpoints, default: :bind)
+      finalize_init(&block)
     end
+
   end
 
 
@@ -29,16 +37,21 @@ module OMQ
     EVERYTHING = ''
 
 
-    # @param endpoints [String, nil]
-    # @param linger [Integer]
+    # @param endpoints [String, nil] endpoint to bind/connect
+    # @param recv_hwm [Integer, nil] receive high water mark
+    # @param recv_timeout [Numeric, nil] receive timeout in seconds
     # @param subscribe [String, nil] subscription prefix; +nil+ (default)
     #   means no subscription — call {#subscribe} explicitly.
     # @param on_mute [Symbol] :block (default), :drop_newest, or :drop_oldest
+    # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
-    def initialize(endpoints = nil, linger: 0, subscribe: nil, on_mute: :block, backend: nil)
-      init_engine(:SUB, linger: linger, on_mute: on_mute, backend: backend)
+    def initialize(endpoints = nil, recv_hwm: nil, recv_timeout: nil,
+                   subscribe: nil, on_mute: :block, backend: nil, &block)
+      init_engine(:SUB, recv_hwm: recv_hwm, recv_timeout: recv_timeout,
+                  on_mute: on_mute, backend: backend)
       attach_endpoints(endpoints, default: :connect)
       self.subscribe(subscribe) unless subscribe.nil?
+      finalize_init(&block)
     end
 
 
@@ -60,6 +73,7 @@ module OMQ
     def unsubscribe(prefix)
       @engine.routing.unsubscribe(prefix)
     end
+
   end
 
 
@@ -70,14 +84,26 @@ module OMQ
     include Writable
 
     # @param endpoints [String, nil] endpoint to bind/connect
-    # @param linger [Integer] linger period in seconds
+    # @param linger [Numeric] linger period in seconds (Float::INFINITY = wait forever, 0 = drop)
+    # @param send_hwm [Integer, nil] send high water mark
+    # @param recv_hwm [Integer, nil] receive high water mark
+    # @param send_timeout [Numeric, nil] send timeout in seconds
+    # @param recv_timeout [Numeric, nil] receive timeout in seconds
     # @param on_mute [Symbol] mute strategy for slow subscribers
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
-    def initialize(endpoints = nil, linger: 0, on_mute: :drop_newest, backend: nil)
-      init_engine(:XPUB, linger: linger, on_mute: on_mute, backend: backend)
+    def initialize(endpoints = nil, linger: Float::INFINITY,
+                   send_hwm: nil, recv_hwm: nil,
+                   send_timeout: nil, recv_timeout: nil,
+                   on_mute: :drop_newest, backend: nil, &block)
+      init_engine(:XPUB, send_hwm: send_hwm, recv_hwm: recv_hwm,
+                  send_timeout: send_timeout, recv_timeout: recv_timeout,
+                  on_mute: on_mute, backend: backend)
+      @options.linger = linger
       attach_endpoints(endpoints, default: :bind)
+      finalize_init(&block)
     end
+
   end
 
 
@@ -87,17 +113,30 @@ module OMQ
     include Readable
     include Writable
 
-    # @param endpoints [String, nil]
-    # @param linger [Integer]
+    # @param endpoints [String, nil] endpoint to bind/connect
+    # @param linger [Numeric] linger period in seconds (Float::INFINITY = wait forever, 0 = drop)
+    # @param send_hwm [Integer, nil] send high water mark
+    # @param recv_hwm [Integer, nil] receive high water mark
+    # @param send_timeout [Numeric, nil] send timeout in seconds
+    # @param recv_timeout [Numeric, nil] receive timeout in seconds
     # @param subscribe [String, nil] subscription prefix; +nil+ (default)
     #   means no subscription — send a subscribe frame explicitly.
     # @param on_mute [Symbol] mute strategy (:block, :drop_newest, :drop_oldest)
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
-    def initialize(endpoints = nil, linger: 0, subscribe: nil, on_mute: :block, backend: nil)
-      init_engine(:XSUB, linger: linger, on_mute: on_mute, backend: backend)
+    def initialize(endpoints = nil, linger: Float::INFINITY,
+                   send_hwm: nil, recv_hwm: nil,
+                   send_timeout: nil, recv_timeout: nil,
+                   subscribe: nil, on_mute: :block, backend: nil, &block)
+      init_engine(:XSUB, send_hwm: send_hwm, recv_hwm: recv_hwm,
+                  send_timeout: send_timeout, recv_timeout: recv_timeout,
+                  on_mute: on_mute, backend: backend)
+      @options.linger = linger
       attach_endpoints(endpoints, default: :connect)
       send("\x01#{subscribe}".b) unless subscribe.nil?
+      finalize_init(&block)
     end
+
   end
+
 end

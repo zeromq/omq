@@ -73,9 +73,28 @@ module OMQ
 
     # @param endpoints [String, nil] optional endpoint with prefix convention
     #   (+@+ for bind, +>+ for connect, plain uses subclass default)
-    # @param linger [Integer] linger period in seconds (default 0)
     #
-    def initialize(endpoints = nil, linger: 0)
+    # @yieldparam [self] the socket, when a block is passed; the socket
+    #   is {#close}d when the block returns (or raises).
+    #
+    # Use option accessors (e.g. +socket.linger = 0+) to configure
+    # post-construction.
+    #
+    def initialize(endpoints = nil)
+    end
+
+
+    # Yields +self+ if a block was given, then closes. Called by every
+    # subclass initializer so +OMQ::PUSH.new { |p| ... }+ behaves like
+    # +File.open+: configure, use, auto-close.
+    #
+    def finalize_init
+      return unless block_given?
+      begin
+        yield self
+      ensure
+        close
+      end
     end
 
 
@@ -294,12 +313,11 @@ module OMQ
     # subclass initializers (including out-of-tree socket types).
     #
     # @param socket_type [Symbol]
-    # @param linger [Integer]
     #
-    def init_engine(socket_type, linger:, send_hwm: nil, recv_hwm: nil,
+    def init_engine(socket_type, send_hwm: nil, recv_hwm: nil,
                     send_timeout: nil, recv_timeout: nil, conflate: false,
                     on_mute: nil, backend: nil)
-      @options = Options.new(linger: linger)
+      @options = Options.new
       @options.send_hwm     = send_hwm     if send_hwm
       @options.recv_hwm     = recv_hwm     if recv_hwm
       @options.send_timeout = send_timeout if send_timeout

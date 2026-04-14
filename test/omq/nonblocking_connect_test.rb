@@ -5,7 +5,7 @@ require_relative "../test_helper"
 describe "Non-blocking TCP connect" do
   it "connect returns immediately even when endpoint is unreachable" do
     Async do
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.reconnect_interval = RECONNECT_INTERVAL
 
       elapsed = Async::Clock.measure do
@@ -26,13 +26,13 @@ describe "Non-blocking TCP connect" do
 
   it "connects in background and succeeds when server appears" do
     Async do
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.reconnect_interval = RECONNECT_INTERVAL
       req.connect("tcp://127.0.0.1:19874")
 
       # Server starts after client — connect already returned
       sleep 0.02
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.bind("tcp://127.0.0.1:19874")
 
       # Wait for background connect to succeed

@@ -7,11 +7,11 @@ describe "Socket#bind / #connect parent: kwarg" do
     Async do |task|
       user_barrier = Async::Barrier.new
 
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.bind("tcp://127.0.0.1:0", parent: user_barrier)
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}", parent: user_barrier)
       wait_connected(push)
 
@@ -37,11 +37,11 @@ describe "Socket#bind / #connect parent: kwarg" do
     Async do |task|
       user_barrier = Async::Barrier.new
 
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.bind("tcp://127.0.0.1:0", parent: user_barrier)
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}", parent: user_barrier)
       wait_connected(push)
 
@@ -65,12 +65,12 @@ describe "Socket#bind / #connect parent: kwarg" do
       first  = Async::Barrier.new
       second = Async::Barrier.new
 
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.bind("tcp://127.0.0.1:0", parent: first)
       port = pull.last_tcp_port
 
       # Second capture attempt with a different parent — silently ignored.
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}", parent: first)
       # A later call on the same socket with a different parent is a no-op.
       push.connect("tcp://127.0.0.1:#{port}", parent: second)

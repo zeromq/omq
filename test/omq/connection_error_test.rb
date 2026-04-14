@@ -6,7 +6,7 @@ require "socket"
 describe "Connection error handling" do
   it "server survives client disconnect during TCP handshake" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
@@ -19,7 +19,7 @@ describe "Connection error handling" do
       sleep 0.02
 
       # A real client should still be able to connect and exchange messages
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       req.send("after reset")
@@ -35,7 +35,7 @@ describe "Connection error handling" do
     path = "/tmp/omq_test_epipe_#{$$}.sock"
 
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.bind("ipc://#{path}")
 
       # Raw connect + immediate close
@@ -44,7 +44,7 @@ describe "Connection error handling" do
 
       sleep 0.02
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("ipc://#{path}")
 
       req.send("after reset")
@@ -62,11 +62,11 @@ describe "Connection error handling" do
 
     Async do
       # Start server
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.bind("ipc://#{path}")
 
       # Client connects
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.reconnect_interval = RECONNECT_INTERVAL
       req.connect("ipc://#{path}")
 
@@ -84,7 +84,7 @@ describe "Connection error handling" do
       sleep 0.02
 
       # Restart server on same path
-      rep2 = OMQ::REP.new(nil, linger: 0)
+      rep2 = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep2.bind("ipc://#{path}")
 
       # Wait for reconnection
@@ -103,7 +103,7 @@ describe "Connection error handling" do
   it "schedules reconnect on connection reset during TCP connect" do
     Async do
       # Client connects to a port that resets connections
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.reconnect_interval = 0.05
 
       # Start a raw server that accepts and immediately resets
@@ -125,7 +125,7 @@ describe "Connection error handling" do
       server.close
 
       # Now start a real server on the same port
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.bind("tcp://127.0.0.1:#{port}")
 
       sleep 0.08

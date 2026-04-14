@@ -11,11 +11,13 @@ describe "Reconnect after server restart" do
   #
   def assert_reconnects(bind_class, connect_class, port: nil, &exchange)
     Async do
-      server = bind_class.new(nil, linger: 0)
+      server = bind_class.new
+      server.linger = 0
       server.bind("tcp://127.0.0.1:0")
       port = server.last_tcp_port
 
-      client = connect_class.new(nil, linger: 0)
+      client = connect_class.new
+      client.linger = 0
       client.reconnect_interval = RECONNECT_INTERVAL
       client.connect("tcp://127.0.0.1:#{port}")
       wait_connected(client, server)
@@ -28,7 +30,8 @@ describe "Reconnect after server restart" do
       sleep 0.02
 
       # Restart on same port
-      server2 = bind_class.new(nil, linger: 0)
+      server2 = bind_class.new
+      server2.linger = 0
       server2.bind("tcp://127.0.0.1:#{port}")
       wait_connected(client, server2)
 
@@ -70,11 +73,11 @@ describe "Reconnect after server restart" do
 
   it "PUB/SUB" do
     Async do
-      pub = OMQ::PUB.new(nil, linger: 0)
+      pub = OMQ::PUB.new.tap { |s| s.linger = 0 }
       pub.bind("tcp://127.0.0.1:0")
       port = pub.last_tcp_port
 
-      sub = OMQ::SUB.new(nil, linger: 0)
+      sub = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.reconnect_interval = RECONNECT_INTERVAL
       sub.connect("tcp://127.0.0.1:#{port}")
       sub.subscribe("")
@@ -86,7 +89,7 @@ describe "Reconnect after server restart" do
       pub.close
       sleep 0.02
 
-      pub2 = OMQ::PUB.new(nil, linger: 0)
+      pub2 = OMQ::PUB.new.tap { |s| s.linger = 0 }
       pub2.bind("tcp://127.0.0.1:#{port}")
       pub2.subscriber_joined.wait
 

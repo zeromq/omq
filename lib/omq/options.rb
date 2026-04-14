@@ -10,9 +10,11 @@ module OMQ
     DEFAULT_HWM = 1000
 
 
-    # @param linger [Integer] linger period in seconds (default 0)
+    # @param linger [Numeric] linger period in seconds on close
+    #   (default Float::INFINITY = wait forever, matching libzmq).
+    #   Pass 0 for immediate drop-on-close.
     #
-    def initialize(linger: 0)
+    def initialize(linger: Float::INFINITY)
       @send_hwm              = DEFAULT_HWM
       @recv_hwm              = DEFAULT_HWM
       @linger                = linger
@@ -39,7 +41,8 @@ module OMQ
     # @!attribute recv_hwm
     #   @return [Integer] receive high water mark (default 1000, 0 = unbounded)
     # @!attribute linger
-    #   @return [Integer, nil] linger period in seconds (nil = wait forever, 0 = immediate)
+    #   @return [Numeric] linger period in seconds on close
+    #     (Float::INFINITY = wait forever, 0 = immediate drop)
     # @!attribute identity
     #   @return [String] socket identity for ROUTER addressing (default "")
     # @!attribute router_mandatory

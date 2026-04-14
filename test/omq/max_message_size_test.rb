@@ -5,12 +5,12 @@ require_relative "../test_helper"
 describe "max_message_size" do
   it "rejects oversized frames over TCP" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 10
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       # Small message — should work
@@ -34,12 +34,12 @@ describe "max_message_size" do
 
   it "allows messages within limit" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 1024
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       req.send("x" * 500)
@@ -53,12 +53,12 @@ describe "max_message_size" do
 
   it "accepts messages exactly at the limit" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 100
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       req.send("x" * 100)
@@ -72,11 +72,11 @@ describe "max_message_size" do
 
   it "has no limit by default" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       assert_nil rep.max_message_size
@@ -93,12 +93,12 @@ describe "max_message_size" do
 
   it "rejects when one frame in a multi-frame message exceeds limit" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 50
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       # First frame ok, second exceeds limit — connection dropped

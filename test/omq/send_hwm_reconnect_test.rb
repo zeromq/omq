@@ -5,11 +5,11 @@ require_relative "../test_helper"
 describe "PUSH with low send_hwm re-routes on disconnect" do
   it "delivers messages to a second peer after the first disconnects" do
     Async do
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.send_hwm            = 1
       push.reconnect_interval  = RECONNECT_INTERVAL
 
-      pull1 = OMQ::PULL.new(nil, linger: 0)
+      pull1 = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull1.bind("tcp://127.0.0.1:0")
       port = pull1.last_tcp_port
 
@@ -26,7 +26,7 @@ describe "PUSH with low send_hwm re-routes on disconnect" do
       sleep 0.05
 
       # Consumer 2 on same port
-      pull2 = OMQ::PULL.new(nil, linger: 0)
+      pull2 = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull2.recv_timeout = 3
       pull2.bind("tcp://127.0.0.1:#{port}")
 

@@ -123,7 +123,7 @@ describe "PUB/SUB" do
 
   it "does not block the publisher" do
     Async do
-      pub = OMQ::PUB.new(nil, linger: 0)
+      pub = OMQ::PUB.new.tap { |s| s.linger = 0 }
       pub.send_hwm = 5
       pub.bind("inproc://pubsub-hwm")
 
@@ -141,14 +141,14 @@ describe "PUB/SUB" do
   end
 
   it "PUB defaults to on_mute: :drop_newest" do
-    pub = OMQ::PUB.new(nil, linger: 0)
+    pub = OMQ::PUB.new.tap { |s| s.linger = 0 }
     assert_equal :drop_newest, pub.on_mute
   ensure
     pub&.close
   end
 
   it "SUB defaults to on_mute: :block" do
-    sub = OMQ::SUB.new(nil, linger: 0)
+    sub = OMQ::SUB.new.tap { |s| s.linger = 0 }
     assert_equal :block, sub.on_mute
   ensure
     sub&.close
@@ -156,11 +156,12 @@ describe "PUB/SUB" do
 
   it "SUB accepts on_mute: :drop_oldest" do
     Async do
-      pub = OMQ::PUB.new(nil, linger: 0)
+      pub = OMQ::PUB.new.tap { |s| s.linger = 0 }
       pub.send_hwm = 100
       pub.bind("inproc://pubsub-drop-oldest")
 
-      sub = OMQ::SUB.new(nil, linger: 0, on_mute: :drop_oldest)
+      sub = OMQ::SUB.new(nil, on_mute: :drop_oldest)
+      sub.linger = 0
       sub.recv_hwm = 3
       sub.connect("inproc://pubsub-drop-oldest")
       sub.subscribe("")
@@ -174,11 +175,11 @@ describe "PUB/SUB" do
 
   it "set_unbounded works with PUB" do
     Async do
-      pub = OMQ::PUB.new(nil, linger: 0)
+      pub = OMQ::PUB.new.tap { |s| s.linger = 0 }
       pub.set_unbounded
       pub.bind("inproc://pubsub-unbounded")
 
-      sub = OMQ::SUB.new(nil, linger: 0)
+      sub = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.set_unbounded
       sub.connect("inproc://pubsub-unbounded")
       sub.subscribe("")
@@ -201,7 +202,7 @@ describe "XPUB/XSUB" do
   it "XPUB receives subscription notifications" do
     Async do
       xpub = OMQ::XPUB.bind("inproc://xpub-sub-1")
-      sub  = OMQ::SUB.new(nil, linger: 0)
+      sub  = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.connect("inproc://xpub-sub-1")
       sub.subscribe("weather.")
 
@@ -270,7 +271,7 @@ describe "XPUB/XSUB" do
   it "XPUB receives unsubscription notifications" do
     Async do
       xpub = OMQ::XPUB.bind("inproc://xpub-unsub-1")
-      sub  = OMQ::SUB.new(nil, linger: 0)
+      sub  = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.connect("inproc://xpub-unsub-1")
       sub.subscribe("topic.")
 
@@ -295,7 +296,7 @@ describe "XPUB/XSUB" do
       xpub = OMQ::XPUB.bind("tcp://127.0.0.1:0")
       port = xpub.last_tcp_port
 
-      sub = OMQ::SUB.new(nil, linger: 0)
+      sub = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.connect("tcp://127.0.0.1:#{port}")
       sub.subscribe("topic.")
 

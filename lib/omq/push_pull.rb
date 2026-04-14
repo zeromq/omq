@@ -7,15 +7,18 @@ module OMQ
     include Writable
 
     # @param endpoints [String, nil] endpoint to bind/connect
-    # @param linger [Integer] linger period in seconds
+    # @param linger [Numeric] linger period in seconds (Float::INFINITY = wait forever, 0 = drop)
     # @param send_hwm [Integer, nil] send high water mark (nil uses default)
     # @param send_timeout [Numeric, nil] send timeout in seconds
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
-    def initialize(endpoints = nil, linger: 0, send_hwm: nil, send_timeout: nil, backend: nil)
-      init_engine(:PUSH, linger: linger, send_hwm: send_hwm, send_timeout: send_timeout, backend: backend)
+    def initialize(endpoints = nil, linger: Float::INFINITY, send_hwm: nil, send_timeout: nil, backend: nil, &block)
+      init_engine(:PUSH, send_hwm: send_hwm, send_timeout: send_timeout, backend: backend)
+      @options.linger = linger
       attach_endpoints(endpoints, default: :connect)
+      finalize_init(&block)
     end
+
   end
 
 
@@ -25,14 +28,16 @@ module OMQ
     include Readable
 
     # @param endpoints [String, nil] endpoint to bind/connect
-    # @param linger [Integer] linger period in seconds
     # @param recv_hwm [Integer, nil] receive high water mark (nil uses default)
     # @param recv_timeout [Numeric, nil] receive timeout in seconds
     # @param backend [Symbol, nil] :ruby (default) or :ffi
     #
-    def initialize(endpoints = nil, linger: 0, recv_hwm: nil, recv_timeout: nil, backend: nil)
-      init_engine(:PULL, linger: linger, recv_hwm: recv_hwm, recv_timeout: recv_timeout, backend: backend)
+    def initialize(endpoints = nil, recv_hwm: nil, recv_timeout: nil, backend: nil, &block)
+      init_engine(:PULL, recv_hwm: recv_hwm, recv_timeout: recv_timeout, backend: backend)
       attach_endpoints(endpoints, default: :bind)
+      finalize_init(&block)
     end
+
   end
+
 end

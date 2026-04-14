@@ -20,8 +20,8 @@ describe "non-Async usage" do
 
   it "unregisters linger when a socket is closed before shutdown" do
     # skip 'non-Async seems broken'
-    a = OMQ::PUSH.new(nil, linger: 0)
-    b = OMQ::PUSH.new(nil, linger: 0)
+    a = OMQ::PUSH.new.tap { |s| s.linger = 0 }
+    b = OMQ::PUSH.new.tap { |s| s.linger = 0 }
     a.bind("tcp://127.0.0.1:0")
     b.bind("tcp://127.0.0.1:0")
 

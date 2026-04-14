@@ -80,10 +80,10 @@ describe "PUSH/PULL over inproc" do
       sink_a    = OMQ::PULL.bind("ipc://@omq_test_pipe_out_a_#{$$}")
       sink_b    = OMQ::PULL.bind("ipc://@omq_test_pipe_out_b_#{$$}")
 
-      source = OMQ::PUSH.new(nil, linger: 5)
+      source = OMQ::PUSH.new.tap { |s| s.linger = 5 }
       source.connect("ipc://@omq_test_pipe_in_#{$$}")
 
-      pipe_push = OMQ::PUSH.new(nil, linger: 5)
+      pipe_push = OMQ::PUSH.new.tap { |s| s.linger = 5 }
       pipe_push.connect("ipc://@omq_test_pipe_out_a_#{$$}")
       pipe_push.connect("ipc://@omq_test_pipe_out_b_#{$$}")
 
@@ -153,7 +153,7 @@ describe "PUSH/PULL delivery guarantees" do
 
   it "delivers messages when inproc connect happens before bind" do
     Async do
-      push = OMQ::PUSH.new(nil, linger: 1)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.reconnect_interval = RECONNECT_INTERVAL
       push.connect("inproc://dg-inproc-cb")
 
@@ -208,7 +208,7 @@ describe "PUSH/PULL delivery guarantees" do
   it "delivers messages when IPC connect happens before bind" do
     Async do
       path = "/tmp/omq-test-dg-ipc-cb-#{$$}.sock"
-      push                      = OMQ::PUSH.new(nil, linger: 1)
+      push                      = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.reconnect_interval   = RECONNECT_INTERVAL
       push.connect("ipc://#{path}")
 
@@ -241,7 +241,7 @@ describe "PUSH/PULL delivery guarantees" do
       path = "/tmp/omq-test-dg-ipc-bc-#{$$}.sock"
       pull = OMQ::PULL.bind("ipc://#{path}")
 
-      push = OMQ::PUSH.new(nil, linger: 1)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.connect("ipc://#{path}")
       wait_connected(push, pull)
 
@@ -264,7 +264,7 @@ describe "PUSH/PULL delivery guarantees" do
 
   it "delivers messages when TCP connect happens before bind" do
     Async do
-      push                      = OMQ::PUSH.new(nil, linger: 1)
+      push                      = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.reconnect_interval   = RECONNECT_INTERVAL
       push.connect("tcp://127.0.0.1:19890")
 
@@ -296,7 +296,7 @@ describe "PUSH/PULL delivery guarantees" do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 1)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)
 
@@ -347,7 +347,7 @@ describe "PUSH/PULL delivery guarantees" do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push                      = OMQ::PUSH.new(nil, linger: 1)
+      push                      = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.reconnect_interval   = RECONNECT_INTERVAL
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)
@@ -383,11 +383,11 @@ describe "PUSH/PULL delivery guarantees" do
 
   it "set_unbounded works (HWM=0)" do
     Async do
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.set_unbounded
       push.bind("inproc://pushpull-unbounded")
 
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.set_unbounded
       pull.connect("inproc://pushpull-unbounded")
 
@@ -402,12 +402,12 @@ describe "PUSH/PULL delivery guarantees" do
 
   it "unbounded via HWM=nil" do
     Async do
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.send_hwm = nil
       push.recv_hwm = nil
       push.bind("inproc://pushpull-nil-hwm")
 
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.send_hwm = nil
       pull.recv_hwm = nil
       pull.connect("inproc://pushpull-nil-hwm")

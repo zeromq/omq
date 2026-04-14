@@ -5,13 +5,13 @@ require_relative "../test_helper"
 describe "Heartbeat" do
   it "sends PING and receives PONG over TCP" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.heartbeat_interval = 0.05
       rep.heartbeat_ttl      = 0.5
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.heartbeat_interval = 0.05
       req.heartbeat_ttl      = 0.5
       req.connect("tcp://127.0.0.1:#{port}")
@@ -44,13 +44,13 @@ describe "Heartbeat" do
 
   it "detects dead peer via heartbeat timeout" do
     Async do
-      rep = OMQ::REP.new(nil, linger: 0)
+      rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.heartbeat_interval = 0.02
       rep.heartbeat_timeout  = 0.06
       rep.bind("tcp://127.0.0.1:0")
       port = rep.last_tcp_port
 
-      req = OMQ::REQ.new(nil, linger: 0)
+      req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
 
       # Exchange one message

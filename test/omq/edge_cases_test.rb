@@ -30,7 +30,7 @@ describe "Edge cases" do
         pull = OMQ::PULL.bind("inproc://edge-rapid")
 
         20.times do |i|
-          push = OMQ::PUSH.new(nil, linger: 1)
+          push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
           push.connect("inproc://edge-rapid")
           push.send("msg-#{i}")
           Async::Task.current.yield
@@ -58,7 +58,7 @@ describe "Edge cases" do
         port = pull.last_tcp_port
 
         10.times do |i|
-          push = OMQ::PUSH.new(nil, linger: 1)
+          push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
           push.connect("tcp://127.0.0.1:#{port}")
           sleep 0.01
           push.send("msg-#{i}")

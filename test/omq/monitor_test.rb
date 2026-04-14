@@ -10,13 +10,13 @@ describe "Socket#monitor" do
   it "emits lifecycle events in order for TCP bind side" do
     Async do
       events = []
-      pull   = OMQ::PULL.new(nil, linger: 0)
+      pull   = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.monitor { |e| events << e }
 
       pull.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)
 
@@ -44,7 +44,7 @@ describe "Socket#monitor" do
   it "emits lifecycle events in order for TCP connect side" do
     Async do
       events = []
-      push   = OMQ::PUSH.new(nil, linger: 0)
+      push   = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.monitor { |e| events << e }
 
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
@@ -75,7 +75,7 @@ describe "Socket#monitor" do
   it "emits lifecycle events in order for inproc" do
     Async do
       events = []
-      pull   = OMQ::PULL.new(nil, linger: 0)
+      pull   = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.monitor { |e| events << e }
 
       pull.bind("inproc://monitor-inproc")
@@ -103,14 +103,14 @@ describe "Socket#monitor" do
   it "includes the ZMTP error message in :disconnected detail" do
     Async do
       events = []
-      pull   = OMQ::PULL.new(nil, linger: 0)
+      pull   = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.max_message_size = 10
       pull.monitor { |e| events << e }
 
       pull.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)
 
@@ -138,7 +138,7 @@ describe "Socket#monitor" do
   it "emits connect_delayed then connect_retried on failed connects" do
     Async do
       events = []
-      push   = OMQ::PUSH.new(nil, linger: 0)
+      push   = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.reconnect_interval = RECONNECT_INTERVAL
       push.monitor { |e| events << e }
 
@@ -162,7 +162,7 @@ describe "Socket#monitor" do
   it "emits disconnected when peer closes" do
     Async do
       events = []
-      push   = OMQ::PUSH.new(nil, linger: 0)
+      push   = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.reconnect_enabled = false
       push.monitor { |e| events << e }
 
@@ -190,7 +190,7 @@ describe "Socket#monitor" do
   it "emits monitor_stopped when task is stopped early" do
     Async do
       events = []
-      push   = OMQ::PUSH.new(nil, linger: 0)
+      push   = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       task   = push.monitor { |e| events << e }
 
       push.bind("tcp://127.0.0.1:0")

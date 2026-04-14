@@ -23,12 +23,12 @@ describe "Per-connection task tree" do
 
   it "recv pump and heartbeat are children of the connection task" do
     Async do |task|
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.heartbeat_interval = 1
       pull.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.heartbeat_interval = 1
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push)
@@ -53,11 +53,11 @@ describe "Per-connection task tree" do
 
   it "reaper is reachable from the socket root task on PUSH" do
     Async do |task|
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.bind("tcp://127.0.0.1:0")
       port = push.last_tcp_port
 
-      pull = OMQ::PULL.new(nil, linger: 0)
+      pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.connect("tcp://127.0.0.1:#{port}")
       wait_connected(pull)
 
