@@ -9,7 +9,7 @@ describe "send_timeout" do
     Async do
       # No peer connected — the send queue (HWM=1) fills immediately
       # and the second enqueue blocks until send_timeout fires.
-      push = OMQ::PUSH.new(nil, send_hwm: 1, send_timeout: 0.02)
+      push = OMQ::PUSH.new(nil, send_hwm: 1, send_timeout: 0.02, linger: 0)
       push.bind("ipc://@omq-test-send-timeout")
 
       assert_raises IO::TimeoutError do
