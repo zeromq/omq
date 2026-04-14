@@ -104,7 +104,19 @@ module OMQ
               recv_queue.enqueue(msg)
 
               count += 1
-              bytes += msg.sum { |part| part.bytesize } if count_bytes
+
+              # hot path
+              if count_bytes
+                if msg.size == 1
+                  bytes += msg.first.bytesize
+                else
+                  i, n = 0, msg.size
+                  while i < n
+                    bytes += msg[i].bytesize
+                    i += 1
+                  end
+                end
+              end
             end
 
             task.yield
@@ -132,13 +144,28 @@ module OMQ
           loop do
             count = 0
             bytes = 0
+
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
               engine.emit_verbose_msg_received(conn, msg)
               recv_queue.enqueue(msg)
+
               count += 1
-              bytes += msg.sum { |part| part.bytesize } if count_bytes
+
+              # hot path
+              if count_bytes
+                if msg.size == 1
+                  bytes += msg.first.bytesize
+                else
+                  i, n = 0, msg.size
+                  while i < n
+                    bytes += msg[i].bytesize
+                    i += 1
+                  end
+                end
+              end
             end
+
             task.yield
           end
         rescue Async::Stop, Async::Cancel

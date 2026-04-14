@@ -96,7 +96,7 @@ module OMQ
             Routing.drain_send_queue(@send_queue, batch)
 
             if batch.size == 1
-              conn.write_message(batch[0])
+              conn.write_message(batch.first)
             else
               conn.write_messages(batch)
             end

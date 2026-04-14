@@ -124,6 +124,12 @@ module OMQ
           end
         end
 
+        # Single-connection fast path: skip Enumerator#next entirely.
+        # The vast majority of sockets have exactly one peer.
+        if @queues.size == 1
+          return @queues.first.dequeue(timeout: 0)
+        end
+
         @queues.size.times do
           q = begin
                 @cycle.next

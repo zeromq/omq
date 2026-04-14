@@ -158,7 +158,7 @@ module OMQ
 
 
       def drain_send_queue_capped(batch)
-        bytes = batch_bytes(batch[0])
+        bytes = batch_bytes(batch.first)
         while batch.size < BATCH_MSG_CAP && bytes < BATCH_BYTE_CAP
           msg = @send_queue.dequeue(timeout: 0)
           break unless msg
@@ -174,13 +174,25 @@ module OMQ
       # fairness cap rather than crashing on #bytesize.
       #
       def batch_bytes(parts)
-        parts.sum { |p| p.respond_to?(:bytesize) ? p.bytesize : 0 }
+        if parts.size == 1
+          p = parts.first
+          p.respond_to?(:bytesize) ? p.bytesize : 0
+        else
+          total = 0
+          i, n  = 0, parts.size
+          while i < n
+            p      = parts[i]
+            total += p.bytesize if p.respond_to?(:bytesize)
+            i     += 1
+          end
+          total
+        end
       end
 
 
       def write_batch(conn, batch)
         if batch.size == 1
-          conn.send_message(transform_send(batch[0]))
+          conn.send_message(transform_send(batch.first))
         else
           conn.write_messages(batch)
           conn.flush
