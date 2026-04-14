@@ -20,7 +20,7 @@ exists to handle the reality that none of this is true:
 | Topology doesn't change | Bind/connect separation; peers come and go freely |
 | There is one administrator | No broker required; any topology works peer-to-peer |
 | Transport cost is zero | Batched writes reduce syscalls; inproc skips the kernel |
-| The network is homogeneous | ZMTP is a wire protocol; interop with libzmq, nanomsg, etc. |
+| The network is homogeneous | ZMTP is a wire protocol; interop with libzmq, pyzmq, CZMQ, zmq.rs |
 
 OMQ brings all of this to Ruby without C extensions or FFI.
 
@@ -163,7 +163,9 @@ so racing pumps can't double-fire side effects.
 
 **Linger.** On close, send queues are drained for up to `linger` seconds.
 If no peers are connected, listeners stay open so late-arriving peers can
-still receive queued messages. `linger=0` closes immediately.
+still receive queued messages. The default is `Float::INFINITY` (matches
+libzmq: wait forever). `linger=0` closes immediately, dropping anything
+still queued.
 
 **Reconnect.** Failed or lost connections are retried with configurable
 interval (default 100ms). Supports exponential backoff via a Range
@@ -248,9 +250,10 @@ Under light load, batch size is 1 -- no overhead. Under burst load (producer
 faster than consumer), the batch grows and flushes are amortized:
 `N_msgs * N_conns` syscalls become `N_conns` per cycle.
 
-io-stream auto-flushes its write buffer at 64 KB, so large batches hit the
-wire naturally during the write loop. The explicit flush at the end only
-pushes the remainder that didn't fill a buffer.
+io-stream auto-flushes its write buffer at 256 KB (its default
+`MINIMUM_WRITE_SIZE`), so large batches hit the wire naturally during
+the write loop. The explicit flush at the end only pushes the remainder
+that didn't fill a buffer.
 
 For fan-out (PUB/RADIO), one published message is written to all matching
 subscribers before flushing -- so N subscribers see 1 flush each, not N
