@@ -8,7 +8,7 @@ describe "Linger" do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 1)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.connect("tcp://127.0.0.1:#{port}")
 
       # Send several messages
@@ -32,7 +32,7 @@ describe "Linger" do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 0)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}")
 
       push.send("before close")
@@ -56,7 +56,7 @@ describe "Linger" do
       port = tmp.local_address.ip_port
       tmp.close
 
-      push = OMQ::PUSH.new(nil, linger: 5)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 5 }
       push.reconnect_interval = RECONNECT_INTERVAL
       push.connect("tcp://127.0.0.1:#{port}")
 
@@ -84,7 +84,7 @@ describe "Linger" do
       port = tmp.local_address.ip_port
       tmp.close
 
-      push = OMQ::PUSH.new(nil, linger: 5)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 5 }
       push.reconnect_interval = RECONNECT_INTERVAL
       push.connect("tcp://127.0.0.1:#{port}")
 
@@ -113,7 +113,7 @@ describe "Linger" do
       pull_a = OMQ::PULL.bind("tcp://127.0.0.1:0")
       pull_b = OMQ::PULL.bind("tcp://127.0.0.1:0")
 
-      push = OMQ::PUSH.new(nil, linger: 5)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 5 }
       push.connect("tcp://127.0.0.1:#{pull_a.last_tcp_port}")
       push.connect("tcp://127.0.0.1:#{pull_b.last_tcp_port}")
 
@@ -151,12 +151,38 @@ describe "Linger" do
     end
   end
 
+  it "aborts drain cleanly when the close task is stopped mid-linger" do
+    # Regression: drain_send_queues used to propagate Async::Stop out of
+    # close when the enclosing task was cancelled, leaving teardown
+    # half-done. It now rescues Async::Stop so close can finish the
+    # rest of its teardown.
+    Async do
+      # No peer — the message sits in the send queue forever, so
+      # drain_send_queues would otherwise spin until linger expires.
+      push = OMQ::PUSH.new(nil, send_hwm: 1, linger: Float::INFINITY)
+      push.bind("ipc://@omq-test-drain-cancel")
+      push.send("stuck")
+
+      closer = Async { push.close }
+      sleep 0.01 # let close enter drain_send_queues' sleep loop
+
+      elapsed = Async::Clock.measure do
+        closer.stop
+        closer.wait
+      end
+
+      # Stop should unblock the drain immediately rather than hanging
+      # on Float::INFINITY linger, and must not propagate out.
+      assert_operator elapsed, :<, 0.1
+    end
+  end
+
   it "actually delivers all messages before close completes over TCP" do
     Async do
       pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
       port = pull.last_tcp_port
 
-      push = OMQ::PUSH.new(nil, linger: 2)
+      push = OMQ::PUSH.new.tap { |s| s.linger = 2 }
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)
 

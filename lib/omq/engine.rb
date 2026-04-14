@@ -587,6 +587,10 @@ module OMQ
         break if deadline && (deadline - Async::Clock.now) <= 0
         sleep 0.001
       end
+    rescue Async::Stop
+      # Parent task is being cancelled — stop draining and let close
+      # proceed with the rest of teardown instead of propagating the
+      # cancellation out of the ensure path.
     end
 
 
