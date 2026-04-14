@@ -21,9 +21,8 @@ require 'protocol/zmtp/mechanism/curve'
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
-  # Sizes cover four orders of magnitude:
-  #   tiny (64 B), small (1 KiB), medium (8 KiB), large (64 KiB)
-  SIZES = [64, 1024, 8192, 65_536].freeze
+  # ×4 geometric sweep from 128 B to 32 KiB.
+  SIZES = [128, 512, 2048, 8192, 32_768].freeze
 
   # Each cell runs ROUNDS timed rounds and reports the fastest one.
   # Transient jitter (GC, scheduler preemption, YJIT tier-up, kernel

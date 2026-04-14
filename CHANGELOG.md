@@ -1,5 +1,55 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Default `linger` is now `Float::INFINITY`** (matches libzmq). Sockets
+  wait forever on close for queued messages to drain unless `linger` is
+  set explicitly. Pass `linger: 0` to keep the old "drop on close"
+  behavior. `Options#linger` now always returns a `Numeric` (never `nil`).
+- **Socket constructors accept a block.** `OMQ::PUSH.new { |p| ... }`
+  yields the socket, then closes it (even on exception) — `File.open`
+  style. Applies to every socket type.
+- **Per-socket-type constructors take the full kwarg set** they support:
+  `send_hwm`, `recv_hwm`, `send_timeout`, `recv_timeout`, `linger`,
+  `backend`, plus pattern-specific ones (`subscribe:`, `on_mute:`,
+  `conflate:`). Previously some only accepted `linger`.
+- **Hot-path recv pump: size-1 fast path for byte counting.** The
+  `FAIRNESS_BYTES` accumulator in `RecvPump#start_direct` (and its
+  transform variant) now short-circuits single-frame messages instead
+  of iterating, keeping both entry methods monomorphic for YJIT.
+- **Hot-path round-robin `batch_bytes`** short-circuits single-frame
+  batches the same way, replacing `parts.sum { ... }` with a direct
+  `bytesize` call.
+- **Fair-queue single-connection fast path.** `try_dequeue` now skips
+  `Enumerator#next` when a fair-queue recv socket has exactly one peer
+  (the common case) and dequeues directly from the sole queue.
+- **`drain_send_queues` is cancellation-safe.** `Async::Stop` raised at
+  the drain sleep point (e.g. from a parent `task.stop`) is now rescued
+  so `Socket#close` can finish the rest of its teardown instead of
+  propagating the cancellation out of the ensure path.
+- **Hot-path `Array#[0]` → `Array#first`** in writable batching and
+  pair routing — `#first` has a dedicated YJIT specialization that is
+  measurably faster on single-frame messages.
+- **Benchmark size sweep reworked.** `SIZES` is now a ×4 geometric
+  progression `128, 512, 2048, 8192, 32_768` bytes, replacing
+  `64 / 1024 / 8192 / 65_536`. Fills the 64 B → 1 KiB gap, drops 64 KiB
+  (tcp/ipc already saturated at 32 KiB, inproc regressed). `report.rb
+  --update-readme` and `bench/README.md` regenerated.
+
+### Fixed
+
+- **Slow `send_timeout` test.** The `raises IO::TimeoutError when send
+  blocks longer than send_timeout` test now constructs its PUSH with
+  `linger: 0`. Previously the undeliverable fill message combined with
+  the new default `linger: Float::INFINITY` made the close-in-ensure
+  path wait out the full linger budget, silently eating the enclosing
+  `task.with_timeout` and inflating suite runtime.
+- **Test suite runtime.** `TEST_ASYNC_TIMEOUT` lowered from 5 s to 1 s:
+  real hangs fail fast and the full suite finishes in ~3 s instead of
+  ~8 s.
+
 ## 0.19.3 — 2026-04-13
 
 ### Changed

@@ -39,7 +39,7 @@ rows = File.readlines(RESULTS_PATH).map { |line| JSON.parse(line, symbolize_name
 if options[:update_readme]
   README_PATH = File.join(__dir__, "README.md")
   TRANSPORTS  = %w[inproc ipc tcp].freeze
-  SIZE_LABELS = { 64 => "64 B", 1024 => "1 KiB", 8192 => "8 KiB", 65_536 => "64 KiB" }.freeze
+  SIZE_LABELS = { 128 => "128 B", 512 => "512 B", 2048 => "2 KiB", 8192 => "8 KiB", 32_768 => "32 KiB" }.freeze
 
   latest = rows.map { |r| r[:run_id] }.uniq.max
   abort "No runs found in #{RESULTS_PATH}" unless latest
