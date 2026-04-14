@@ -298,6 +298,11 @@ module OMQ
     def attach_endpoints(endpoints, default:)
       return unless endpoints
 
+      if endpoints.is_a?(Array)
+        endpoints.each { |ep| attach_endpoints(ep, default: default) }
+        return
+      end
+
       case endpoints
       when /\A@(.+)\z/
         bind($1)

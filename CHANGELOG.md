@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`Socket#attach_endpoints` accepts arrays.** Constructors passed an
+  array of endpoint strings now bind/connect each one in order, so
+  `OMQ::SUB.new(["inproc://a", "inproc://b"])` works.
+- **PUB/SUB regression test** for a SUB with sequential post-hoc
+  `#connect` calls to multiple bound PUBs, mirroring the SCATTER/GATHER
+  post-hoc-connect coverage.
+
 ## 0.20.0 — 2026-04-14
 
 ### Changed

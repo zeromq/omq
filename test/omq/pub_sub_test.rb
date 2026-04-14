@@ -23,6 +23,31 @@ describe "PUB/SUB" do
     end
   end
 
+  it "SUB post-hoc connects to multiple PUBs and closes cleanly" do
+    Sync do
+      pub1 = OMQ::PUB.bind("inproc://pubsub-multi-1")
+      pub2 = OMQ::PUB.bind("inproc://pubsub-multi-2")
+
+      sub = OMQ::SUB.new
+      sub.connect("inproc://pubsub-multi-1")
+      sub.connect("inproc://pubsub-multi-2")
+      sub.subscribe("")
+
+      pub1.subscriber_joined.wait
+      pub2.subscriber_joined.wait
+
+      pub1.send("from-1")
+      pub2.send("from-2")
+
+      received = 2.times.map { sub.receive.first }
+      assert_equal ["from-1", "from-2"].sort, received.sort
+    ensure
+      sub&.close
+      pub1&.close
+      pub2&.close
+    end
+  end
+
   it "fans out to multiple inproc subscribers" do
     Async do
       pub = OMQ::PUB.bind("inproc://pubsub-fanout-inproc")
