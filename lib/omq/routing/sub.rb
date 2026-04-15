@@ -48,7 +48,7 @@ module OMQ
         @connections << connection
 
         @subscriptions.each do |prefix|
-          connection.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
+          send_subscribe(connection, prefix)
         end
 
         task = @engine.start_recv_pump(connection, @recv_queue)
@@ -76,9 +76,7 @@ module OMQ
       #
       def subscribe(prefix)
         @subscriptions << prefix
-        @connections.each do |conn|
-          conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
-        end
+        @connections.each { |conn| send_subscribe(conn, prefix) }
       end
 
 
@@ -88,9 +86,7 @@ module OMQ
       #
       def unsubscribe(prefix)
         @subscriptions.delete(prefix)
-        @connections.each do |conn|
-          conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
-        end
+        @connections.each { |conn| send_cancel(conn, prefix) }
       end
 
 
@@ -101,6 +97,30 @@ module OMQ
       def stop
         @tasks.each(&:stop)
         @tasks.clear
+      end
+
+
+      private
+
+
+      # Sends a SUBSCRIBE to +conn+ using the wire form the peer understands:
+      # command-form for ZMTP 3.1+, legacy message-form for ZMTP 3.0.
+      #
+      def send_subscribe(conn, prefix)
+        if conn.peer_minor >= 1
+          conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
+        else
+          conn.send_message([Protocol::ZMTP::Codec::Subscription.body(prefix)])
+        end
+      end
+
+
+      def send_cancel(conn, prefix)
+        if conn.peer_minor >= 1
+          conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
+        else
+          conn.send_message([Protocol::ZMTP::Codec::Subscription.body(prefix, cancel: true)])
+        end
       end
 
     end

@@ -112,9 +112,19 @@ module OMQ
 
             case flag
             when 0x01
-              conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
+              if conn.peer_minor >= 1
+                conn.send_command(Protocol::ZMTP::Codec::Command.subscribe(prefix))
+              else
+                conn.send_message([frame])
+              end
             when 0x00
-              conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
+              if conn.peer_minor >= 1
+                conn.send_command(Protocol::ZMTP::Codec::Command.cancel(prefix))
+              else
+                conn.send_message([frame])
+              end
+            else
+              next
             end
           end
         end

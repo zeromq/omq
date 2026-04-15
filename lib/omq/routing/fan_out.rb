@@ -133,15 +133,14 @@ module OMQ
         @tasks << @engine.spawn_conn_pump_task(conn, annotation: "subscription listener") do
           loop do
             frame = conn.read_frame
-            next unless frame.command?
 
-            cmd = Protocol::ZMTP::Codec::Command.from_body(frame.body)
-
-            case cmd.name
-            when "SUBSCRIBE"
-              on_subscribe(conn, cmd.data)
-            when "CANCEL"
-              on_cancel(conn, cmd.data)
+            case Protocol::ZMTP::Codec::Subscription.parse(frame)
+            in [:subscribe, prefix]
+              on_subscribe(conn, prefix)
+            in [:cancel, prefix]
+              on_cancel(conn, prefix)
+            else
+              next
             end
           end
         end

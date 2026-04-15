@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **PUB/SUB interop with ZMTP 3.0 peers** (libzmq, JeroMQ, pyzmq,
+  NetMQ). OMQ previously sent `SUBSCRIBE`/`CANCEL` as ZMTP 3.1
+  command frames unconditionally; 3.0 peers expect message-form
+  (`\x01`/`\x00` + prefix data frames) and silently dropped them.
+  `Routing::Sub` and `Routing::XSub` now dispatch on
+  `conn.peer_minor`: command-form to ZMTP 3.1+ peers,
+  message-form to ZMTP 3.0 peers. `FanOut`'s subscription listener
+  already accepts both forms via `Protocol::ZMTP::Codec::Subscription.parse`,
+  so PUB/XPUB now also accept legacy message-form subscriptions
+  from 3.0 peers. Verified against JeroMQ in all six role/direction
+  combinations.
+- **ZMTP/2.0 peers are now dropped loudly** during handshake
+  instead of hanging `read_exactly` forever. The underlying
+  `Greeting.read_from` helper in `protocol-zmtp` sniffs the
+  revision byte after 11 bytes and raises; the engine's existing
+  handshake-failure path closes the connection.
+- **`Inproc::DirectPipe#read_frame`** now returns a data `Frame`
+  for non-command queue entries instead of silently dropping
+  them. Previously the fast-path `read_frame` only handled
+  `[:command, cmd]`-tagged items, so a message-form subscription
+  arriving on an inproc pipe was lost. Fallout from the PUB/SUB
+  fix above — without it the inproc tests for that path hung.
+
+### Added
+
+- **ZMTP 3.0 / 3.1 compat tests** (`test/omq/zmtp_30_compat_test.rb`).
+  Hand-crafted raw TCP peer fakes cover: OMQ SUB → 3.0 PUB (message-form),
+  OMQ SUB → 3.1 PUB (command-form), OMQ XSUB → 3.0 PUB, OMQ XSUB → 3.1 PUB,
+  and OMQ PUB accepting message-form SUBSCRIBE from a 3.0 SUB peer.
+- **`Inproc::DirectPipe#peer_major` / `#peer_minor`** — hard-coded to
+  3/1 since both ends of an inproc pipe are OMQ. Lets the routing
+  layer dispatch uniformly on `conn.peer_minor` without special-casing
+  the transport.
+
 ## 0.21.0 — 2026-04-15
 
 ### Changed

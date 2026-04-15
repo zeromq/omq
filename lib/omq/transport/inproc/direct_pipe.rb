@@ -20,6 +20,20 @@ module OMQ
         attr_reader :peer_socket_type
 
 
+        # @return [Integer] always 3 — inproc peers are OMQ
+        #
+        def peer_major
+          3
+        end
+
+
+        # @return [Integer] always 1 — inproc peers are OMQ (ZMTP 3.1)
+        #
+        def peer_minor
+          1
+        end
+
+
         # @return [String] peer's identity
         #
         attr_reader :peer_identity
@@ -158,19 +172,20 @@ module OMQ
         end
 
 
-        # Reads one command frame from the internal command queue.
-        # Used by PUB/XPUB subscription listeners.
+        # Reads one frame. Used by PUB/XPUB subscription listeners,
+        # which must see both the legacy message-form subscription
+        # (ZMTP 3.0) and the command-form (ZMTP 3.1).
         #
         # @return [Protocol::ZMTP::Codec::Frame]
         #
         def read_frame
-          loop do
-            item = @receive_queue.dequeue
-            raise EOFError, "connection closed" if item.nil?
+          item = @receive_queue.dequeue
+          raise EOFError, "connection closed" if item.nil?
 
-            if item.is_a?(Array) && item.first == :command
-              return Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true)
-            end
+          if item.is_a?(Array) && item.first == :command
+            Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true)
+          else
+            Protocol::ZMTP::Codec::Frame.new(item.first || "".b)
           end
         end
 
