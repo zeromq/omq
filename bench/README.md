@@ -1,10 +1,10 @@
 # Benchmarks
 
-Measured on Linux x86_64, Ruby 4.0.2 +YJIT. Each cell is the fastest of 3
-timed rounds (~1 s each) after a calibration warmup, so transient
-scheduler/GC jitter is filtered out. Between-run variance on the same
-machine is ~5-15 % depending on transport; treat single-digit deltas
-across runs as noise.
+Measured in a Linux VM on a 2019 Intel MacBook Pro, Ruby 4.0.2 +YJIT. Each cell
+is the fastest of 3 timed rounds (~1 s each) after a calibration warmup, so
+transient scheduler/GC jitter is filtered out. Between-run variance on the same
+machine is ~5-15 % depending on transport; treat single-digit deltas across
+runs as noise.
 
 Regenerate the tables below from the latest run in `results.jsonl`:
 
@@ -25,21 +25,21 @@ ruby bench/report.rb --update-readme
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 128 B | 818.0k msg/s / 105 MB/s | 327.8k msg/s / 42.0 MB/s | 328.7k msg/s / 42.1 MB/s |
-| 512 B | 815.9k msg/s / 418 MB/s | 216.4k msg/s / 111 MB/s | 205.8k msg/s / 105 MB/s |
-| 2 KiB | 917.1k msg/s / 1.88 GB/s | 180.4k msg/s / 370 MB/s | 159.6k msg/s / 327 MB/s |
-| 8 KiB | 931.7k msg/s / 7.63 GB/s | 93.5k msg/s / 766 MB/s | 94.8k msg/s / 777 MB/s |
-| 32 KiB | 919.2k msg/s / 30.12 GB/s | 34.6k msg/s / 1.13 GB/s | 32.4k msg/s / 1.06 GB/s |
+| 128 B | 1.04M msg/s / 133 MB/s | 361.4k msg/s / 46.3 MB/s | 357.7k msg/s / 45.8 MB/s |
+| 512 B | 1.11M msg/s / 568 MB/s | 251.9k msg/s / 129 MB/s | 249.7k msg/s / 128 MB/s |
+| 2 KiB | 1.23M msg/s / 2.52 GB/s | 190.0k msg/s / 389 MB/s | 188.0k msg/s / 385 MB/s |
+| 8 KiB | 1.23M msg/s / 10.09 GB/s | 98.6k msg/s / 808 MB/s | 93.3k msg/s / 764 MB/s |
+| 32 KiB | 1.22M msg/s / 40.11 GB/s | 35.5k msg/s / 1.16 GB/s | 32.5k msg/s / 1.06 GB/s |
 
 ### 3 peers
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 128 B | 461.4k msg/s / 59.1 MB/s | 238.3k msg/s / 30.5 MB/s | 239.0k msg/s / 30.6 MB/s |
-| 512 B | 450.6k msg/s / 231 MB/s | 149.1k msg/s / 76.3 MB/s | 150.1k msg/s / 76.9 MB/s |
-| 2 KiB | 461.3k msg/s / 945 MB/s | 145.1k msg/s / 297 MB/s | 131.3k msg/s / 269 MB/s |
-| 8 KiB | 461.5k msg/s / 3.78 GB/s | 80.5k msg/s / 660 MB/s | 82.0k msg/s / 672 MB/s |
-| 32 KiB | 463.8k msg/s / 15.20 GB/s | 30.9k msg/s / 1.01 GB/s | 28.5k msg/s / 935 MB/s |
+| 128 B | 1.24M msg/s / 158 MB/s | 360.5k msg/s / 46.1 MB/s | 359.3k msg/s / 46.0 MB/s |
+| 512 B | 1.17M msg/s / 598 MB/s | 214.9k msg/s / 110 MB/s | 225.6k msg/s / 115 MB/s |
+| 2 KiB | 1.22M msg/s / 2.50 GB/s | 180.0k msg/s / 369 MB/s | 179.6k msg/s / 368 MB/s |
+| 8 KiB | 1.21M msg/s / 9.94 GB/s | 96.8k msg/s / 793 MB/s | 93.0k msg/s / 762 MB/s |
+| 32 KiB | 1.23M msg/s / 40.20 GB/s | 33.9k msg/s / 1.11 GB/s | 32.7k msg/s / 1.07 GB/s |
 
 <!-- END push_pull -->
 
@@ -58,11 +58,11 @@ Latency is `1 / msgs_s` converted to µs.
 <!-- BEGIN req_rep -->
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 128 B | 11.5 µs | 54.2 µs | 68.6 µs |
-| 512 B | 11.6 µs | 59.2 µs | 70.5 µs |
-| 2 KiB | 11.2 µs | 62.1 µs | 75.7 µs |
-| 8 KiB | 11.3 µs | 68.1 µs | 78.3 µs |
-| 32 KiB | 11.6 µs | 89.9 µs | 111 µs |
+| 128 B | 9.09 µs | 48.8 µs | 63.5 µs |
+| 512 B | 9.07 µs | 55.0 µs | 69.4 µs |
+| 2 KiB | 8.71 µs | 59.7 µs | 72.2 µs |
+| 8 KiB | 8.78 µs | 64.2 µs | 77.1 µs |
+| 32 KiB | 8.74 µs | 79.6 µs | 95.0 µs |
 
 <!-- END req_rep -->
 

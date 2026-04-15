@@ -5,9 +5,9 @@
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Ruby](https://img.shields.io/badge/Ruby-%3E%3D%203.3-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
 
-> **932k msg/s** inproc | **328k msg/s** ipc | **329k msg/s** tcp
+> **1.23M msg/s** inproc | **361k msg/s** ipc | **358k msg/s** tcp
 >
-> **11.5 µs** inproc latency | **54 µs** ipc | **69 µs** tcp
+> **9.1 µs** inproc latency | **49 µs** ipc | **64 µs** tcp
 >
 > Ruby 4.0 + YJIT on a Linux VM — see [`bench/`](bench/) for full results
 
