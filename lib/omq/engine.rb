@@ -273,7 +273,7 @@ module OMQ
     # Starts a recv pump for a connection, or wires the inproc fast path.
     #
     # @param conn [Connection, Transport::Inproc::DirectPipe]
-    # @param recv_queue [SignalingQueue]
+    # @param recv_queue [Async::LimitedQueue]
     # @yield [msg] optional per-message transform
     # @return [Async::Task, nil]
     #

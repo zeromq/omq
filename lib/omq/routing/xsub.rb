@@ -10,7 +10,7 @@ module OMQ
     #
     class XSub
 
-      # @return [FairQueue]
+      # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
 
@@ -20,22 +20,28 @@ module OMQ
       def initialize(engine)
         @engine          = engine
         @connections     = Set.new
-        @recv_queue      = FairQueue.new
+        @recv_queue      = Routing.build_queue(engine.options.recv_hwm, :block)
         @conn_queues     = {}  # connection => per-connection send queue
         @conn_send_tasks = {}  # connection => send pump task
         @tasks           = []
       end
 
 
-      # Engine-facing recv contract. Delegates to the FairQueue.
+      # Dequeues the next received message. Blocks until one is available.
+      #
+      # @return [Array<String>, nil]
       #
       def dequeue_recv
         @recv_queue.dequeue
       end
 
 
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel.
+      #
+      # @return [void]
+      #
       def unblock_recv
-        @recv_queue.push(nil)
+        @recv_queue.enqueue(nil)
       end
 
 
@@ -44,10 +50,7 @@ module OMQ
       def connection_added(connection)
         @connections << connection
 
-        conn_q    = Routing.build_queue(@engine.options.recv_hwm, @engine.options.on_mute)
-        signaling = SignalingQueue.new(conn_q, @recv_queue)
-        @recv_queue.add_queue(connection, conn_q)
-        task = @engine.start_recv_pump(connection, signaling)
+        task = @engine.start_recv_pump(connection, @recv_queue)
         @tasks << task if task
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
@@ -60,7 +63,6 @@ module OMQ
       #
       def connection_removed(connection)
         @connections.delete(connection)
-        @recv_queue.remove_queue(connection)
         @conn_queues.delete(connection)
         @conn_send_tasks.delete(connection)&.stop
       end

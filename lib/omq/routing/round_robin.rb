@@ -159,6 +159,7 @@ module OMQ
 
       def drain_send_queue_capped(batch)
         bytes = batch_bytes(batch.first)
+
         while batch.size < BATCH_MSG_CAP && bytes < BATCH_BYTE_CAP
           msg = @send_queue.dequeue(timeout: 0)
           break unless msg

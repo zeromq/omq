@@ -15,22 +15,22 @@ module OMQ
     class RecvPump
       # Max messages read from one connection before yielding to the
       # scheduler. Prevents a busy peer from starving its siblings in
-      # fair-queue recv sockets.
-      FAIRNESS_MESSAGES = 64
+      # fair-queue recv sockets. Symmetric with RoundRobin send batching.
+      FAIRNESS_MESSAGES = 256
 
 
       # Max bytes read from one connection before yielding. Only counted
       # for ZMTP connections (inproc skips the check). Complements
       # {FAIRNESS_MESSAGES}: small-message floods are bounded by count,
-      # large-message floods by bytes.
-      FAIRNESS_BYTES    = 1 << 20 # 1 MB
+      # large-message floods by bytes. Symmetric with RoundRobin send batching.
+      FAIRNESS_BYTES    = 512 * 1024
 
 
       # Public entry point — callers use the class method.
       #
       # @param parent [Async::Task, Async::Barrier] parent to spawn under
       # @param conn [Connection, Transport::Inproc::DirectPipe]
-      # @param recv_queue [SignalingQueue]
+      # @param recv_queue [Async::LimitedQueue]
       # @param engine [Engine]
       # @param transform [Proc, nil]
       # @return [Async::Task, nil]
@@ -41,7 +41,7 @@ module OMQ
 
 
       # @param conn [Connection, Transport::Inproc::DirectPipe]
-      # @param recv_queue [Routing::SignalingQueue]
+      # @param recv_queue [Async::LimitedQueue]
       # @param engine [Engine]
       #
       def initialize(conn, recv_queue, engine)

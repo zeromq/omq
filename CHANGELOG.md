@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Changed
+
+- **Recv path: shared queue, no more `FairQueue`.** Every fair-queue
+  routing strategy (Pull, Pair, Rep, Dealer, Router, Req, Sub, XSub)
+  now owns a single `Async::LimitedQueue` sized to `recv_hwm`. Each
+  connection's recv pump writes directly into it. `FairQueue`,
+  `SignalingQueue`, and the `FairRecv` mixin are deleted. Cross-peer
+  fairness comes entirely from the pump yield limit; per-connection
+  ordering is preserved; cross-connection ordering was never a
+  guarantee. Symmetric with the send side, which already uses one
+  work-stealing queue per socket. Sister gems (channel, clientserver,
+  p2p, radiodish, scattergather, qos) updated to match.
+- **Recv pump fairness bumped to 256 msgs / 512 KiB** (was 64 / 1 MiB),
+  symmetric with `RoundRobin::BATCH_MSG_CAP` / `BATCH_BYTE_CAP` on the
+  send side.
+
 ### Added
 
 - **`Socket#attach_endpoints` accepts arrays.** Constructors passed an
@@ -10,6 +26,11 @@
 - **PUB/SUB regression test** for a SUB with sequential post-hoc
   `#connect` calls to multiple bound PUBs, mirroring the SCATTER/GATHER
   post-hoc-connect coverage.
+- **DESIGN.md: "Libzmq quirks OMQ avoids"** — per-pipe HWM (actual
+  buffering is `send_hwm × N_peers`, forces strict RR, slow-worker
+  stall footgun) and the edge-triggered `ZMQ_FD` that fires spuriously
+  and misses edges, requiring the `ZMQ_EVENTS` / `ZMQ_DONTWAIT` dance.
+  README "Socket Types" condensed to a pointer at DESIGN.md.
 
 ## 0.20.0 — 2026-04-14
 

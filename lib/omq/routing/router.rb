@@ -11,10 +11,7 @@ module OMQ
     # routing identity on send.
     #
     class Router
-      include FairRecv
-
-
-      # @return [FairQueue]
+      # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
 
@@ -23,12 +20,30 @@ module OMQ
       #
       def initialize(engine)
         @engine                  = engine
-        @recv_queue              = FairQueue.new
+        @recv_queue              = Routing.build_queue(engine.options.recv_hwm, :block)
         @connections_by_identity = {}
         @identity_by_connection  = {}
         @conn_queues             = {}  # connection => per-connection send queue
         @conn_send_tasks         = {}  # connection => send pump task
         @tasks                   = []
+      end
+
+
+      # Dequeues the next received message. Blocks until one is available.
+      #
+      # @return [Array<String>, nil]
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel.
+      #
+      # @return [void]
+      #
+      def unblock_recv
+        @recv_queue.enqueue(nil)
       end
 
 
@@ -40,7 +55,8 @@ module OMQ
         @connections_by_identity[identity] = connection
         @identity_by_connection[connection] = identity
 
-        add_fair_recv_connection(connection) { |msg| [identity, *msg] }
+        task = @engine.start_recv_pump(connection, @recv_queue) { |msg| [identity, *msg] }
+        @tasks << task if task
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
@@ -53,7 +69,6 @@ module OMQ
       def connection_removed(connection)
         identity = @identity_by_connection.delete(connection)
         @connections_by_identity.delete(identity) if identity
-        @recv_queue.remove_queue(connection)
         @conn_queues.delete(connection)
         @conn_send_tasks.delete(connection)&.stop
       end

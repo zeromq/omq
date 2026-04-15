@@ -287,10 +287,85 @@ enqueues them into the routing strategy's shared recv queue. Without
 bounds, a fast connection could spin its pump indefinitely (io-stream
 buffer always has data, recv queue never full), starving slower peers.
 
-The recv pump yields to the fiber scheduler after reading 64 messages or
-1 MB from one connection, whichever comes first. This guarantees other
-connections' pumps get a turn, regardless of message size or producer
-speed. Per-connection message ordering is preserved.
+The recv pump yields to the fiber scheduler after reading 256 messages
+or 512 KB from one connection, whichever comes first — symmetric with
+the send pump's `BATCH_MSG_CAP` / `BATCH_BYTE_CAP`. This guarantees
+other connections' pumps get a turn, regardless of message size or
+producer speed. Per-connection message ordering is preserved.
+
+Each routing strategy owns a single shared `Async::LimitedQueue` sized
+to `recv_hwm`; every connection's recv pump writes directly into it.
+There is no per-connection inner queue, no fair-queue aggregator, no
+SignalingQueue wrapper. Cross-connection fairness comes entirely from
+the pump yield limit. Ordering within a connection is preserved; ordering
+across connections was never a guarantee anyway.
+
+## Libzmq quirks OMQ avoids
+
+libzmq is a remarkable piece of engineering, but a few of its
+implementation choices leak into user-visible semantics in ways that
+have bitten enough people to be worth calling out. OMQ diverges from
+libzmq on these points *deliberately*.
+
+### Per-pipe HWM
+
+In libzmq, `ZMQ_SNDHWM` bounds each pipe independently. A PUSH socket
+with `send_hwm = 1000` connected to 10 workers can buffer **10 000**
+messages before a send blocks. The option's name says nothing about
+peer count; the accounting does.
+
+Worse, the per-pipe model forces strict round-robin dispatch, because
+each peer has its own queue and the socket round-robins across them.
+That gives rise to the well-known "one slow worker stalls the pipeline"
+footgun: message N+1 is queued behind message N at worker N mod K even
+if every other worker is idle. Users hit this and reach for `ZMQ_XPUB_*`
+gymnastics or custom load balancers.
+
+OMQ uses **one queue per socket**. `send_hwm` means exactly what it
+says. Dispatch is work-stealing: N pump fibers race to drain the shared
+queue, whoever is ready next picks up the next batch. A stuck peer parks
+its own pump and the others keep draining. See
+[Per-socket HWM](#per-socket-hwm-not-per-connection) for the full
+trade-off analysis.
+
+The single visible cost: distribution is not strict round-robin under
+tight bursts (see the note in that section). In exchange: honest HWM
+accounting, no staging queue, no connect/disconnect race, no stall
+footgun, and one less leaky abstraction.
+
+### The lying edge-triggered readiness FD
+
+libzmq exposes a `ZMQ_FD` file descriptor for integration with `poll`
+/ `epoll` / `kqueue`-style event loops. The documented contract: the
+FD becomes readable when the socket has events pending. The actual
+behavior: the FD is **edge-triggered and lies**.
+
+The failure mode is subtle. The FD can signal readable when there is
+nothing to receive (spurious wake), and — worse — it can *fail to
+signal* when there is something to receive, because the edge was
+already consumed by a prior event that you have since drained. The
+documented workaround is: every time your event loop wakes, you must
+`getsockopt(ZMQ_EVENTS)` in a loop and `zmq_recv` with `ZMQ_DONTWAIT`
+until you get `EAGAIN`. If you call `recv` once per FD readiness edge,
+you will deadlock under load, and the bug will only manifest at
+production throughput.
+
+This is why every serious libzmq binding wraps the FD in a reactor that
+polls `ZMQ_EVENTS` after every wake. It's also why `omq-ffi`, OMQ's
+libzmq FFI backend, has a dedicated I/O thread: libzmq sockets are not
+thread-safe, and the FD dance is too error-prone to hand to application
+code.
+
+OMQ sidesteps the entire category. The pure-Ruby stack speaks ZMTP
+directly over TCP/IPC sockets using Async's fiber scheduler. The
+scheduler's readiness signals come from `io-event` (epoll/io\_uring/
+kqueue) on the actual TCP FD, which is level-triggered-in-practice
+(Async reads until `EAGAIN` per wake anyway). There is no ZMQ-level
+readiness FD to mislead anyone. `receive` blocks on an
+`Async::LimitedQueue#dequeue` that is only ever filled by recv pump
+fibers that have already read a complete message off the wire — so
+"readable" means "there is a decoded message waiting in Ruby memory,"
+which is the one guarantee libzmq's FD has never been able to make.
 
 ## Transports
 

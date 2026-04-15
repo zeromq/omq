@@ -11,23 +11,39 @@
 >
 > Ruby 4.0 + YJIT on a Linux VM — see [`bench/`](bench/) for full results
 
-`gem install omq` and you're done. No libzmq, no compiler, no system packages — just Ruby talking to every other ZeroMQ peer out there.
+`gem install omq` and you're done. No libzmq, no compiler, no system packages —
+just Ruby talking to every other ZeroMQ peer out there.
 
-ØMQ gives your Ruby processes a way to talk to each other — and to anything else speaking ZeroMQ — without a broker in the middle. Same API whether they live in the same process, on the same machine, or across the network. Reconnects, queuing, and back-pressure are handled for you; you write the interesting part.
+ØMQ gives your Ruby processes a way to talk to each other — and to anything
+else speaking ZeroMQ — without a broker in the middle. Same API whether they
+live in the same process, on the same machine, or across the network.
+Reconnects, queuing, and back-pressure are handled for you; you write the
+interesting part.
 
-New to ZeroMQ? Start with [GETTING_STARTED.md](GETTING_STARTED.md) — a ~30 min walkthrough of every major pattern with working code.
+New to ZeroMQ? Start with [GETTING_STARTED.md](GETTING_STARTED.md) — a ~30 min
+walkthrough of every major pattern with working code.
 
 ## Highlights
 
-- **Zero dependencies on C** — no extensions, no FFI, no libzmq. `gem install` just works everywhere
-- **Fast** — YJIT-optimized hot paths, batched sends, GC-tuned allocations, buffered I/O via [io-stream](https://github.com/socketry/io-stream), direct-pipe inproc bypass
-- **[`omq` CLI](https://github.com/paddor/omq-cli)** — a powerful swiss army knife for ØMQ. `gem install omq-cli`
-- **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair, and all draft types
-- **Every transport** — tcp, ipc (Unix domain sockets), inproc (in-process queues)
+- **Zero dependencies on C** — no extensions, no FFI, no libzmq. `gem install`
+  just works everywhere
+- **Fast** — YJIT-optimized hot paths, batched sends, GC-tuned allocations,
+  buffered I/O via [io-stream](https://github.com/socketry/io-stream),
+  direct-pipe inproc bypass
+- **[`omq` CLI](https://github.com/paddor/omq-cli)** — a powerful swiss army
+  knife for ØMQ. `gem install omq-cli`
+- **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router,
+  xpub/xsub, pair, and all draft types
+- **Every transport** — tcp, ipc (Unix domain sockets), inproc (in-process
+  queues)
 - **Async-native** — built on fibers, non-blocking from the ground up
-- **Works outside Async too** — a shared IO thread handles sockets for callers that aren't inside a reactor, so simple scripts just work
-- **Wire-compatible** — interoperates with libzmq, pyzmq, CZMQ, zmq.rs over tcp and ipc
-- **Bind/connect order doesn't matter** — connect before bind, bind before connect, peers come and go. ZeroMQ reconnects automatically and queued messages drain when peers arrive
+- **Works outside Async too** — a shared IO thread handles sockets for callers
+  that aren't inside a reactor, so simple scripts just work
+- **Wire-compatible** — interoperates with libzmq, pyzmq, CZMQ, zmq.rs over tcp
+  and ipc
+- **Bind/connect order doesn't matter** — connect before bind, bind before
+  connect, peers come and go. ZeroMQ reconnects automatically and queued
+  messages drain when peers arrive
 
 For architecture internals, see [DESIGN.md](DESIGN.md).
 
@@ -99,7 +115,8 @@ end
 
 ### Without Async (IO thread)
 
-OMQ spawns a shared `omq-io` thread when used outside an Async reactor — no boilerplate needed:
+OMQ spawns a shared `omq-io` thread when used outside an Async reactor — no
+boilerplate needed:
 
 ```ruby
 require 'omq'
@@ -114,7 +131,8 @@ push.close
 pull.close
 ```
 
-The IO thread runs all pumps, reconnection, and heartbeating in the background. When you're inside an `Async` block, OMQ uses the existing reactor instead.
+The IO thread runs all pumps, reconnection, and heartbeating in the background.
+When you're inside an `Async` block, OMQ uses the existing reactor instead.
 
 ### Queue Interface
 
@@ -138,7 +156,11 @@ end
 
 ## Socket Types
 
-All sockets are thread-safe. Default HWM is 1000 messages per socket. `max_message_size` defaults to **`nil` (unlimited)** — set `socket.max_message_size = N` to cap inbound frames at `N` bytes; oversized frames cause the connection to be dropped before the body is read from the wire. Classes live under `OMQ::` (alias: `ØMQ`).
+All sockets are thread-safe. Default HWM is 1000 messages per socket.
+`max_message_size` defaults to **`nil` (unlimited)** — set
+`socket.max_message_size = N` to cap inbound frames at `N` bytes; oversized
+frames cause the connection to be dropped before the body is read from the
+wire. Classes live under `OMQ::` (alias: `ØMQ`).
 
 #### Standard (multipart messages)
 
@@ -151,7 +173,11 @@ All sockets are thread-safe. Default HWM is 1000 messages per socket. `max_messa
 | **XPUB** / **XSUB** | Fan-out (subscription events) | Fair-queue | Drop |
 | **PAIR** | Exclusive 1-to-1 | Exclusive 1-to-1 | Block |
 
-> **Work-stealing vs. round-robin.** libzmq uses strict per-pipe round-robin for outbound load balancing — message N goes to peer N mod K regardless of whether that peer is busy. OMQ uses **work-stealing**: one shared send queue per socket and N pump fibers that race to drain it. Whichever pump is ready next picks up the next batch, so a slow peer can't stall the pipeline. The trade-off: distribution is not strict round-robin under bursts. If a producer enqueues a large burst before any pump fiber gets scheduled, the first pump to wake will dequeue up to one whole batch (256 messages or 512 KB, whichever hits first) in a single non-blocking drain — so a tight `n.times { sock << msg }` loop on a small `n` may dump everything on one peer. Slow or steady producers don't see this: each pump dequeues one message, writes, re-parks, and the FIFO wait queue gives every pump a fair turn. Burst distribution also evens out once the burst exceeds one pump's batch cap. See [DESIGN.md](DESIGN.md#per-socket-hwm-not-per-connection) for the full reasoning.
+> **Work-stealing, not round-robin.** Outbound load balancing uses one shared
+> send queue per socket drained by N racing pump fibers, so a slow peer can't
+> stall the pipeline. Under tight bursts on small `n`, distribution isn't
+> strict RR. See [DESIGN.md](DESIGN.md#per-socket-hwm-not-per-connection) and
+> [Libzmq quirks](DESIGN.md#libzmq-quirks-omq-avoids) for the reasoning.
 
 #### Draft (single-frame only)
 
@@ -167,7 +193,8 @@ Each draft pattern lives in its own gem — install only the ones you use.
 
 ## CLI
 
-Install [omq-cli](https://github.com/paddor/omq-cli) for a command-line tool that sends, receives, pipes, and transforms ZeroMQ messages from the terminal:
+Install [omq-cli](https://github.com/paddor/omq-cli) for a command-line tool
+that sends, receives, pipes, and transforms ZeroMQ messages from the terminal:
 
 ```sh
 gem install omq-cli
@@ -180,14 +207,21 @@ See the [omq-cli README](https://github.com/paddor/omq-cli) for full documentati
 
 ## Companion Gems
 
-- **[omq-ffi](https://github.com/paddor/omq-ffi)** — libzmq FFI backend. Same OMQ socket API, but backed by libzmq instead of the pure Ruby ZMTP stack. Useful for interop testing and when you need libzmq-specific features. Requires libzmq installed.
-- **[omq-ractor](https://github.com/paddor/omq-ractor)** — bridge OMQ sockets into Ruby Ractors for true parallel processing across cores. I/O stays on the main Ractor, worker Ractors do pure computation.
+- **[omq-ffi](https://github.com/paddor/omq-ffi)** — libzmq FFI backend. Same
+  OMQ socket API, but backed by libzmq instead of the pure Ruby ZMTP stack.
+  Useful for interop testing and when you need libzmq-specific features.
+  Requires libzmq installed.
+- **[omq-ractor](https://github.com/paddor/omq-ractor)** — bridge OMQ sockets
+  into Ruby Ractors for true parallel processing across cores. I/O stays on the
+  main Ractor, worker Ractors do pure computation.
 
 ### Protocol extensions (RFCs)
 
-Optional plug-ins that extend the ZMTP wire protocol. Each is a separate gem; load the ones you need.
+Optional plug-ins that extend the ZMTP wire protocol. Each is a separate gem;
+load the ones you need.
 
-- **[omq-rfc-zstd](https://github.com/paddor/omq-rfc-zstd)** — transparent Zstandard compression on the wire, negotiated per peer via READY properties.
+- **[omq-rfc-zstd](https://github.com/paddor/omq-rfc-zstd)** — transparent
+  Zstandard compression on the wire, negotiated per peer via READY properties.
 
 ## Development
 

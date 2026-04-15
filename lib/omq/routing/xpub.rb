@@ -8,8 +8,8 @@ module OMQ
     # the application as data frames: \x01 + prefix for subscribe,
     # \x00 + prefix for unsubscribe.
     #
-    # The recv_queue is a simple bounded queue (not a FairQueue) because
-    # messages come from subscription commands, not from peer data pumps.
+    # The recv_queue is a simple bounded queue because messages come from
+    # subscription commands, not from peer data pumps.
     #
     class XPub
       include FanOut
@@ -25,6 +25,7 @@ module OMQ
         @engine     = engine
         @recv_queue = Routing.build_queue(engine.options.recv_hwm, :block)
         @tasks      = []
+
         init_fan_out(engine)
       end
 

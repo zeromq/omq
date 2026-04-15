@@ -9,12 +9,10 @@ module OMQ
     # on send.
     #
     class Rep
-      include FairRecv
-
       EMPTY_FRAME = "".b.freeze
 
 
-      # @return [FairQueue]
+      # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
 
@@ -23,7 +21,7 @@ module OMQ
       #
       def initialize(engine)
         @engine          = engine
-        @recv_queue      = FairQueue.new
+        @recv_queue      = Routing.build_queue(engine.options.recv_hwm, :block)
         @pending_replies = []
         @conn_queues     = {}  # connection => per-connection send queue
         @conn_send_tasks = {}  # connection => send pump task
@@ -31,10 +29,28 @@ module OMQ
       end
 
 
+      # Dequeues the next received message. Blocks until one is available.
+      #
+      # @return [Array<String>, nil]
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel.
+      #
+      # @return [void]
+      #
+      def unblock_recv
+        @recv_queue.enqueue(nil)
+      end
+
+
       # @param connection [Connection]
       #
       def connection_added(connection)
-        add_fair_recv_connection(connection) do |msg|
+        task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
           delimiter = msg.index { |p| p.empty? } || msg.size
           envelope  = msg[0, delimiter]
           body      = msg[(delimiter + 1)..] || []
@@ -42,6 +58,7 @@ module OMQ
           @pending_replies << { conn: connection, envelope: envelope }
           body
         end
+        @tasks << task if task
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
@@ -53,7 +70,6 @@ module OMQ
       #
       def connection_removed(connection)
         @pending_replies.reject! { |r| r[:conn] == connection }
-        @recv_queue.remove_queue(connection)
         @conn_queues.delete(connection)
         @conn_send_tasks.delete(connection)&.stop
       end

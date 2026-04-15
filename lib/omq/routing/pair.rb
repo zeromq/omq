@@ -10,10 +10,7 @@ module OMQ
     # the in-flight batch is dropped (matching libzmq).
     #
     class Pair
-      include FairRecv
-
-
-      # @return [FairQueue]
+      # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
 
@@ -23,10 +20,28 @@ module OMQ
       def initialize(engine)
         @engine     = engine
         @connection = nil
-        @recv_queue = FairQueue.new
-        @send_queue = Routing.build_queue(@engine.options.send_hwm, :block)
+        @recv_queue = Routing.build_queue(engine.options.recv_hwm, :block)
+        @send_queue = Routing.build_queue(engine.options.send_hwm, :block)
         @send_pump  = nil
         @tasks      = []
+      end
+
+
+      # Dequeues the next received message. Blocks until one is available.
+      #
+      # @return [Array<String>, nil]
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel.
+      #
+      # @return [void]
+      #
+      def unblock_recv
+        @recv_queue.enqueue(nil)
       end
 
 
@@ -37,7 +52,8 @@ module OMQ
         raise "PAIR allows only one peer" if @connection
         @connection = connection
 
-        add_fair_recv_connection(connection)
+        task = @engine.start_recv_pump(connection, @recv_queue)
+        @tasks << task if task
 
         unless connection.is_a?(Transport::Inproc::DirectPipe)
           start_send_pump(connection)
@@ -50,7 +66,6 @@ module OMQ
       def connection_removed(connection)
         if @connection == connection
           @connection = nil
-          @recv_queue.remove_queue(connection)
           @send_pump&.stop
           @send_pump = nil
         end

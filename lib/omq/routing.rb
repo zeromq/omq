@@ -4,8 +4,6 @@ require "async"
 require "async/queue"
 require "async/limited_queue"
 require_relative "drop_queue"
-require_relative "routing/fair_queue"
-require_relative "routing/fair_recv"
 require_relative "routing/conn_send_pump"
 
 module OMQ

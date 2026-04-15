@@ -8,13 +8,12 @@ module OMQ
     #
     class Req
       include RoundRobin
-      include FairRecv
 
       # Shared frozen empty binary string to avoid repeated allocations.
       EMPTY_BINARY = ::Protocol::ZMTP::Codec::EMPTY_BINARY
 
 
-      # @return [FairQueue]
+      # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
 
@@ -23,20 +22,40 @@ module OMQ
       #
       def initialize(engine)
         @engine          = engine
-        @recv_queue      = FairQueue.new
+        @recv_queue      = Routing.build_queue(engine.options.recv_hwm, :block)
         @tasks           = []
         @state           = :ready        # :ready or :waiting_reply
         init_round_robin(engine)
       end
 
 
+      # Dequeues the next received message. Blocks until one is available.
+      #
+      # @return [Array<String>, nil]
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel.
+      #
+      # @return [void]
+      #
+      def unblock_recv
+        @recv_queue.enqueue(nil)
+      end
+
+
       # @param connection [Connection]
       #
       def connection_added(connection)
-        add_fair_recv_connection(connection) do |msg|
+        task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
           @state = :ready
           msg.first&.empty? ? msg[1..] : msg
         end
+
+        @tasks << task if task
         add_round_robin_send_connection(connection)
       end
 
@@ -45,7 +64,6 @@ module OMQ
       #
       def connection_removed(connection)
         @connections.delete(connection)
-        @recv_queue.remove_queue(connection)
         remove_round_robin_send_connection(connection)
       end
 
