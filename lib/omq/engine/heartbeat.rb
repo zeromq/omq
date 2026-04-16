@@ -24,7 +24,7 @@ module OMQ
         tasks << parent.async(transient: true, annotation: "heartbeat") do
           loop do
             sleep interval
-            conn.send_command(Protocol::ZMTP::Codec::Command.ping(ttl: ttl, context: "".b))
+            conn.send_command(Protocol::ZMTP::Codec::Command.ping(ttl: ttl))
             if conn.heartbeat_expired?(timeout)
               conn.close
               break

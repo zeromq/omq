@@ -181,14 +181,16 @@ module OMQ
       #
       def start_conn_send_pump_normal(conn, q, use_wire)
         @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+          batch = []
+
           loop do
-            batch = [q.dequeue]
-            Routing.drain_send_queue(q, batch)
+            Routing.dequeue_batch(q, batch)
 
             if write_matching_batch(conn, batch, use_wire)
               conn.flush
               batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
             end
+            batch.clear
           end
         end
       end
@@ -227,14 +229,17 @@ module OMQ
       #
       def start_conn_send_pump_conflate(conn, q)
         @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+          batch = []
+
           loop do
-            batch = [q.dequeue]
-            Routing.drain_send_queue(q, batch)
+            Routing.dequeue_batch(q, batch)
 
             # Keep only the latest message that matches the subscription.
             latest = batch.reverse.find do |parts|
               subscribed?(conn, parts.first || EMPTY_BINARY)
             end
+
+            batch.clear
             next unless latest
 
             conn.write_message(latest)

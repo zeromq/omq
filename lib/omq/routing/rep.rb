@@ -55,7 +55,7 @@ module OMQ
           envelope  = msg[0, delimiter]
           body      = msg[(delimiter + 1)..] || []
 
-          @pending_replies << { conn: connection, envelope: envelope }
+          @pending_replies << [connection, envelope]
           body
         end
         @tasks << task if task
@@ -69,7 +69,7 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_removed(connection)
-        @pending_replies.reject! { |r| r[:conn] == connection }
+        @pending_replies.reject! { |r| r[0] == connection }
         @conn_queues.delete(connection)
         @conn_send_tasks.delete(connection)&.stop
       end
@@ -83,8 +83,12 @@ module OMQ
       def enqueue(parts)
         reply_info = @pending_replies.shift
         return unless reply_info
-        conn = reply_info[:conn]
-        @conn_queues[conn]&.enqueue([*reply_info[:envelope], EMPTY_FRAME, *parts])
+
+        conn, envelope = reply_info
+        msg = envelope
+        msg << EMPTY_FRAME
+        msg.concat(parts)
+        @conn_queues[conn]&.enqueue(msg)
       end
 
 

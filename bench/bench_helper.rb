@@ -22,7 +22,7 @@ Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
   # ×4 geometric sweep from 128 B to 32 KiB.
-  SIZES = [128, 512, 2048, 8192, 32_768].freeze
+  SIZES = (ENV["OMQ_BENCH_SIZES"] || "128,512,2048,8192,32768").split(",").map(&:to_i).freeze
 
   # Each cell runs ROUNDS timed rounds and reports the fastest one.
   # Transient jitter (GC, scheduler preemption, YJIT tier-up, kernel
@@ -58,7 +58,7 @@ module BenchHelper
   # curve and blake3 are intentionally excluded from this suite.
   # CURVE regressions are caught by protocol-zmtp tests; BLAKE3-ZMTP
   # perf is tracked in the omq-rfc-blake3zmq repo.
-  TRANSPORTS = %w[inproc ipc tcp].freeze
+  TRANSPORTS = (ENV["OMQ_BENCH_TRANSPORTS"] || "inproc,ipc,tcp").split(",").freeze
 
   def run_id
     @run_id ||= ENV["OMQ_BENCH_RUN_ID"] || Time.now.strftime("%Y-%m-%dT%H:%M:%S")
@@ -70,6 +70,7 @@ module BenchHelper
   RUN_TIMEOUT = Integer(ENV.fetch("OMQ_BENCH_TIMEOUT", 30))
 
   def run(label, dir:, peer_counts: [1, 3], &block)
+    peer_counts = ENV["OMQ_BENCH_PEERS"].split(",").map(&:to_i) if ENV["OMQ_BENCH_PEERS"]
     pattern = File.basename(dir)
     jit     = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "+YJIT" : "no JIT"
     puts "#{label} | OMQ #{OMQ::VERSION} | Ruby #{RUBY_VERSION} (#{jit}) | #{KERNEL}"

@@ -133,9 +133,10 @@ module OMQ
       #
       def start_conn_send_pump(conn)
         task = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+          batch = []
+
           loop do
-            batch = [@send_queue.dequeue]
-            drain_send_queue_capped(batch)
+            dequeue_batch_capped(batch)
             @in_flight += batch.size
 
             begin
@@ -147,6 +148,7 @@ module OMQ
             batch.each do |parts|
               @engine.emit_verbose_msg_sent(conn, parts)
             end
+            batch.clear
 
             Async::Task.current.yield
           end
@@ -157,7 +159,8 @@ module OMQ
       end
 
 
-      def drain_send_queue_capped(batch)
+      def dequeue_batch_capped(batch = [])
+        batch << @send_queue.dequeue
         bytes = batch_bytes(batch.first)
 
         while batch.size < BATCH_MSG_CAP && bytes < BATCH_BYTE_CAP

@@ -106,9 +106,10 @@ module OMQ
 
       def start_send_pump(conn)
         @send_pump = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+          batch = []
+
           loop do
-            batch = [@send_queue.dequeue]
-            Routing.drain_send_queue(@send_queue, batch)
+            Routing.dequeue_batch(@send_queue, batch)
 
             if batch.size == 1
               conn.write_message(batch.first)
@@ -120,6 +121,7 @@ module OMQ
             batch.each do |parts|
               @engine.emit_verbose_msg_sent(conn, parts)
             end
+            batch.clear
           end
         end
 

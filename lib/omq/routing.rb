@@ -57,7 +57,8 @@ module OMQ
 
 
     # Drains all available messages from +queue+ into +batch+ without
-    # blocking. Call after the initial blocking dequeue.
+    # Blocks for the first message, then sweeps all immediately
+    # available messages into +batch+ without blocking.
     #
     # No cap is needed: IO::Stream auto-flushes at 64 KB, so the
     # write buffer hits the wire naturally under sustained load.
@@ -67,7 +68,9 @@ module OMQ
     # @param batch [Array]
     # @return [void]
     #
-    def self.drain_send_queue(queue, batch)
+    def self.dequeue_batch(queue, batch = [])
+      batch << queue.dequeue
+
       loop do
         msg = queue.dequeue(timeout: 0) or break
         batch << msg

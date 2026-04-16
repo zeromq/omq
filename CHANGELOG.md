@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.22.1 — 2026-04-16
+
+### Changed
+
+- **Reuse batch arrays in send pumps.** All send pumps (RoundRobin,
+  Pair, ConnSendPump, FanOut, FanOut-conflate) now pre-allocate a
+  single batch array and clear it between cycles instead of
+  allocating a fresh `[msg]` per dequeue.
+
+- **`Routing.dequeue_batch`** consolidates the blocking-dequeue +
+  non-blocking-sweep pattern that was duplicated across four call
+  sites into one method. `dequeue_batch_capped` does the same for
+  the byte/message-capped RoundRobin variant.
+
+- **REP envelope stored as `[conn, envelope]`** instead of a Hash,
+  and reply assembly uses `<<` + `concat` instead of double splat.
+
+- **Heartbeat drops redundant `context: "".b`** — the default is
+  now `EMPTY_BINARY` in protocol-zmtp.
+
+- **Bench harness accepts `OMQ_BENCH_SIZES`, `OMQ_BENCH_TRANSPORTS`,
+  and `OMQ_BENCH_PEERS`** env vars to scope runs without editing
+  code.
+
 ## 0.22.0 — 2026-04-15
 
 ### Fixed
