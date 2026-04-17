@@ -38,7 +38,7 @@ module OMQ
       #
       def run(parent_task, delay: nil)
         endpoint = @dialer.endpoint
-        @engine.tasks << parent_task.async(transient: true, annotation: "reconnect #{endpoint}") do
+        parent_task.async(transient: true, annotation: "reconnect #{endpoint}") do
           retry_loop(delay: delay)
         rescue Async::Stop
         rescue => error

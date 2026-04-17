@@ -61,7 +61,7 @@ module OMQ
     # @return [void]
     #
     def subscribe(prefix = EVERYTHING)
-      @engine.routing.subscribe(prefix)
+      @engine.subscribe(prefix)
     end
 
 
@@ -71,7 +71,7 @@ module OMQ
     # @return [void]
     #
     def unsubscribe(prefix)
-      @engine.routing.unsubscribe(prefix)
+      @engine.unsubscribe(prefix)
     end
 
   end

@@ -61,8 +61,7 @@ module OMQ
       #
       def start(parent_task, transform)
         if @conn.is_a?(Transport::Inproc::DirectPipe) && @conn.peer
-          @conn.peer.direct_recv_queue     = @recv_queue
-          @conn.peer.direct_recv_transform = transform
+          @conn.peer.wire_direct_recv(@recv_queue, transform)
           return nil
         end
 
@@ -125,7 +124,7 @@ module OMQ
         rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
           # expected disconnect — stash reason for the :disconnected
           # monitor event, let the lifecycle reconnect as usual
-          engine.connections[conn]&.record_disconnect_reason(error)
+          engine.record_disconnect_reason(conn, error)
         rescue => error
           engine.signal_fatal_error(error)
         end
@@ -172,7 +171,7 @@ module OMQ
         rescue Protocol::ZMTP::Error, *CONNECTION_LOST => error
           # expected disconnect — stash reason for the :disconnected
           # monitor event, let the lifecycle reconnect as usual
-          engine.connections[conn]&.record_disconnect_reason(error)
+          engine.record_disconnect_reason(conn, error)
         rescue => error
           engine.signal_fatal_error(error)
         end

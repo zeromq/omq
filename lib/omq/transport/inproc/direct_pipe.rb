@@ -50,12 +50,6 @@ module OMQ
         attr_reader :direct_recv_queue
 
 
-        # @return [Proc, nil] optional transform applied before
-        #   enqueuing into {#direct_recv_queue}
-        #
-        attr_accessor :direct_recv_transform
-
-
         # @param send_queue [Async::Queue, nil] outgoing command queue
         #   (nil for non-PUB/SUB types that don't exchange commands)
         # @param receive_queue [Async::Queue, nil] incoming command queue
@@ -75,18 +69,26 @@ module OMQ
         end
 
 
-        # Sets the direct recv queue. Drains any messages that were
-        # buffered before the queue was available.
+        # Wires up the direct recv fast-path. Called once by the recv
+        # pump when the receiving side of an inproc pipe pair is set up.
+        # After this, peer-side {#send_message} calls enqueue straight
+        # into +queue+ instead of hopping through the intermediate pipe
+        # queue and a recv pump fiber.
         #
-        # @param queue [Async::LimitedQueue, nil]
+        # Drains any messages the peer buffered into +@pending_direct+
+        # before the queue was available.
+        #
+        # @param queue [Async::LimitedQueue]
+        # @param transform [Proc, nil] optional per-message transform
         # @return [void]
         #
-        def direct_recv_queue=(queue)
-          @direct_recv_queue = queue
-          if queue && @pending_direct
-            @pending_direct.each { |msg| queue.enqueue(msg) }
-            @pending_direct = nil
-          end
+        def wire_direct_recv(queue, transform)
+          @direct_recv_transform = transform
+          @direct_recv_queue     = queue
+          return unless @pending_direct
+
+          @pending_direct.each { |msg| queue.enqueue(msg) }
+          @pending_direct = nil
         end
 
 

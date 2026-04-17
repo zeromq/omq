@@ -64,21 +64,21 @@ describe OMQ::Engine::SocketLifecycle do
     end
   end
 
-  describe "#resolve_all_peers_gone_if_empty" do
+  describe "#maybe_resolve_all_peers_gone" do
     it "no-ops if peer_connected never resolved" do
-      lc.resolve_all_peers_gone_if_empty({})
+      lc.maybe_resolve_all_peers_gone({})
       refute lc.all_peers_gone.resolved?
     end
 
     it "no-ops if connections still present" do
       lc.peer_connected.resolve(:fake)
-      lc.resolve_all_peers_gone_if_empty({ :fake => :lifecycle })
+      lc.maybe_resolve_all_peers_gone({ :fake => :lifecycle })
       refute lc.all_peers_gone.resolved?
     end
 
     it "resolves once we had peers and the map is empty" do
       lc.peer_connected.resolve(:fake)
-      lc.resolve_all_peers_gone_if_empty({})
+      lc.maybe_resolve_all_peers_gone({})
       assert lc.all_peers_gone.resolved?
     end
   end

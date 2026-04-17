@@ -101,7 +101,7 @@ module OMQ
           conn.handshake!
         end
 
-        Heartbeat.start(@barrier, conn, @engine.options, @engine.tasks)
+        Heartbeat.start(@barrier, conn, @engine.options)
         ready!(conn)
         @conn
       rescue Protocol::ZMTP::Error, *CONNECTION_LOST, Async::TimeoutError => error
@@ -220,7 +220,7 @@ module OMQ
         detail = reason ? { error: reason, reason: reason.message } : nil
         @engine.emit_monitor_event(:disconnected, endpoint: @endpoint, detail: detail)
         @done&.resolve(true)
-        @engine.resolve_all_peers_gone_if_empty
+        @engine.maybe_resolve_all_peers_gone
         @engine.maybe_reconnect(@endpoint) if reconnect
 
         # Cancel every sibling pump of this connection. The caller is

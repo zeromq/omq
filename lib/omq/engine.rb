@@ -64,7 +64,6 @@ module OMQ
       @connections     = {} # connection => ConnectionLifecycle
       @dialers         = {} # endpoint => Dialer (reconnect intent + connect logic)
       @listeners       = {} # endpoint => Listener
-      @tasks           = []
       @lifecycle       = SocketLifecycle.new
       @last_endpoint   = nil
       @last_tcp_port   = nil
@@ -75,10 +74,19 @@ module OMQ
 
 
     # @return [Hash{Connection => ConnectionLifecycle}] active connections
-    # @return [Array<Async::Task>] background tasks (pumps, heartbeat, reconnect)
+    #
+    attr_reader :connections
+
+
+    # Optional proc that wraps new connections (e.g. for serialization).
+    # Called with the raw connection; must return the (possibly wrapped) connection.
+    #
+    attr_accessor :connection_wrapper
+
+
     # @return [SocketLifecycle] socket-level state + signaling
     #
-    attr_reader :connections, :tasks, :lifecycle
+    attr_reader :lifecycle
 
 
     # @!attribute [w] monitor_queue
@@ -98,15 +106,58 @@ module OMQ
     def parent_task       = @lifecycle.parent_task
     def barrier           = @lifecycle.barrier
     def closed?           = @lifecycle.closed?
+
+
+    # Enables or disables auto-reconnect for dropped connections.
+    # Delegated to {SocketLifecycle}. Close paths flip this to +false+
+    # so a lost connection doesn't schedule a new retry after linger.
+    #
+    # @param value [Boolean]
+    #
     def reconnect_enabled=(value)
       @lifecycle.reconnect_enabled = value
     end
 
 
-    # Optional proc that wraps new connections (e.g. for serialization).
-    # Called with the raw connection; must return the (possibly wrapped) connection.
+    # Delegated to the routing strategy. Forwards the PUB/XPUB/SUB/XSUB
+    # subscription surface so callers don't have to chain through
+    # `engine.routing`.
     #
-    attr_accessor :connection_wrapper
+    def subscriber_joined
+      routing.subscriber_joined
+    end
+
+
+    # Subscribes to a topic prefix on SUB/XSUB sockets. Delegates to the
+    # routing strategy so callers don't have to chain through
+    # `engine.routing`.
+    #
+    # @param prefix [String]
+    #
+    def subscribe(prefix)
+      routing.subscribe(prefix)
+    end
+
+
+    # Unsubscribes from a topic prefix on SUB/XSUB sockets. Delegates to
+    # the routing strategy so callers don't have to chain through
+    # `engine.routing`.
+    #
+    # @param prefix [String]
+    #
+    def unsubscribe(prefix)
+      routing.unsubscribe(prefix)
+    end
+
+
+    # Records the disconnect reason on the {ConnectionLifecycle} for
+    # +conn+, if any. Called by the recv pump rescue so the upcoming
+    # `:disconnected` monitor event carries an error reason, without
+    # exposing the internal connection map.
+    #
+    def record_disconnect_reason(conn, error)
+      @connections[conn]&.record_disconnect_reason(error)
+    end
 
 
     # Returns the transport object (Dialer or Listener) for an endpoint.
@@ -130,7 +181,7 @@ module OMQ
       ivl = ri.is_a?(Range) ? ri.begin : ri
       ann = "inproc reconnect #{endpoint}"
 
-      @tasks << @lifecycle.barrier.async(transient: true, annotation: ann) do
+      @lifecycle.barrier.async(transient: true, annotation: ann) do
         yield ivl
       rescue Async::Stop, Async::Cancel
       end
@@ -204,8 +255,7 @@ module OMQ
     # @return [void]
     #
     def unbind(endpoint)
-      listener = @listeners.delete(endpoint)
-      return unless listener
+      listener = @listeners.delete(endpoint) or return
 
       listener.stop
       close_connections_at(endpoint)
@@ -293,10 +343,8 @@ module OMQ
       # torn down together with the rest of its sibling per-connection
       # pumps when the connection is lost.
       parent = @connections[conn]&.barrier || @lifecycle.barrier
-      task   = RecvPump.start(parent, conn, recv_queue, self, transform)
 
-      @tasks << task if task
-      task
+      RecvPump.start(parent, conn, recv_queue, self, transform)
     end
 
 
@@ -313,8 +361,8 @@ module OMQ
     # Resolves `all_peers_gone` if we had peers and now have none.
     # Called by ConnectionLifecycle during teardown.
     #
-    def resolve_all_peers_gone_if_empty
-      @lifecycle.resolve_all_peers_gone_if_empty(@connections)
+    def maybe_resolve_all_peers_gone
+      @lifecycle.maybe_resolve_all_peers_gone(@connections)
     end
 
 
@@ -326,6 +374,7 @@ module OMQ
       return unless @lifecycle.open? && @lifecycle.reconnect_enabled
 
       dialer = @dialers[endpoint]
+
       Reconnect.schedule(dialer, @options, @lifecycle.parent_task, self)
     end
 
@@ -370,9 +419,7 @@ module OMQ
     def stop
       return unless @lifecycle.alive?
 
-      # TODO: Can't these 2 lines be one call to @lifecycle?
-      @lifecycle.start_closing! if @lifecycle.open?
-      @lifecycle.finish_closing!
+      @lifecycle.force_close!
 
       if @lifecycle.on_io_thread
         Reactor.untrack_linger(@options.linger)
@@ -488,7 +535,7 @@ module OMQ
 
       return unless task
 
-      Maintenance.start(@lifecycle.barrier, @options.mechanism, @tasks)
+      Maintenance.start(@lifecycle.barrier, @options.mechanism)
     end
 
 
@@ -503,6 +550,7 @@ module OMQ
       return unless @monitor_queue
 
       event = MonitorEvent.new type: type, endpoint: endpoint, detail: detail
+
       @monitor_queue << event
     rescue Async::Stop, ClosedQueueError
     end
@@ -527,9 +575,14 @@ module OMQ
     # +last_wire_size_out+ (installed by ZMTP-Zstd etc.).
     def emit_verbose_msg_sent(conn, parts)
       return unless @verbose_monitor
+
       detail = { parts: parts }
-      detail[:wire_size] = conn.last_wire_size_out if conn.respond_to?(:last_wire_size_out)
-      emit_monitor_event(:message_sent, detail: detail)
+
+      if conn.respond_to? :last_wire_size_out
+        detail[:wire_size] = conn.last_wire_size_out
+      end
+
+      emit_monitor_event :message_sent, detail: detail
     end
 
 
@@ -541,11 +594,11 @@ module OMQ
 
       detail = { parts: parts }
 
-      if conn.respond_to?(:last_wire_size_in)
+      if conn.respond_to? :last_wire_size_in
         detail[:wire_size] = conn.last_wire_size_in
       end
 
-      emit_monitor_event(:message_received, detail: detail)
+      emit_monitor_event :message_received, detail: detail
     end
 
 
@@ -570,8 +623,18 @@ module OMQ
     private
 
 
+    # Spawns a per-connection task on the socket-level barrier that runs
+    # the handshake and then blocks on +done+ until the connection is
+    # torn down. The +ensure+ path runs {ConnectionLifecycle#close!} so
+    # side effects (routing removal, monitor event, reconnect) always
+    # fire exactly once, regardless of how the task unwinds.
+    #
+    # @param io [#read, #write, #close] accepted or dialed socket
+    # @param as_server [Boolean] true for accepted connections
+    # @param endpoint [String, nil] the endpoint URI, for monitor events
+    #
     def spawn_connection(io, as_server:, endpoint: nil)
-      task = @lifecycle.barrier&.async(transient: true, annotation: "conn #{endpoint}") do
+      @lifecycle.barrier&.async(transient: true, annotation: "conn #{endpoint}") do
         done      = Async::Promise.new
         lifecycle = ConnectionLifecycle.new(self, endpoint: endpoint, done: done)
         lifecycle.handshake!(io, as_server: as_server)
@@ -585,16 +648,21 @@ module OMQ
       ensure
         lifecycle&.close!
       end
-
-      @tasks << task if task
     end
 
 
+    # Blocks until the routing strategy reports all send queues drained
+    # or +timeout+ seconds have elapsed. Called from the linger path on
+    # close so pending outgoing messages get a chance to flush.
+    #
+    # @param timeout [Numeric, nil] max seconds to wait; nil = no limit
+    #
     # TODO: replace the 1 ms busy-poll with a promise/condition that
     # the send pump resolves when its queue hits empty. The loop exists
     # because there is currently no signal for "send queue fully
     # drained"; fixing it cleanly requires plumbing a notifier through
     # every routing strategy, so it is flagged rather than fixed here.
+    #
     def drain_send_queues(timeout)
       return unless @routing.respond_to?(:send_queues_drained?)
 
@@ -613,12 +681,26 @@ module OMQ
     end
 
 
+    # Schedules a reconnect attempt for +endpoint+ using its dialer.
+    # Called on initial connect (with +delay: 0+) and after a lost
+    # connection (with the dialer's backoff delay).
+    #
+    # @param endpoint [String]
+    # @param delay [Numeric, nil] initial delay override in seconds
+    #
     def schedule_reconnect(endpoint, delay: nil)
       dialer = @dialers[endpoint]
       Reconnect.schedule(dialer, @options, @lifecycle.parent_task, self, delay: delay)
     end
 
 
+    # Delegates endpoint validation to the transport if it defines one.
+    # Called from {#connect} so a bad URI fails fast instead of landing
+    # in a reconnect loop.
+    #
+    # @param endpoint [String]
+    # @raise [ArgumentError] if the transport rejects the endpoint
+    #
     def validate_endpoint!(endpoint)
       transport = transport_for(endpoint)
 
@@ -628,6 +710,11 @@ module OMQ
     end
 
 
+    # Starts the listener's accept loops on the socket-level barrier
+    # and routes accepted IOs through {#handle_accepted}.
+    #
+    # @param listener [#start_accept_loops, #endpoint]
+    #
     def start_accept_loops(listener)
       return unless listener.respond_to?(:start_accept_loops)
 
@@ -637,12 +724,21 @@ module OMQ
     end
 
 
+    # Stops every active listener and clears the registry. Called from
+    # close paths; connection teardown is handled separately via the
+    # socket-level barrier.
+    #
     def stop_listeners
       @listeners.each_value(&:stop)
       @listeners.clear
     end
 
 
+    # Closes all connections currently bound to or connected from
+    # +endpoint+. Used by {#disconnect} and {#unbind}.
+    #
+    # @param endpoint [String]
+    #
     def close_connections_at(endpoint)
       @connections.values.select { |lc| lc.endpoint == endpoint }.each(&:close!)
     end
@@ -651,15 +747,18 @@ module OMQ
     # Cascades teardown through the socket-level barrier. Stopping the
     # barrier cancels every tracked task: connection supervisors (whose
     # `ensure lost!` runs the ordered disconnect side effects), accept
-    # loops, reconnect loops, heartbeat, maintenance. After the cascade,
-    # clears the legacy +@tasks+ list.
+    # loops, heartbeat, maintenance. Reconnect loops live on the user's
+    # parent task and self-exit via `@engine.closed?`.
     #
     def tear_down_barrier
       @lifecycle.barrier&.stop
-      @tasks.clear
     end
 
 
+    # Signals end-of-stream on the monitor queue (if any) by pushing a
+    # +nil+ sentinel, so consumers iterating with {Socket#each_event}
+    # can exit cleanly.
+    #
     def close_monitor_queue
       return unless @monitor_queue
       @monitor_queue.push(nil)

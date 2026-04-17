@@ -167,7 +167,7 @@ module OMQ
 
     # @return [Async::Promise] resolves when first subscriber joins (PUB/XPUB only)
     def subscriber_joined
-      @engine.routing.subscriber_joined
+      @engine.subscriber_joined
     end
 
 

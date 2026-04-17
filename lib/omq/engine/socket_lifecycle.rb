@@ -74,8 +74,8 @@ module OMQ
         @peer_connected    = Async::Promise.new
         @all_peers_gone    = Async::Promise.new
         @reconnect_enabled = true
-        @parent_task       = nil
         @on_io_thread      = false
+        @parent_task       = nil
         @barrier           = nil
       end
 
@@ -136,12 +136,22 @@ module OMQ
       end
 
 
-      # Resolves `all_peers_gone` if we had peers and now have none.
+      # Hard close from any alive state — used by {Engine#stop}'s crash
+      # path, which skips the linger drain. Goes `:open → :closed`
+      # directly when needed.
+      def force_close!
+        transition!(:closed)
+      end
+
+
+      # Resolves `all_peers_gone` once we had peers and the connection map
+      # is empty. Called by {Engine#maybe_resolve_all_peers_gone} after a
+      # teardown removes a peer.
+      #
       # @param connections [Hash] current connection map
-      def resolve_all_peers_gone_if_empty(connections)
-        unless @peer_connected.resolved? && connections.empty?
-          return
-        end
+      def maybe_resolve_all_peers_gone(connections)
+        return unless @peer_connected.resolved?
+        return unless connections.empty?
 
         @all_peers_gone.resolve(true)
       end

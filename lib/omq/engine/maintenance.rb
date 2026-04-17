@@ -12,17 +12,15 @@ module OMQ
     module Maintenance
       # @param parent_task [Async::Task]
       # @param mechanism [#maintenance, nil]
-      # @param tasks [Array<Async::Task>]
       #
-      def self.start(parent_task, mechanism, tasks)
+      def self.start(parent_task, mechanism)
         return unless mechanism.respond_to?(:maintenance)
-        spec = mechanism.maintenance
-        return unless spec
+        spec = mechanism.maintenance or return spec
 
         interval = spec[:interval]
         callable = spec[:task]
 
-        tasks << parent_task.async(transient: true, annotation: "mechanism maintenance") do
+        parent_task.async(transient: true, annotation: "mechanism maintenance") do
           Async::Loop.quantized(interval: interval) do
             callable.call
           end
@@ -30,6 +28,7 @@ module OMQ
           # clean shutdown
         end
       end
+
     end
   end
 end

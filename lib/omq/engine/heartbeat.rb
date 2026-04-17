@@ -11,9 +11,8 @@ module OMQ
       # @param parent [Async::Task, Async::Barrier] parent to spawn under
       # @param conn [Connection]
       # @param options [Options]
-      # @param tasks [Array]
       #
-      def self.start(parent, conn, options, tasks)
+      def self.start(parent, conn, options)
         interval = options.heartbeat_interval
         return unless interval
 
@@ -21,7 +20,7 @@ module OMQ
         timeout = options.heartbeat_timeout || interval
         conn.touch_heartbeat
 
-        tasks << parent.async(transient: true, annotation: "heartbeat") do
+        parent.async(transient: true, annotation: "heartbeat") do
           loop do
             sleep interval
             conn.send_command(Protocol::ZMTP::Codec::Command.ping(ttl: ttl))

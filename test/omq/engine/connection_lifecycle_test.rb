@@ -31,7 +31,7 @@ class FakeEngine
     @events << [type, endpoint]
   end
 
-  def resolve_all_peers_gone_if_empty
+  def maybe_resolve_all_peers_gone
     @all_peers_gone_resolved += 1 if @connections.empty?
   end
 

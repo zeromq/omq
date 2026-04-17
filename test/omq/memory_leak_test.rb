@@ -77,7 +77,7 @@ describe "inproc memory leaks" do
   end
 
 
-  it "does not grow engine task lists over many messages" do
+  it "does not grow the socket-level task barrier over many messages" do
     Async do
       push = OMQ::PUSH.new
       pull = OMQ::PULL.new
@@ -87,12 +87,12 @@ describe "inproc memory leaks" do
       1000.times { |i| push << "msg-#{i}" }
       1000.times { pull.receive }
 
-      push_tasks = push.instance_variable_get(:@engine).instance_variable_get(:@tasks)
-      pull_tasks = pull.instance_variable_get(:@engine).instance_variable_get(:@tasks)
+      push_barrier = push.instance_variable_get(:@engine).lifecycle.barrier
+      pull_barrier = pull.instance_variable_get(:@engine).lifecycle.barrier
 
       # Tasks should be bounded — not one per message
-      assert push_tasks.size < 10, "push has #{push_tasks.size} tasks"
-      assert pull_tasks.size < 10, "pull has #{pull_tasks.size} tasks"
+      assert push_barrier.size < 10, "push barrier has #{push_barrier.size} tasks"
+      assert pull_barrier.size < 10, "pull barrier has #{pull_barrier.size} tasks"
     ensure
       push&.close
       pull&.close

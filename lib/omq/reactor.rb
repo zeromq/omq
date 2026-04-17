@@ -113,7 +113,7 @@ module OMQ
         @thread     = nil
         @root_task  = nil
         @work_queue = nil
-        @lingers    = Hash.new(0) # TODO: use Hash#clear
+        @lingers.clear
       end
 
 
