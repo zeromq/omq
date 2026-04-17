@@ -15,6 +15,9 @@ module OMQ
     # prevent shared mutable state without copying.
     #
     module Inproc
+      Engine.transports["inproc"] = self
+
+
       # Socket types that exchange commands (SUBSCRIBE/CANCEL) over inproc.
       #
       COMMAND_TYPES = %i[PUB SUB XPUB XSUB RADIO DISH].freeze

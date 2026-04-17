@@ -764,10 +764,4 @@ module OMQ
       @monitor_queue.push(nil)
     end
   end
-
-
-  # Register built-in transports.
-  Engine.transports["tcp"]    = Transport::TCP
-  Engine.transports["ipc"]    = Transport::IPC
-  Engine.transports["inproc"] = Transport::Inproc
 end

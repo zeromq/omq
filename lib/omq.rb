@@ -63,11 +63,6 @@ module OMQ
 end
 
 
-# Transport
-require_relative "omq/transport/inproc"
-require_relative "omq/transport/tcp"
-require_relative "omq/transport/ipc"
-
 # Core
 require_relative "omq/reactor"
 require_relative "omq/options"
@@ -86,6 +81,12 @@ require_relative "omq/routing/xsub"
 require_relative "omq/routing/push"
 require_relative "omq/routing/pull"
 require_relative "omq/engine"
+
+# Transport (registers itself in Engine.transports on load)
+require_relative "omq/transport/inproc"
+require_relative "omq/transport/tcp"
+require_relative "omq/transport/ipc"
+
 require_relative "omq/queue_interface"
 require_relative "omq/readable"
 require_relative "omq/writable"

@@ -11,6 +11,9 @@ module OMQ
     # (paths starting with @).
     #
     module IPC
+      Engine.transports["ipc"] = self
+
+
       class << self
         # Creates a bound IPC listener.
         #

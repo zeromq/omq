@@ -9,6 +9,9 @@ module OMQ
     # TCP transport using Ruby sockets with Async.
     #
     module TCP
+      Engine.transports["tcp"] = self
+
+
       class << self
         # Creates a bound TCP listener.
         #
@@ -212,8 +215,7 @@ module OMQ
         #
         def start_accept_loops(parent_task)
           @tasks = @servers.map do |server|
-            # TODO: use this server's exact host:port (@endpoint might not be unique)
-            annotation = "tcp accept #{@endpoint}"
+            annotation = "tcp accept #{server.local_address.inspect_sockaddr}"
             parent_task.async(transient: true, annotation:) do
               loop do
                 client, _addr = server.accept
