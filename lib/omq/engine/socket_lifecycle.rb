@@ -28,11 +28,11 @@ module OMQ
 
 
       TRANSITIONS = {
-        new:     %i[open closed].freeze,
-        open:    %i[closing closed].freeze,
-        closing: %i[closed].freeze,
-        closed:  [].freeze,
-      }.freeze
+        new:     %i[open closed],
+        open:    %i[closing closed],
+        closing: %i[closed],
+        closed:  [],
+      }.transform_values(&:freeze).freeze
 
 
       # @return [Symbol]
@@ -106,6 +106,7 @@ module OMQ
       #
       def capture_parent_task(parent: nil, linger:)
         return false if @parent_task
+
         if parent
           @parent_task  = parent
         elsif Async::Task.current?
@@ -115,6 +116,7 @@ module OMQ
           @on_io_thread = true
           Reactor.track_linger(linger)
         end
+
         @barrier = Async::Barrier.new(parent: @parent_task)
         transition!(:open)
         true
@@ -137,7 +139,10 @@ module OMQ
       # Resolves `all_peers_gone` if we had peers and now have none.
       # @param connections [Hash] current connection map
       def resolve_all_peers_gone_if_empty(connections)
-        return unless @peer_connected.resolved? && connections.empty?
+        unless @peer_connected.resolved? && connections.empty?
+          return
+        end
+
         @all_peers_gone.resolve(true)
       end
 
@@ -147,9 +152,11 @@ module OMQ
 
       def transition!(new_state)
         allowed = TRANSITIONS[@state]
+
         unless allowed&.include?(new_state)
           raise InvalidTransition, "#{@state} → #{new_state}"
         end
+
         @state = new_state
       end
 

@@ -69,7 +69,7 @@ module OMQ
         else
           result = Async::Promise.new
           root_task # ensure started
-          @work_queue.push([block, result, timeout])
+          @work_queue << [block, result, timeout]
           result.wait
         end
       end
@@ -89,9 +89,12 @@ module OMQ
       # @param seconds [Numeric, nil] linger value
       #
       def untrack_linger(seconds)
-        key = seconds || 0
+        key            = seconds || 0
         @lingers[key] -= 1
-        @lingers.delete(key) if @lingers[key] <= 0
+
+        if @lingers[key] <= 0
+          @lingers.delete(key)
+        end
       end
 
 
@@ -103,13 +106,14 @@ module OMQ
         return unless @thread&.alive?
 
         max_linger = @lingers.empty? ? 0 : @lingers.keys.max
-        @work_queue&.push(nil)
+
+        @work_queue << nil if @work_queue
         @thread&.join(max_linger + 1)
 
         @thread     = nil
         @root_task  = nil
         @work_queue = nil
-        @lingers    = Hash.new(0)
+        @lingers    = Hash.new(0) # TODO: use Hash#clear
       end
 
 
