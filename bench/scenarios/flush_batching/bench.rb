@@ -34,13 +34,11 @@ def bench_push_pull(transport, addr)
     end
 
     ROUNDS.times do
-      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-      # Burst-enqueue all messages, then drain
-      BURST.times { push << PAYLOAD }
-      BURST.times { pull.receive }
-
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      elapsed = Async::Clock.measure do
+        # Burst-enqueue all messages, then drain
+        BURST.times { push << PAYLOAD }
+        BURST.times { pull.receive }
+      end
       times << elapsed
     end
   ensure
@@ -69,12 +67,10 @@ def bench_pub_sub(transport, addr, n_subs:)
     end
 
     ROUNDS.times do
-      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-      BURST.times { pub << PAYLOAD }
-      BURST.times { subs.each(&:receive) }
-
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      elapsed = Async::Clock.measure do
+        BURST.times { pub << PAYLOAD }
+        BURST.times { subs.each(&:receive) }
+      end
       times << elapsed
     end
   ensure

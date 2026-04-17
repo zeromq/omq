@@ -114,9 +114,9 @@ describe "PUB/SUB" do
     3.times { |i| queue.enqueue("msg.#{i}") }
 
     # Queue is full — enqueue must not block, must silently drop
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    7.times { |i| queue.enqueue("overflow.#{i}") }
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    elapsed = Async::Clock.measure do
+      7.times { |i| queue.enqueue("overflow.#{i}") }
+    end
     assert_operator elapsed, :<, 0.01
 
     # Only the original 3 messages should be in the queue
@@ -155,9 +155,9 @@ describe "PUB/SUB" do
       sub = OMQ::SUB.connect("inproc://pubsub-hwm", subscribe: "")
 
       # Flood with 200 messages — must complete without blocking
-      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      200.times { |i| pub.send("msg.#{i}") }
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      elapsed = Async::Clock.measure do
+        200.times { |i| pub.send("msg.#{i}") }
+      end
       assert_operator elapsed, :<, 1.0
     ensure
       sub&.close

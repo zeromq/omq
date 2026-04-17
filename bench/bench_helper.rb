@@ -163,9 +163,9 @@ module BenchHelper
   def estimate_n(target: ROUND_DURATION, warmup: WARMUP_DURATION)
     n = WARMUP_MIN_ITERS
     loop do
-      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      yield n
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      elapsed = Async::Clock.measure do
+        yield n
+      end
       if elapsed >= warmup
         rate = n / elapsed
         return [(rate * target).to_i, WARMUP_MIN_ITERS].max
@@ -185,9 +185,7 @@ module BenchHelper
 
     best = nil
     ROUNDS.times do
-      t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      burst.call(n)
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+      elapsed = Async::Clock.measure { burst.call(n) }
       best = elapsed if best.nil? || elapsed < best
     end
 

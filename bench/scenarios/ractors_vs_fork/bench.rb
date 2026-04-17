@@ -70,12 +70,11 @@ when "fork"
     end
 
     # Timed run
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    task.async { N_MESSAGES.times { producer << Marshal.dump(FIB_N) } }
-    results = N_MESSAGES.times.map { Marshal.load(collector.receive.first) }
-
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    results = nil
+    elapsed = Async::Clock.measure do
+      task.async { N_MESSAGES.times { producer << Marshal.dump(FIB_N) } }
+      results = N_MESSAGES.times.map { Marshal.load(collector.receive.first) }
+    end
     rate    = N_MESSAGES / elapsed
 
     puts "fork + OMQ (#{N_WORKERS} processes): %7.1f tasks/s  (%5.0f ms)" % [rate, elapsed * 1000]
@@ -112,18 +111,17 @@ when "ractors"
   end
 
   # Timed run
-  t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-  sender = Thread.new do
-    N_MESSAGES.times do |i|
-      workers[i % N_WORKERS].send(FIB_N)
+  results = nil
+  elapsed = Async::Clock.measure do
+    sender = Thread.new do
+      N_MESSAGES.times do |i|
+        workers[i % N_WORKERS].send(FIB_N)
+      end
     end
+
+    results = N_MESSAGES.times.map { result_port.receive }
+    sender.join
   end
-
-  results = N_MESSAGES.times.map { result_port.receive }
-  sender.join
-
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
   rate    = N_MESSAGES / elapsed
 
   puts "Ractor::Port (#{N_WORKERS} ractors):  %7.1f tasks/s  (%5.0f ms)" % [rate, elapsed * 1000]

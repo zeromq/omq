@@ -8,6 +8,7 @@
 $stdout.sync = true
 
 require "cztop"
+require "async/clock"
 
 SIZES  = [128, 1024]
 N      = 1_000_000
@@ -28,9 +29,9 @@ def bench_push_pull(size)
 
   WARMUP.times { pull.receive }
 
-  t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  N.times { pull.receive }
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+  elapsed = Async::Clock.measure do
+    N.times { pull.receive }
+  end
 
   producer.join
 
@@ -63,12 +64,12 @@ def bench_req_rep(size)
     req.receive
   end
 
-  t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  rounds.times do
-    req << payload
-    req.receive
+  elapsed = Async::Clock.measure do
+    rounds.times do
+      req << payload
+      req.receive
+    end
   end
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
 
   server.kill
   server.join rescue nil

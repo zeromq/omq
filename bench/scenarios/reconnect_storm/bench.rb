@@ -30,11 +30,11 @@ Async do
     pull.close
     sleep 0.3
 
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    pull = OMQ::PULL.bind("tcp://127.0.0.1:#{port}")
-    push << "reconnect-#{i}"
-    pull.receive
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    elapsed = Async::Clock.measure do
+      pull = OMQ::PULL.bind("tcp://127.0.0.1:#{port}")
+      push << "reconnect-#{i}"
+      pull.receive
+    end
     times << elapsed
   end
 

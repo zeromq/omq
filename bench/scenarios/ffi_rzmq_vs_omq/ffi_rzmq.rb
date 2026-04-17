@@ -8,6 +8,7 @@
 $stdout.sync = true
 
 require "ffi-rzmq"
+require "async/clock"
 
 SIZES  = [128, 1024]
 N      = 1_000_000
@@ -43,9 +44,9 @@ def bench_push_pull(size)
   buf = String.new
   WARMUP.times { pull.recv_string(buf) }
 
-  t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  N.times { pull.recv_string(buf) }
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+  elapsed = Async::Clock.measure do
+    N.times { pull.recv_string(buf) }
+  end
 
   producer.join
   push.close
@@ -83,12 +84,12 @@ def bench_req_rep(size)
     req.recv_string(buf)
   end
 
-  t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  rounds.times do
-    req.send_string(payload)
-    req.recv_string(buf)
+  elapsed = Async::Clock.measure do
+    rounds.times do
+      req.send_string(payload)
+      req.recv_string(buf)
+    end
   end
-  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
 
   req.close
   rep.close

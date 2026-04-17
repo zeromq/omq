@@ -38,10 +38,10 @@ PAYLOAD    = ("x" * 64).freeze
       end
     end
 
-    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    N_MESSAGES.times { push << PAYLOAD }
-    consumer.wait
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    elapsed = Async::Clock.measure do
+      N_MESSAGES.times { push << PAYLOAD }
+      consumer.wait
+    end
 
     rate = N_MESSAGES / elapsed
     puts "  %-12s %7.0f msg/s  (%5.0f ms)" % [label, rate, elapsed * 1000]
