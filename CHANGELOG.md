@@ -22,6 +22,34 @@
   if defined** — hook for transports that need to wrap the buffered
   stream after handshake (e.g., TLS).
 
+- **Transports self-register in `Engine.transports`.** Each transport
+  file (`tcp`, `ipc`, `inproc`) now adds its own scheme entry at load
+  time. `lib/omq.rb` requires transports after `engine.rb` so the
+  `Engine` constant is available. External transport plugins follow
+  the same pattern.
+
+- **`Engine` gains delegate methods that hide internal layout** from
+  callers: `#subscribe`, `#unsubscribe`, `#subscriber_joined` forward
+  to the routing strategy; `#record_disconnect_reason(conn, error)`
+  wraps the `@connections` lookup; `Inproc::DirectPipe#wire_direct_recv`
+  replaces two separate attribute setters previously poked from the
+  recv pump. Callers no longer chain through `engine.routing.*` or
+  `engine.connections[conn]`.
+
+- **`SocketLifecycle#resolve_all_peers_gone_if_empty` renamed to
+  `#maybe_resolve_all_peers_gone`.** The composite `unless` was split
+  into two early-returns for readability. A new `#force_close!` handles
+  `Engine#stop`'s crash path, collapsing two `@lifecycle.*` calls into
+  one.
+
+### Removed
+
+- **`Engine#tasks` array** (and every `@tasks << ...` append site)
+  deleted. `Async::Barrier` already tracks every spawned task and
+  exposes `#size`, `#empty?`, and `#stop`. `Heartbeat.start`,
+  `Maintenance.start`, and `Reconnect#run` drop their `tasks`
+  parameter. Teardown collapses to `@lifecycle.barrier&.stop`.
+
 ### Fixed
 
 - **`bench/report.rb` preserves chronological run order.** Named run IDs
