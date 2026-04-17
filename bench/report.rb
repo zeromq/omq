@@ -41,13 +41,17 @@ if options[:update_readme]
   TRANSPORTS  = %w[inproc ipc tcp].freeze
   SIZE_LABELS = { 128 => "128 B", 512 => "512 B", 2048 => "2 KiB", 8192 => "8 KiB", 32_768 => "32 KiB" }.freeze
 
-  latest = rows.map { |r| r[:run_id] }.uniq.max
-  abort "No runs found in #{RESULTS_PATH}" unless latest
-  latest_rows = rows.select { |r| r[:run_id] == latest }
+  abort "No runs found in #{RESULTS_PATH}" if rows.empty?
 
-  # Look up a specific cell's row from the latest run.
+  # Look up the most recent row for a cell across all history. Falling back
+  # to older runs means a partial bench (e.g. only push_pull, 1 peer, 128 B)
+  # refreshes just the cells it covers and leaves untouched cells showing
+  # their last known good value, instead of clobbering them with "—".
   cell = lambda do |pattern, transport, peers, msg_size|
-    latest_rows.find { |x| x[:pattern] == pattern && x[:transport] == transport && x[:peers] == peers && x[:msg_size] == msg_size }
+    rows.reverse_each.find do |x|
+      x[:pattern] == pattern && x[:transport] == transport
+      && x[:peers] == peers && x[:msg_size] == msg_size
+    end
   end
 
   fmt_rate = lambda do |v|
@@ -126,7 +130,7 @@ if options[:update_readme]
   readme = replace_block.call(readme, "push_pull", build_push_pull.call)
   readme = replace_block.call(readme, "req_rep",   build_req_rep.call)
   File.write(README_PATH, readme)
-  puts "Updated #{README_PATH} from run #{latest}"
+  puts "Updated #{README_PATH} (most recent value per cell across #{rows.map { |r| r[:run_id] }.uniq.size} runs)"
   exit 0
 end
 

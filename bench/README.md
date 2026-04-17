@@ -25,21 +25,21 @@ ruby bench/report.rb --update-readme
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 128 B | 1.04M msg/s / 133 MB/s | 361.4k msg/s / 46.3 MB/s | 357.7k msg/s / 45.8 MB/s |
-| 512 B | 1.11M msg/s / 568 MB/s | 251.9k msg/s / 129 MB/s | 249.7k msg/s / 128 MB/s |
-| 2 KiB | 1.23M msg/s / 2.52 GB/s | 190.0k msg/s / 389 MB/s | 188.0k msg/s / 385 MB/s |
-| 8 KiB | 1.23M msg/s / 10.09 GB/s | 98.6k msg/s / 808 MB/s | 93.3k msg/s / 764 MB/s |
-| 32 KiB | 1.22M msg/s / 40.11 GB/s | 35.5k msg/s / 1.16 GB/s | 32.5k msg/s / 1.06 GB/s |
+| 128 B | 1.17M msg/s / 150 MB/s | 400.0k msg/s / 51.2 MB/s | 390.6k msg/s / 50.0 MB/s |
+| 512 B | 1.23M msg/s / 629 MB/s | 296.9k msg/s / 152 MB/s | 288.5k msg/s / 148 MB/s |
+| 2 KiB | 1.37M msg/s / 2.80 GB/s | 234.3k msg/s / 480 MB/s | 225.6k msg/s / 462 MB/s |
+| 8 KiB | 1.38M msg/s / 11.27 GB/s | 105.2k msg/s / 862 MB/s | 106.4k msg/s / 871 MB/s |
+| 32 KiB | 1.36M msg/s / 44.52 GB/s | 39.4k msg/s / 1.29 GB/s | 35.9k msg/s / 1.18 GB/s |
 
 ### 3 peers
 
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 128 B | 1.24M msg/s / 158 MB/s | 360.5k msg/s / 46.1 MB/s | 359.3k msg/s / 46.0 MB/s |
-| 512 B | 1.17M msg/s / 598 MB/s | 214.9k msg/s / 110 MB/s | 225.6k msg/s / 115 MB/s |
-| 2 KiB | 1.22M msg/s / 2.50 GB/s | 180.0k msg/s / 369 MB/s | 179.6k msg/s / 368 MB/s |
-| 8 KiB | 1.21M msg/s / 9.94 GB/s | 96.8k msg/s / 793 MB/s | 93.0k msg/s / 762 MB/s |
-| 32 KiB | 1.23M msg/s / 40.20 GB/s | 33.9k msg/s / 1.11 GB/s | 32.7k msg/s / 1.07 GB/s |
+| 128 B | 1.39M msg/s / 178 MB/s | 388.7k msg/s / 49.8 MB/s | 382.3k msg/s / 48.9 MB/s |
+| 512 B | 1.34M msg/s / 684 MB/s | 283.2k msg/s / 145 MB/s | 277.7k msg/s / 142 MB/s |
+| 2 KiB | 1.37M msg/s / 2.80 GB/s | 224.4k msg/s / 460 MB/s | 218.0k msg/s / 446 MB/s |
+| 8 KiB | 1.36M msg/s / 11.15 GB/s | 104.2k msg/s / 854 MB/s | 104.1k msg/s / 853 MB/s |
+| 32 KiB | 1.36M msg/s / 44.51 GB/s | 36.6k msg/s / 1.20 GB/s | 33.6k msg/s / 1.10 GB/s |
 
 <!-- END push_pull -->
 
@@ -58,11 +58,11 @@ Latency is `1 / msgs_s` converted to µs.
 <!-- BEGIN req_rep -->
 | Message size | inproc | ipc | tcp |
 |---|---|---|---|
-| 128 B | 9.09 µs | 48.8 µs | 63.5 µs |
-| 512 B | 9.07 µs | 55.0 µs | 69.4 µs |
-| 2 KiB | 8.71 µs | 59.7 µs | 72.2 µs |
-| 8 KiB | 8.78 µs | 64.2 µs | 77.1 µs |
-| 32 KiB | 8.74 µs | 79.6 µs | 95.0 µs |
+| 128 B | 8.42 µs | 44.4 µs | 57.7 µs |
+| 512 B | 8.43 µs | 49.2 µs | 60.7 µs |
+| 2 KiB | 8.06 µs | 51.9 µs | 64.1 µs |
+| 8 KiB | 8.14 µs | 57.5 µs | 68.4 µs |
+| 32 KiB | 8.04 µs | 71.3 µs | 87.4 µs |
 
 <!-- END req_rep -->
 
