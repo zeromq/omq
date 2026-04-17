@@ -2,9 +2,9 @@
 
 require_relative "../test_helper"
 
-describe "DirectPipe" do
+describe "Pipe" do
   it "#encrypted? returns false" do
-    pipe = OMQ::Transport::Inproc::DirectPipe.new(peer_identity: "", peer_type: "PUSH")
+    pipe = OMQ::Transport::Inproc::Pipe.new(peer_identity: "", peer_type: "PUSH")
     refute pipe.encrypted?
   end
 end

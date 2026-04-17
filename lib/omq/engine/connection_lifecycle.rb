@@ -5,7 +5,7 @@ module OMQ
     # Owns the full arc of *one* connection: handshake → ready → closed.
     #
     # Scope boundary: ConnectionLifecycle tracks a single peer link
-    # (one ZMTP connection or one inproc DirectPipe). SocketLifecycle
+    # (one ZMTP connection or one inproc Pipe). SocketLifecycle
     # owns the socket-wide state above it — first-peer/last-peer
     # signaling, reconnect enable flag, the parent task tree, and the
     # open → closing → closed transitions that gate close-time drain.
@@ -43,7 +43,7 @@ module OMQ
       }.freeze
 
 
-      # @return [Protocol::ZMTP::Connection, Transport::Inproc::DirectPipe, nil]
+      # @return [Protocol::ZMTP::Connection, Transport::Inproc::Pipe, nil]
       attr_reader :conn
 
 
@@ -120,9 +120,9 @@ module OMQ
 
 
       # Registers an already-connected inproc pipe as :ready.
-      # No handshake — inproc DirectPipe bypasses ZMTP entirely.
+      # No handshake — inproc Pipe bypasses ZMTP entirely.
       #
-      # @param pipe [Transport::Inproc::DirectPipe]
+      # @param pipe [Transport::Inproc::Pipe]
       #
       def ready_direct!(pipe)
         ready!(pipe)
@@ -161,7 +161,9 @@ module OMQ
 
 
       def ready!(conn)
-        conn = @engine.connection_wrapper.call(conn) if @engine.connection_wrapper
+        if @engine.connection_wrapper
+          conn = @engine.connection_wrapper.call(conn)
+        end
 
         if @endpoint
           transport_obj = @engine.transport_object_for(@endpoint)
@@ -177,7 +179,7 @@ module OMQ
         @engine.peer_connected.resolve(@conn)
         transition!(:ready)
 
-        # No supervisor if nothing to supervise: inproc DirectPipes
+        # No supervisor if nothing to supervise: inproc Pipes
         # wire the recv/send paths synchronously (no task-based pumps),
         # and isolated unit tests use a FakeEngine without pumps at all.
         # Waiting on an empty barrier returns immediately and would
@@ -213,6 +215,7 @@ module OMQ
 
       def tear_down!(reconnect:, reason: nil)
         return if @state == :closed
+
         transition!(:closed)
         @engine.connections.delete(@conn)
         @engine.routing.connection_removed(@conn) if @conn
@@ -244,11 +247,14 @@ module OMQ
 
       def transition!(new_state)
         allowed = TRANSITIONS[@state]
+
         unless allowed&.include?(new_state)
           raise InvalidTransition, "#{@state} → #{new_state}"
         end
+
         @state = new_state
       end
+
     end
   end
 end

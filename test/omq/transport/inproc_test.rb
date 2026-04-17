@@ -7,18 +7,18 @@ describe OMQ::Transport::Inproc do
 
   before { Inproc.reset! }
 
-  describe "DirectPipe" do
+  describe "Pipe" do
     it "transfers messages bidirectionally" do
       Async do
         a_to_b = Async::Queue.new
         b_to_a = Async::Queue.new
-        side_a = Inproc::DirectPipe.new(
+        side_a = Inproc::Pipe.new(
           send_queue:    a_to_b,
           receive_queue: b_to_a,
           peer_identity: "",
           peer_type:     "PAIR",
         )
-        side_b = Inproc::DirectPipe.new(
+        side_b = Inproc::Pipe.new(
           send_queue:    b_to_a,
           receive_queue: a_to_b,
           peer_identity: "",
@@ -41,13 +41,13 @@ describe OMQ::Transport::Inproc do
       Async do
         a_to_b = Async::Queue.new
         b_to_a = Async::Queue.new
-        side_a = Inproc::DirectPipe.new(
+        side_a = Inproc::Pipe.new(
           send_queue:    a_to_b,
           receive_queue: b_to_a,
           peer_identity: "",
           peer_type:     "PAIR",
         )
-        side_b = Inproc::DirectPipe.new(
+        side_b = Inproc::Pipe.new(
           send_queue:    b_to_a,
           receive_queue: a_to_b,
           peer_identity: "",
@@ -69,13 +69,13 @@ describe OMQ::Transport::Inproc do
       Async do
         a_to_b = Async::Queue.new
         b_to_a = Async::Queue.new
-        side_a = Inproc::DirectPipe.new(
+        side_a = Inproc::Pipe.new(
           send_queue:    a_to_b,
           receive_queue: b_to_a,
           peer_identity: "",
           peer_type:     "PAIR",
         )
-        side_b = Inproc::DirectPipe.new(
+        side_b = Inproc::Pipe.new(
           send_queue:    b_to_a,
           receive_queue: a_to_b,
           peer_identity: "",
@@ -92,7 +92,7 @@ describe OMQ::Transport::Inproc do
     it "raises IOError on send after close" do
       Async do
         a_to_b = Async::Queue.new
-        side_a = Inproc::DirectPipe.new(
+        side_a = Inproc::Pipe.new(
           send_queue:    a_to_b,
           receive_queue: Async::Queue.new,
           peer_identity: "",

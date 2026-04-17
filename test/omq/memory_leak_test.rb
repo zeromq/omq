@@ -17,7 +17,7 @@ describe "inproc memory leaks" do
     !weak.weakref_alive?
   end
 
-  it "does not leak DirectPipe objects after close" do
+  it "does not leak Pipe objects after close" do
     weak = nil
     Async do
       push = OMQ::PUSH.new
@@ -36,7 +36,7 @@ describe "inproc memory leaks" do
       pull.close
     end
 
-    assert gc_until_collected(weak), "DirectPipe was not collected after close"
+    assert gc_until_collected(weak), "Pipe was not collected after close"
   end
 
 
@@ -58,7 +58,7 @@ describe "inproc memory leaks" do
       pull.close
     end
 
-    assert gc_until_collected(weak), "DirectPipe was not collected after close"
+    assert gc_until_collected(weak), "Pipe was not collected after close"
   end
 
 

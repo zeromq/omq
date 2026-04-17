@@ -280,10 +280,10 @@ module OMQ
     end
 
 
-    # Called by inproc transport with a pre-validated DirectPipe.
+    # Called by inproc transport with a pre-validated Pipe.
     # Skips ZMTP handshake — just registers with routing strategy.
     #
-    # @param pipe [Transport::Inproc::DirectPipe]
+    # @param pipe [Transport::Inproc::Pipe]
     # @return [void]
     #
     def connection_ready(pipe, endpoint: nil)
@@ -328,7 +328,7 @@ module OMQ
 
     # Starts a recv pump for a connection, or wires the inproc fast path.
     #
-    # @param conn [Connection, Transport::Inproc::DirectPipe]
+    # @param conn [Connection, Transport::Inproc::Pipe]
     # @param recv_queue [Async::LimitedQueue]
     # @yield [msg] optional per-message transform
     # @return [Async::Task, nil]
@@ -460,7 +460,7 @@ module OMQ
     # pumps blocked on `dequeue` waiting for messages that will never
     # be written.
     #
-    # @param conn [Connection, Transport::Inproc::DirectPipe]
+    # @param conn [Connection, Transport::Inproc::Pipe]
     # @param annotation [String]
     #
     def spawn_conn_pump_task(conn, annotation:, &block)

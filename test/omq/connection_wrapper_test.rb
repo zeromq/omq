@@ -21,7 +21,7 @@ describe "Engine connection_wrapper" do
       push << "hello"
       assert_equal ["hello"], pull.receive
       assert_equal 1, wrapped.size
-      assert_match(/DirectPipe/, wrapped.first)
+      assert_match(/Pipe/, wrapped.first)
     ensure
       [push, pull].compact.each(&:close)
     end

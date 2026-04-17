@@ -48,7 +48,7 @@ module OMQ
 
         @engine.start_recv_pump(connection, @recv_queue)
 
-        unless connection.is_a?(Transport::Inproc::DirectPipe)
+        unless connection.is_a?(Transport::Inproc::Pipe)
           @send_queue = Routing.build_queue(@engine.options.send_hwm, :block)
           while (msg = @staging_queue.dequeue(timeout: 0))
             @send_queue.enqueue(msg)
@@ -72,7 +72,7 @@ module OMQ
       #
       def enqueue(parts)
         conn = @connection
-        if conn.is_a?(Transport::Inproc::DirectPipe) && conn.direct_recv_queue
+        if conn.is_a?(Transport::Inproc::Pipe) && conn.direct_recv_queue
           conn.send_message(parts)
         elsif @send_queue
           @send_queue.enqueue(parts)

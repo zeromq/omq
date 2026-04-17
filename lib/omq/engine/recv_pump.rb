@@ -4,7 +4,7 @@ module OMQ
   class Engine
     # Recv pump for a connection.
     #
-    # For inproc DirectPipe: wires the direct recv path (no fiber spawned).
+    # For inproc Pipe: wires the direct recv path (no fiber spawned).
     # For TCP/IPC: spawns a transient task that reads messages from the
     # connection and enqueues them into +recv_queue+.
     #
@@ -29,7 +29,7 @@ module OMQ
       # Public entry point — callers use the class method.
       #
       # @param parent [Async::Task, Async::Barrier] parent to spawn under
-      # @param conn [Connection, Transport::Inproc::DirectPipe]
+      # @param conn [Connection, Transport::Inproc::Pipe]
       # @param recv_queue [Async::LimitedQueue]
       # @param engine [Engine]
       # @param transform [Proc, nil]
@@ -40,7 +40,7 @@ module OMQ
       end
 
 
-      # @param conn [Connection, Transport::Inproc::DirectPipe]
+      # @param conn [Connection, Transport::Inproc::Pipe]
       # @param recv_queue [Async::LimitedQueue]
       # @param engine [Engine]
       #
@@ -52,7 +52,7 @@ module OMQ
       end
 
 
-      # Starts the recv pump. For inproc DirectPipe, wires the direct path
+      # Starts the recv pump. For inproc Pipe, wires the direct path
       # (no task spawned). For TCP/IPC, spawns a fiber that reads messages.
       #
       # @param parent_task [Async::Task]
@@ -60,7 +60,7 @@ module OMQ
       # @return [Async::Task, nil]
       #
       def start(parent_task, transform)
-        if @conn.is_a?(Transport::Inproc::DirectPipe) && @conn.peer
+        if @conn.is_a?(Transport::Inproc::Pipe) && @conn.peer
           @conn.peer.wire_direct_recv(@recv_queue, transform)
           return nil
         end
@@ -71,6 +71,7 @@ module OMQ
           start_direct(parent_task)
         end
       end
+
 
       private
 

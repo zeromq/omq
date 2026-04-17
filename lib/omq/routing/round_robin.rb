@@ -73,7 +73,7 @@ module OMQ
       # Updates the direct-pipe shortcut for inproc single-peer bypass.
       #
       def update_direct_pipe
-        if @connections.size == 1 && @connections.first.is_a?(Transport::Inproc::DirectPipe)
+        if @connections.size == 1 && @connections.first.is_a?(Transport::Inproc::Pipe)
           @direct_pipe = @connections.first
         else
           @direct_pipe = nil

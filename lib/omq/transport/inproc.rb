@@ -2,7 +2,7 @@
 
 require "async"
 require "async/queue"
-require_relative "inproc/direct_pipe"
+require_relative "inproc/pipe"
 
 module OMQ
   module Transport
@@ -122,8 +122,8 @@ module OMQ
         end
 
 
-        # Decides whether a DirectPipe pair needs command queues.
-        # DirectPipe's fast path skips queues entirely; command queues
+        # Decides whether a Pipe pair needs command queues.
+        # Pipe's fast path skips queues entirely; command queues
         # are only needed for socket types that exchange ZMTP commands
         # (e.g. ROUTER/DEALER identity, PUB/SUB subscriptions) or when
         # either side enables QoS ≥ 1.
@@ -137,11 +137,11 @@ module OMQ
         end
 
 
-        # Builds a bidirectional {DirectPipe} pair for client + server.
+        # Builds a bidirectional {Pipe} pair for client + server.
         # When +needs_cmds+ is false the pipes have no command queues
         # (fast path — all traffic bypasses Async::Queue entirely).
         #
-        # @return [Array(DirectPipe, DirectPipe)] client, server
+        # @return [Array(Pipe, Pipe)] client, server
         #
         def make_pipe_pair(ce, se, ct, st, needs_cmds)
           if needs_cmds
@@ -149,12 +149,12 @@ module OMQ
             b_to_a = Async::Queue.new
           end
 
-          client = DirectPipe.new(send_queue: needs_cmds ? a_to_b : nil,
-                                  receive_queue: needs_cmds ? b_to_a : nil,
-                                  peer_identity: se.options.identity, peer_type: st.to_s)
-          server = DirectPipe.new(send_queue: needs_cmds ? b_to_a : nil,
-                                  receive_queue: needs_cmds ? a_to_b : nil,
-                                  peer_identity: ce.options.identity, peer_type: ct.to_s)
+          client = Pipe.new(send_queue: needs_cmds ? a_to_b : nil,
+                            receive_queue: needs_cmds ? b_to_a : nil,
+                            peer_identity: se.options.identity, peer_type: st.to_s)
+          server = Pipe.new(send_queue: needs_cmds ? b_to_a : nil,
+                            receive_queue: needs_cmds ? a_to_b : nil,
+                            peer_identity: ce.options.identity, peer_type: ct.to_s)
 
           client.peer = server
           server.peer = client

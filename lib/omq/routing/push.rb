@@ -64,7 +64,7 @@ module OMQ
       # may succeed if the kernel send buffer absorbs the data.
       #
       def start_reaper(conn)
-        return if conn.is_a?(Transport::Inproc::DirectPipe)
+        return if conn.is_a?(Transport::Inproc::Pipe)
         @engine.spawn_conn_pump_task(conn, annotation: "reaper") do
           conn.receive_message # blocks until peer disconnects; then exits
         end

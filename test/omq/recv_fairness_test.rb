@@ -4,7 +4,7 @@ require_relative "../test_helper"
 
 describe "recv pump fairness" do
   # Fairness only applies to IPC/TCP connections. Inproc uses
-  # DirectPipe bypass which skips the recv pump entirely.
+  # Pipe bypass which skips the recv pump entirely.
 
   it "interleaves messages from two fast IPC peers" do
     Async do |task|

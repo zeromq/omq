@@ -14,7 +14,7 @@ module OMQ
       # This reduces inproc from 3 queue hops to 2 (send_queue →
       # recv_queue), eliminating the internal pipe queue in between.
       #
-      class DirectPipe
+      class Pipe
         # @return [String] peer's socket type
         #
         attr_reader :peer_socket_type
@@ -39,7 +39,7 @@ module OMQ
         attr_reader :peer_identity
 
 
-        # @return [DirectPipe, nil] the other end of this pipe pair
+        # @return [Pipe, nil] the other end of this pipe pair
         #
         attr_accessor :peer
 
@@ -116,7 +116,7 @@ module OMQ
 
         # Batched form, for parity with Protocol::ZMTP::Connection. The
         # work-stealing pumps call this when they dequeue more than one
-        # message at once; DirectPipe just loops — no mutex to amortize.
+        # message at once; Pipe just loops — no mutex to amortize.
         #
         # @param messages [Array<Array<String>>]
         # @return [void]
