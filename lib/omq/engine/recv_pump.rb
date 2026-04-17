@@ -29,7 +29,7 @@ module OMQ
       # Public entry point — callers use the class method.
       #
       # @param parent [Async::Task, Async::Barrier] parent to spawn under
-      # @param conn [Connection, Transport::Inproc::Pipe]
+      # @param conn [Protocol::ZMTP::Connection, Transport::Inproc::Pipe]
       # @param recv_queue [Async::LimitedQueue]
       # @param engine [Engine]
       # @param transform [Proc, nil]
@@ -40,7 +40,7 @@ module OMQ
       end
 
 
-      # @param conn [Connection, Transport::Inproc::Pipe]
+      # @param conn [Protocol::ZMTP::Connection, Transport::Inproc::Pipe]
       # @param recv_queue [Async::LimitedQueue]
       # @param engine [Engine]
       #

@@ -45,7 +45,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_added(connection)
         @engine.start_recv_pump(connection, @recv_queue) do |msg|
@@ -63,7 +63,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
         @pending_replies.reject! { |r| r[0] == connection }

@@ -43,7 +43,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       # @raise [RuntimeError] if a connection already exists
       #
       def connection_added(connection)
@@ -58,7 +58,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
         @connection = nil if @connection == connection

@@ -48,7 +48,7 @@ module OMQ
       # Registers a connection and starts its send pump.
       # Call from #connection_added.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       #
       def add_round_robin_send_connection(conn)
         @connections << conn
@@ -63,7 +63,7 @@ module OMQ
       # guarantee, so this is safe. The pump itself is torn down by
       # the per-connection lifecycle barrier.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       #
       def remove_round_robin_send_connection(conn)
         update_direct_pipe
@@ -128,7 +128,7 @@ module OMQ
       # run. The yield is effectively free when the scheduler has no
       # other work.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       #
       def start_conn_send_pump(conn)
         @engine.spawn_conn_pump_task(conn, annotation: "send pump") do

@@ -328,7 +328,7 @@ module OMQ
 
     # Starts a recv pump for a connection, or wires the inproc fast path.
     #
-    # @param conn [Connection, Transport::Inproc::Pipe]
+    # @param conn [Protocol::ZMTP::Connection, Transport::Inproc::Pipe]
     # @param recv_queue [Async::LimitedQueue]
     # @yield [msg] optional per-message transform
     # @return [Async::Task, nil]
@@ -345,7 +345,7 @@ module OMQ
 
     # Called when a connection is lost.
     #
-    # @param connection [Connection]
+    # @param connection [Protocol::ZMTP::Connection]
     # @return [void]
     #
     def connection_lost(connection)
@@ -460,7 +460,7 @@ module OMQ
     # pumps blocked on `dequeue` waiting for messages that will never
     # be written.
     #
-    # @param conn [Connection, Transport::Inproc::Pipe]
+    # @param conn [Protocol::ZMTP::Connection, Transport::Inproc::Pipe]
     # @param annotation [String]
     #
     def spawn_conn_pump_task(conn, annotation:, &block)

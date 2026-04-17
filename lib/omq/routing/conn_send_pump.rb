@@ -12,7 +12,7 @@ module OMQ
       # is torn down with the rest of the connection's pumps.
       #
       # @param engine [Engine]
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param q [Async::LimitedQueue]
       # @return [Async::Task]
       #

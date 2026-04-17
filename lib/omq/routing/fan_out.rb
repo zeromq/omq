@@ -61,7 +61,7 @@ module OMQ
       # Override in subclasses to expose subscriptions to the
       # application (e.g. XPUB enqueues to recv_queue).
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param prefix [String]
       #
       def on_subscribe(conn, prefix)
@@ -74,7 +74,7 @@ module OMQ
       # Called when a cancel command is received from a peer.
       # Override in subclasses (e.g. XPUB enqueues to recv_queue).
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param prefix [String]
       #
       def on_cancel(conn, prefix)
@@ -86,7 +86,7 @@ module OMQ
       # Creates a per-connection send queue and starts its send pump.
       # Call from #connection_added.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       #
       def add_fan_out_send_connection(conn)
         q = Routing.build_queue(@engine.options.send_hwm, @engine.options.on_mute)
@@ -99,7 +99,7 @@ module OMQ
       # down by the per-connection lifecycle barrier.
       # Call from #connection_removed.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       #
       def remove_fan_out_send_connection(conn)
         @subscribe_all.delete(conn)
@@ -152,7 +152,7 @@ module OMQ
       # In conflate mode, drains the batch and keeps only the latest
       # message per topic before writing.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param q [Async::LimitedQueue, DropQueue]
       #
       def start_conn_send_pump(conn, q)
@@ -169,7 +169,7 @@ module OMQ
       # Send pump variant for non-conflate fan-out: dequeues, batch-drains,
       # writes each subscribed message, then flushes once.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param q [Async::LimitedQueue, DropQueue]
       # @param use_wire [Boolean] true iff the encoded wire bytes can
       #   be shared across peers (unencrypted ZMTP)
@@ -219,7 +219,7 @@ module OMQ
       # Send pump variant for conflate mode: keeps only the latest
       # subscribed message per batch. Stale duplicates are dropped.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param q [Async::LimitedQueue, DropQueue]
       # @return [Async::Task]
       #

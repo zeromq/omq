@@ -36,14 +36,14 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_added(connection)
         @engine.start_recv_pump(connection, @recv_queue)
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
       end

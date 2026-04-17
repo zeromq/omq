@@ -33,7 +33,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_added(connection)
         @connections << connection
@@ -42,7 +42,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
         @connections.delete(connection)
@@ -63,7 +63,7 @@ module OMQ
       # Detects peer disconnection on write-only sockets by
       # blocking on a receive that only returns on disconnect.
       #
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       #
       def start_reaper(conn)
         return if conn.is_a?(Transport::Inproc::Pipe)

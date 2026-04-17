@@ -9,7 +9,7 @@ module OMQ
     #
     module Heartbeat
       # @param parent [Async::Task, Async::Barrier] parent to spawn under
-      # @param conn [Connection]
+      # @param conn [Protocol::ZMTP::Connection]
       # @param options [Options]
       #
       def self.start(parent, conn, options)

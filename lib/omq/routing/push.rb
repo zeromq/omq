@@ -33,7 +33,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_added(connection)
         add_round_robin_send_connection(connection)
@@ -41,7 +41,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
         @connections.delete(connection)

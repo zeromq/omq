@@ -45,7 +45,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_added(connection)
         identity = connection.peer_identity
@@ -61,7 +61,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
         identity = @identity_by_connection.delete(connection)

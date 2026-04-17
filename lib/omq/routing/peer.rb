@@ -50,7 +50,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_added(connection)
         routing_id = SecureRandom.bytes(4)
@@ -65,7 +65,7 @@ module OMQ
       end
 
 
-      # @param connection [Connection]
+      # @param connection [Protocol::ZMTP::Connection]
       #
       def connection_removed(connection)
         routing_id = @routing_id_by_connection.delete(connection)
