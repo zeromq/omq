@@ -85,6 +85,7 @@ module OMQ
         def wire_direct_recv(queue, transform)
           @direct_recv_transform = transform
           @direct_recv_queue     = queue
+
           return unless @pending_direct
 
           @pending_direct.each { |msg| queue.enqueue(msg) }
@@ -99,6 +100,7 @@ module OMQ
         #
         def send_message(parts)
           raise IOError, "closed" if @closed
+
           if @direct_recv_queue
             @direct_recv_queue.enqueue(apply_transform(parts))
           elsif @send_queue
@@ -147,14 +149,13 @@ module OMQ
         #
         def receive_message
           loop do
-            item = @receive_queue.dequeue
-
-            raise EOFError, "connection closed" if item.nil?
+            item = @receive_queue.dequeue or raise EOFError, "connection closed"
 
             if item.is_a?(Array) && item.first == :command
               if block_given?
                 yield Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true)
               end
+
               next
             end
 
@@ -181,8 +182,7 @@ module OMQ
         # @return [Protocol::ZMTP::Codec::Frame]
         #
         def read_frame
-          item = @receive_queue.dequeue
-          raise EOFError, "connection closed" if item.nil?
+          item = @receive_queue.dequeue or raise EOFError, "connection closed"
 
           if item.is_a?(Array) && item.first == :command
             Protocol::ZMTP::Codec::Frame.new(item[1].to_body, command: true)
