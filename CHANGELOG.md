@@ -2,6 +2,29 @@
 
 ## 0.23.0 — 2026-04-17
 
+### Added
+
+- **Draft socket types now ship with `omq` itself.** `OMQ::CLIENT`/`SERVER`,
+  `OMQ::RADIO`/`DISH`, `OMQ::SCATTER`/`GATHER`, `OMQ::CHANNEL`, and
+  `OMQ::PEER` are back in OMQ. They were previously distributed as separate
+  `omq-rfc-*` gems, which was a PITA to maintain. Their source is now part of
+  `omq`. They are **not** loaded by `require "omq"` — opt in with one of:
+
+  ```ruby
+  require "omq/client_server"
+  require "omq/radio_dish"      # also registers the udp:// transport
+  require "omq/scatter_gather"
+  require "omq/channel"
+  require "omq/peer"
+  ```
+
+  These requires must run at process startup (before any socket is bound
+  or connected), since the underlying registries (`Routing`,
+  `Engine.transports`) freeze on first use. The five `omq-rfc-*` gems are
+  superseded and will not receive further releases. Per-pattern docs live
+  under [`doc/socket-types/`](doc/socket-types/).
+
+
 ### Changed
 
 - **`Socket#bind` / `#connect` now return a `URI`** (the resolved endpoint).

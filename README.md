@@ -20,7 +20,7 @@ live in the same process, on the same machine, or across the network.
 Reconnects, queuing, and back-pressure are handled for you; you write the
 interesting part.
 
-New to ZeroMQ? Start with [GETTING_STARTED.md](GETTING_STARTED.md) — a ~30 min
+New to ZeroMQ? Start with [GETTING_STARTED.md](doc/GETTING_STARTED.md) — a ~30 min
 walkthrough of every major pattern with working code.
 
 ## Highlights
@@ -45,7 +45,7 @@ walkthrough of every major pattern with working code.
   connect, peers come and go. ZeroMQ reconnects automatically and queued
   messages drain when peers arrive
 
-For architecture internals, see [DESIGN.md](DESIGN.md).
+For architecture internals, see [DESIGN.md](doc/DESIGN.md).
 
 ## Install
 
@@ -176,20 +176,22 @@ wire. Classes live under `OMQ::` (alias: `ØMQ`).
 > **Work-stealing, not round-robin.** Outbound load balancing uses one shared
 > send queue per socket drained by N racing pump fibers, so a slow peer can't
 > stall the pipeline. Under tight bursts on small `n`, distribution isn't
-> strict RR. See [DESIGN.md](DESIGN.md#per-socket-hwm-not-per-connection) and
-> [Libzmq quirks](DESIGN.md#libzmq-quirks-omq-avoids) for the reasoning.
+> strict RR. See [DESIGN.md](doc/DESIGN.md#per-socket-hwm-not-per-connection) and
+> [Libzmq quirks](doc/DESIGN.md#libzmq-quirks-omq-avoids) for the reasoning.
 
 #### Draft (single-frame only)
 
-Each draft pattern lives in its own gem — install only the ones you use.
+Bundled with `omq` but not loaded by `require "omq"` — opt in with the matching
+`require` line. See [`doc/socket-types/`](doc/socket-types/) for per-pattern
+usage.
 
-| Pattern | Send | Receive | When HWM full | Gem |
-|---------|------|---------|---------------|-----|
-| **CLIENT** / **SERVER** | Work-stealing / routing-ID | Fair-queue | Block | [`omq-rfc-clientserver`](https://github.com/paddor/omq-rfc-clientserver) |
-| **RADIO** / **DISH** | Group fan-out | Group filter | Drop | [`omq-rfc-radiodish`](https://github.com/paddor/omq-rfc-radiodish) |
-| **SCATTER** / **GATHER** | Work-stealing | Fair-queue | Block | [`omq-rfc-scattergather`](https://github.com/paddor/omq-rfc-scattergather) |
-| **PEER** | Routing-ID | Fair-queue | Block | [`omq-rfc-p2p`](https://github.com/paddor/omq-rfc-p2p) |
-| **CHANNEL** | Exclusive 1-to-1 | Exclusive 1-to-1 | Block | [`omq-rfc-channel`](https://github.com/paddor/omq-rfc-channel) |
+| Pattern | Send | Receive | When HWM full | Opt-in `require` |
+|---------|------|---------|---------------|------------------|
+| **CLIENT** / **SERVER** | Work-stealing / routing-ID | Fair-queue | Block | `require "omq/client_server"` |
+| **RADIO** / **DISH** | Group fan-out | Group filter | Drop | `require "omq/radio_dish"` (also registers `udp://`) |
+| **SCATTER** / **GATHER** | Work-stealing | Fair-queue | Block | `require "omq/scatter_gather"` |
+| **PEER** | Routing-ID | Fair-queue | Block | `require "omq/peer"` |
+| **CHANNEL** | Exclusive 1-to-1 | Exclusive 1-to-1 | Block | `require "omq/channel"` |
 
 ## CLI
 
@@ -220,7 +222,7 @@ See the [omq-cli README](https://github.com/paddor/omq-cli) for full documentati
 Optional plug-ins that extend the ZMTP wire protocol. Each is a separate gem;
 load the ones you need.
 
-- **[omq-rfc-zstd](https://github.com/paddor/omq-rfc-zstd)** — transparent
+- **[omq-zstd](https://github.com/paddor/omq-zstd)** — transparent
   Zstandard compression on the wire, negotiated per peer via READY properties.
 
 ## Development
@@ -233,7 +235,7 @@ bundle exec rake
 ### Full development setup
 
 Set `OMQ_DEV=1` to tell Bundler to load sibling projects from source
-(protocol-zmtp, nuckle, omq-rfc-\*, etc.) instead of released gems.
+(protocol-zmtp, omq-zstd ,nuckle, etc.) instead of released gems.
 This is required for running benchmarks and for testing changes across
 the stack.
 
@@ -241,13 +243,7 @@ the stack.
 # clone OMQ and its sibling repos into the same parent directory
 git clone https://github.com/paddor/omq.git
 git clone https://github.com/paddor/protocol-zmtp.git
-git clone https://github.com/paddor/omq-rfc-zstd.git
-git clone https://github.com/paddor/omq-rfc-clientserver.git
-git clone https://github.com/paddor/omq-rfc-radiodish.git
-git clone https://github.com/paddor/omq-rfc-scattergather.git
-git clone https://github.com/paddor/omq-rfc-channel.git
-git clone https://github.com/paddor/omq-rfc-p2p.git
-git clone https://github.com/paddor/omq-rfc-qos.git
+git clone https://github.com/paddor/omq-zstd.git
 git clone https://github.com/paddor/omq-ffi.git
 git clone https://github.com/paddor/omq-ractor.git
 git clone https://github.com/paddor/nuckle.git

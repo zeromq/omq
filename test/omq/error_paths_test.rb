@@ -9,7 +9,7 @@ describe "Error paths" do
     it "raises ArgumentError" do
       push = OMQ::PUSH.new
       assert_raises(ArgumentError) do
-        push.bind("udp://127.0.0.1:5555")
+        push.bind("nope://127.0.0.1:5555")
       end
     ensure
       push&.close

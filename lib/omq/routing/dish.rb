@@ -1,0 +1,102 @@
+# frozen_string_literal: true
+
+module OMQ
+  module Routing
+    # DISH socket routing: group-based receive from RADIO peers.
+    #
+    # Sends JOIN/LEAVE commands to connected RADIO peers.
+    # Receives two-frame messages (group + body) from RADIO.
+    #
+    class Dish
+      # @param engine [Engine]
+      #
+      def initialize(engine)
+        @engine      = engine
+        @connections = []
+        @recv_queue  = Routing.build_queue(engine.options.recv_hwm, :block)
+        @groups      = Set.new
+        @tasks       = []
+      end
+
+
+      # @return [Async::LimitedQueue]
+      #
+      attr_reader :recv_queue
+
+
+      # Dequeues the next received message. Blocks until one is available.
+      #
+      # @return [Array<String>, nil]
+      #
+      def dequeue_recv
+        @recv_queue.dequeue
+      end
+
+
+      # Wakes a blocked {#dequeue_recv} with a nil sentinel.
+      #
+      # @return [void]
+      #
+      def unblock_recv
+        @recv_queue.enqueue(nil)
+      end
+
+
+      # @param connection [Connection]
+      #
+      def connection_added(connection)
+        @connections << connection
+        @groups.each do |group|
+          connection.send_command(Protocol::ZMTP::Codec::Command.join(group))
+        end
+        task = @engine.start_recv_pump(connection, @recv_queue)
+        @tasks << task if task
+      end
+
+
+      # @param connection [Connection]
+      #
+      def connection_removed(connection)
+        @connections.delete(connection)
+      end
+
+
+      # DISH is read-only.
+      #
+      def enqueue(_parts)
+        raise "DISH sockets cannot send"
+      end
+
+
+      # Joins a group.
+      #
+      # @param group [String]
+      #
+      def join(group)
+        @groups << group
+        @connections.each do |conn|
+          conn.send_command(Protocol::ZMTP::Codec::Command.join(group))
+        end
+      end
+
+
+      # Leaves a group.
+      #
+      # @param group [String]
+      #
+      def leave(group)
+        @groups.delete(group)
+        @connections.each do |conn|
+          conn.send_command(Protocol::ZMTP::Codec::Command.leave(group))
+        end
+      end
+
+
+      # Stops all background tasks.
+      def stop
+        @tasks.each(&:stop)
+        @tasks.clear
+      end
+    end
+  end
+end
