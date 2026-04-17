@@ -101,6 +101,7 @@ describe "ZMTP 3.0 PUB/SUB compatibility" do
       end
 
       xsub = OMQ::XSUB.connect("tcp://127.0.0.1:#{port}")
+      wait_connected(xsub)
       xsub.send("\x01xs.".b)
       task.wait
     ensure
@@ -120,6 +121,7 @@ describe "ZMTP 3.0 PUB/SUB compatibility" do
       end
 
       xsub = OMQ::XSUB.connect("tcp://127.0.0.1:#{port}")
+      wait_connected(xsub)
       xsub.send("\x01xs.".b)
       task.wait
     ensure
