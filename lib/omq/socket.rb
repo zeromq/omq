@@ -35,11 +35,6 @@ module OMQ
     attr_reader :options
 
 
-    # @return [Integer, nil] last auto-selected TCP port
-    #
-    attr_reader :last_tcp_port
-
-
     # @return [Engine] the socket's engine. Exposed for peer tooling
     #   (omq-cli, omq-ffi, omq-ractor) that needs to reach into the
     #   socket's internals — not part of the stable user API.
@@ -109,14 +104,11 @@ module OMQ
     #   can coordinate teardown with their own Async tree. Only the
     #   *first* bind/connect call captures the parent — subsequent
     #   calls ignore the kwarg.
-    # @return [void]
+    # @return [URI::Generic] resolved endpoint URI (with auto-selected port for "tcp://host:0")
     #
     def bind(endpoint, parent: nil, **opts)
       ensure_parent_task(parent: parent)
-      Reactor.run do
-        @engine.bind(endpoint, **opts) # TODO: use timeout?
-        @last_tcp_port = @engine.last_tcp_port
-      end
+      Reactor.run { @engine.bind(endpoint, **opts) } # TODO: use timeout?
     end
 
 
@@ -124,7 +116,7 @@ module OMQ
     #
     # @param endpoint [String]
     # @param parent [#async, nil] see {#bind}.
-    # @return [void]
+    # @return [URI::Generic] parsed endpoint URI
     #
     def connect(endpoint, parent: nil, **opts)
       ensure_parent_task(parent: parent)
@@ -149,13 +141,6 @@ module OMQ
     #
     def unbind(endpoint)
       Reactor.run { @engine.unbind(endpoint) } # TODO: use timeout?
-    end
-
-
-    # @return [String, nil] last bound endpoint
-    #
-    def last_endpoint
-      @engine.last_endpoint
     end
 
 
@@ -285,7 +270,7 @@ module OMQ
     # @return [String]
     #
     def inspect
-      format("#<%s last_endpoint=%p>", self.class, last_endpoint)
+      format("#<%s bound=%p>", self.class, @engine.listeners.keys)
     end
 
 

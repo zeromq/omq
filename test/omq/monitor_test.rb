@@ -13,8 +13,7 @@ describe "Socket#monitor" do
       pull   = OMQ::PULL.new.tap { |s| s.linger = 0 }
       pull.monitor { |e| events << e }
 
-      pull.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}")
@@ -47,8 +46,8 @@ describe "Socket#monitor" do
       push   = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.monitor { |e| events << e }
 
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)
@@ -107,8 +106,7 @@ describe "Socket#monitor" do
       pull.max_message_size = 10
       pull.monitor { |e| events << e }
 
-      pull.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}")
@@ -166,8 +164,8 @@ describe "Socket#monitor" do
       push.reconnect_enabled = false
       push.monitor { |e| events << e }
 
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push, pull)

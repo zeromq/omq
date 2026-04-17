@@ -53,15 +53,16 @@ describe "Engine connection_wrapper" do
 
   it "wraps TCP connections via setup_connection" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
+      pull = OMQ::PULL.new
+      uri  = pull.bind("tcp://127.0.0.1:0")
 
       wrapped = []
-      pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+      pull.engine.connection_wrapper = ->(conn) do
         wrapped << conn.class.name
         conn
       end
 
-      push = OMQ::PUSH.connect(pull.last_endpoint)
+      push = OMQ::PUSH.connect(uri.to_s)
       wait_connected(push)
 
       push << "hello"

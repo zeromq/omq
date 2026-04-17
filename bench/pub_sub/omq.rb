@@ -14,8 +14,8 @@ BenchHelper.run("PUB/SUB", dir: __dir__, peer_counts: [3]) do |transport, ep, pe
   # :block here to get strict delivery.
   pub = OMQ::PUB.new(on_mute: :block)
   BenchHelper.apply_security(pub, transport, role: :server)
-  pub.bind(ep)
-  ep = BenchHelper.resolve_endpoint(transport, pub)
+  uri = pub.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, ep, uri)
 
   subs = peers.times.map do
     sub = OMQ::SUB.new(subscribe: "")

@@ -91,8 +91,8 @@ describe "PUB/SUB" do
 
   it "fans out to multiple TCP subscribers (pre-encoded wire path)" do
     Async do
-      pub = OMQ::PUB.bind("tcp://127.0.0.1:0")
-      port = pub.last_tcp_port
+      pub = OMQ::PUB.new
+      port = pub.bind("tcp://127.0.0.1:0").port
 
       subs = 3.times.map { OMQ::SUB.connect("tcp://127.0.0.1:#{port}", subscribe: "") }
       wait_connected(*subs)
@@ -318,8 +318,8 @@ describe "XPUB/XSUB" do
 
   it "XPUB receives subscription notifications over TCP" do
     Async do
-      xpub = OMQ::XPUB.bind("tcp://127.0.0.1:0")
-      port = xpub.last_tcp_port
+      xpub = OMQ::XPUB.new
+      port = xpub.bind("tcp://127.0.0.1:0").port
 
       sub = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.connect("tcp://127.0.0.1:#{port}")
@@ -336,8 +336,8 @@ describe "XPUB/XSUB" do
 
   it "XPUB delivers filtered messages over TCP" do
     Async do
-      xpub = OMQ::XPUB.bind("tcp://127.0.0.1:0")
-      port = xpub.last_tcp_port
+      xpub = OMQ::XPUB.new
+      port = xpub.bind("tcp://127.0.0.1:0").port
 
       sub = OMQ::SUB.connect("tcp://127.0.0.1:#{port}", subscribe: "news.")
 

@@ -26,13 +26,13 @@ describe "PUSH/PULL over inproc" do
       pull2 = OMQ::PULL.new
       pull1.read_timeout = 0.2
       pull2.read_timeout = 0.2
-      pull1.bind("tcp://127.0.0.1:0")
-      pull2.bind("tcp://127.0.0.1:0")
+      port1 = pull1.bind("tcp://127.0.0.1:0").port
+      port2 = pull2.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new
       push.reconnect_interval = RECONNECT_INTERVAL
-      push.connect("tcp://127.0.0.1:#{pull1.last_tcp_port}")
-      push.connect("tcp://127.0.0.1:#{pull2.last_tcp_port}")
+      push.connect("tcp://127.0.0.1:#{port1}")
+      push.connect("tcp://127.0.0.1:#{port2}")
 
       # Wait for both peers to be handshake-complete before sending,
       # otherwise the first pump that comes up may absorb all 1000
@@ -293,8 +293,8 @@ describe "PUSH/PULL delivery guarantees" do
 
   it "delivers messages when TCP bind happens before connect" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.connect("tcp://127.0.0.1:#{port}")
@@ -344,8 +344,8 @@ describe "PUSH/PULL delivery guarantees" do
 
   it "does not drop messages when receiver fiber is busy during TCP reconnect" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push                      = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.reconnect_interval   = RECONNECT_INTERVAL

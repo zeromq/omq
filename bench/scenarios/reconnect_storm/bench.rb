@@ -16,8 +16,8 @@ puts
 ITERATIONS = 10
 
 Async do
-  pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-  port = pull.last_tcp_port
+  pull = OMQ::PULL.new
+  port = pull.bind("tcp://127.0.0.1:0").port
   push = OMQ::PUSH.new(nil, linger: 0)
   push.reconnect_interval = 0.02
   push.connect("tcp://127.0.0.1:#{port}")

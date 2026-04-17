@@ -8,8 +8,8 @@ BenchHelper.run("REQ/REP", dir: __dir__, peer_counts: [1]) do |transport, ep, pe
   Async do |task|
     rep = OMQ::REP.new
     BenchHelper.apply_security(rep, transport, role: :server)
-    rep.bind(ep)
-    ep = BenchHelper.resolve_endpoint(transport, rep)
+    uri = rep.bind(ep)
+    ep = BenchHelper.resolve_endpoint(transport, ep, uri)
 
     req = OMQ::REQ.new
     BenchHelper.apply_security(req, transport, role: :client)

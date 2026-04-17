@@ -7,8 +7,7 @@ describe "Connection error handling" do
   it "server survives client disconnect during TCP handshake" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       # Raw TCP connect + immediate close — triggers EPIPE/ECONNRESET
       # during the server's greeting write

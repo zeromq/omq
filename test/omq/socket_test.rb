@@ -6,7 +6,7 @@ describe OMQ::Socket do
   before { OMQ::Transport::Inproc.reset! }
 
   describe "#inspect" do
-    it "includes class name and last_endpoint" do
+    it "includes class name and bound endpoints" do
       Async do
         rep = OMQ::REP.bind("inproc://inspect-test")
         s = rep.inspect
@@ -17,10 +17,10 @@ describe OMQ::Socket do
       end
     end
 
-    it "shows nil endpoint before bind/connect" do
+    it "shows empty bound list before bind/connect" do
       Async do
         rep = OMQ::REP.new
-        assert_match(/nil/, rep.inspect)
+        assert_match(/bound=\[\]/, rep.inspect)
       ensure
         rep&.close
       end

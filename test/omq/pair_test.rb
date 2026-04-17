@@ -55,10 +55,11 @@ describe OMQ::PAIR do
     end
   end
 
-  it "reports last_endpoint" do
+  it "returns parsed URI from #bind" do
     Async do
-      server = OMQ::PAIR.bind("inproc://pair-test-5")
-      assert_equal "inproc://pair-test-5", server.last_endpoint
+      server = OMQ::PAIR.new
+      uri = server.bind("inproc://pair-test-5")
+      assert_equal "inproc://pair-test-5", uri.to_s
     ensure
       server&.close
     end

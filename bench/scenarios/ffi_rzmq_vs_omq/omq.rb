@@ -21,8 +21,7 @@ def bench_push_pull(size)
 
   Sync do
     pull = OMQ::PULL.new
-    pull.bind("tcp://127.0.0.1:0")
-    ep = "tcp://127.0.0.1:#{pull.last_tcp_port}"
+    ep = "tcp://127.0.0.1:#{pull.bind('tcp://127.0.0.1:0').port}"
 
     push = OMQ::PUSH.new
     push.connect(ep)
@@ -56,8 +55,7 @@ def bench_req_rep(size)
 
   Sync do
     rep = OMQ::REP.new
-    rep.bind("tcp://127.0.0.1:0")
-    ep = "tcp://127.0.0.1:#{rep.last_tcp_port}"
+    ep = "tcp://127.0.0.1:#{rep.bind('tcp://127.0.0.1:0').port}"
 
     req = OMQ::REQ.new
     req.connect(ep)

@@ -6,8 +6,8 @@ describe "non-Async usage" do
   before { OMQ::Transport::Inproc.reset! }
 
   it "sends and receives without an Async block" do
-    pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-    port = pull.last_tcp_port
+    pull = OMQ::PULL.new
+    port = pull.bind("tcp://127.0.0.1:0").port
     push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
 
     push << "hello"

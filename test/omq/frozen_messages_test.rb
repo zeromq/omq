@@ -204,8 +204,8 @@ describe "received messages are deep-frozen" do
   describe "TCP" do
     it "PUSH/PULL" do
       Async do
-        pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-        push = OMQ::PUSH.connect("tcp://127.0.0.1:#{pull.last_tcp_port}")
+        pull = OMQ::PULL.new
+        push = OMQ::PUSH.connect("tcp://127.0.0.1:#{pull.bind("tcp://127.0.0.1:0").port}")
 
         push << "hello"
         assert_deep_frozen pull.receive
@@ -217,8 +217,8 @@ describe "received messages are deep-frozen" do
 
     it "REQ/REP" do
       Async do
-        rep = OMQ::REP.bind("tcp://127.0.0.1:0")
-        req = OMQ::REQ.connect("tcp://127.0.0.1:#{rep.last_tcp_port}")
+        rep = OMQ::REP.new
+        req = OMQ::REQ.connect("tcp://127.0.0.1:#{rep.bind("tcp://127.0.0.1:0").port}")
 
         req << "request"
         msg = rep.receive
@@ -234,8 +234,8 @@ describe "received messages are deep-frozen" do
 
     it "multi-frame messages" do
       Async do
-        pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-        push = OMQ::PUSH.connect("tcp://127.0.0.1:#{pull.last_tcp_port}")
+        pull = OMQ::PULL.new
+        push = OMQ::PUSH.connect("tcp://127.0.0.1:#{pull.bind("tcp://127.0.0.1:0").port}")
 
         push << ["part1", "part2", "part3"]
         msg = pull.receive

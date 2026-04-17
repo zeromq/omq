@@ -5,8 +5,8 @@ require_relative "../test_helper"
 describe "Linger" do
   it "drains send queue before closing when linger > 0" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
       push.connect("tcp://127.0.0.1:#{port}")
@@ -29,8 +29,8 @@ describe "Linger" do
 
   it "closes immediately when linger = 0" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}")
@@ -110,12 +110,14 @@ describe "Linger" do
 
   it "drains in-flight messages across multiple peers before closing" do
     Async do
-      pull_a = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      pull_b = OMQ::PULL.bind("tcp://127.0.0.1:0")
+      pull_a = OMQ::PULL.new
+      pull_b = OMQ::PULL.new
+      port_a = pull_a.bind("tcp://127.0.0.1:0").port
+      port_b = pull_b.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 5 }
-      push.connect("tcp://127.0.0.1:#{pull_a.last_tcp_port}")
-      push.connect("tcp://127.0.0.1:#{pull_b.last_tcp_port}")
+      push.connect("tcp://127.0.0.1:#{port_a}")
+      push.connect("tcp://127.0.0.1:#{port_b}")
 
       # Wait for both peers so pumps exist for both connections.
       sleep 0.001 until push.connection_count >= 2
@@ -179,8 +181,8 @@ describe "Linger" do
 
   it "actually delivers all messages before close completes over TCP" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 2 }
       push.connect("tcp://127.0.0.1:#{port}")

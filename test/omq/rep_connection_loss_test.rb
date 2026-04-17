@@ -6,8 +6,7 @@ describe "REP connection loss with pending reply" do
   it "discards pending reply when connection drops" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req1 = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req1.connect("tcp://127.0.0.1:#{port}")

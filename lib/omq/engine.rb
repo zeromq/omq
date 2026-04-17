@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "async"
+require "uri"
 require_relative "engine/recv_pump"
 require_relative "engine/heartbeat"
 require_relative "engine/reconnect"
@@ -44,16 +45,6 @@ module OMQ
     end
 
 
-    # @return [String, nil] last bound endpoint
-    #
-    attr_reader :last_endpoint
-
-
-    # @return [Integer, nil] last auto-selected TCP port
-    #
-    attr_reader :last_tcp_port
-
-
     # @param socket_type [Symbol] e.g. :REQ, :REP, :PAIR
     # @param options [Options]
     #
@@ -65,12 +56,15 @@ module OMQ
       @dialers         = {} # endpoint => Dialer (reconnect intent + connect logic)
       @listeners       = {} # endpoint => Listener
       @lifecycle       = SocketLifecycle.new
-      @last_endpoint   = nil
-      @last_tcp_port   = nil
       @fatal_error     = nil
       @monitor_queue   = nil
       @verbose_monitor = false
     end
+
+
+    # @return [Hash{String => Listener}] active listeners keyed by resolved endpoint
+    #
+    attr_reader :listeners
 
 
     # @return [Hash{Connection => ConnectionLifecycle}] active connections
@@ -191,7 +185,7 @@ module OMQ
     # Binds to an endpoint.
     #
     # @param endpoint [String] e.g. "tcp://127.0.0.1:5555", "inproc://foo"
-    # @return [void]
+    # @return [URI::Generic] resolved endpoint URI (with auto-selected port for "tcp://host:0")
     # @raise [ArgumentError] on unsupported transport
     #
     def bind(endpoint, parent: nil, **opts)
@@ -203,9 +197,8 @@ module OMQ
       start_accept_loops(listener)
 
       @listeners[listener.endpoint] = listener
-      @last_endpoint = listener.endpoint
-      @last_tcp_port = listener.respond_to?(:port) ? listener.port : nil
       emit_monitor_event(:listening, endpoint: listener.endpoint)
+      URI.parse(listener.endpoint)
     rescue => error
       emit_monitor_event(:bind_failed, endpoint: endpoint, detail: { error: error })
       raise
@@ -215,7 +208,7 @@ module OMQ
     # Connects to an endpoint.
     #
     # @param endpoint [String]
-    # @return [void]
+    # @return [URI::Generic] parsed endpoint URI
     #
     def connect(endpoint, parent: nil, **opts)
       OMQ.freeze_for_ractors!
@@ -233,6 +226,8 @@ module OMQ
         emit_monitor_event(:connect_delayed, endpoint: endpoint)
         schedule_reconnect(endpoint, delay: 0)
       end
+
+      URI.parse(endpoint)
     end
 
 

@@ -13,8 +13,7 @@ describe "Reconnect after server restart" do
     Async do
       server = bind_class.new
       server.linger = 0
-      server.bind("tcp://127.0.0.1:0")
-      port = server.last_tcp_port
+      port = server.bind("tcp://127.0.0.1:0").port
 
       client = connect_class.new
       client.linger = 0
@@ -74,8 +73,7 @@ describe "Reconnect after server restart" do
   it "PUB/SUB" do
     Async do
       pub = OMQ::PUB.new.tap { |s| s.linger = 0 }
-      pub.bind("tcp://127.0.0.1:0")
-      port = pub.last_tcp_port
+      port = pub.bind("tcp://127.0.0.1:0").port
 
       sub = OMQ::SUB.new.tap { |s| s.linger = 0 }
       sub.reconnect_interval = RECONNECT_INTERVAL

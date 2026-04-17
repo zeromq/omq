@@ -54,8 +54,8 @@ describe "Edge cases" do
 
     it "survives 10 rapid cycles over TCP" do
       Async do
-        pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-        port = pull.last_tcp_port
+        pull = OMQ::PULL.new
+        port = pull.bind("tcp://127.0.0.1:0").port
 
         10.times do |i|
           push = OMQ::PUSH.new.tap { |s| s.linger = 1 }
@@ -84,8 +84,8 @@ describe "Edge cases" do
   describe "bind to already-bound address" do
     it "raises on duplicate TCP bind" do
       Async do
-        rep1 = OMQ::REP.bind("tcp://127.0.0.1:0")
-        port = rep1.last_tcp_port
+        rep1 = OMQ::REP.new
+        port = rep1.bind("tcp://127.0.0.1:0").port
 
         assert_raises(Errno::EADDRINUSE) do
           OMQ::REP.bind("tcp://127.0.0.1:#{port}")

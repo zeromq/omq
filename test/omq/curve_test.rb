@@ -39,8 +39,7 @@ describe "CURVE encryption (socket-level)" do
       Async do |task|
         rep = OMQ::REP.new
         rep.mechanism = curve_server(server_pub, server_sec)
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         task.async do
           msg = rep.receive
@@ -96,8 +95,7 @@ describe "CURVE encryption (socket-level)" do
       Async do |task|
         rep = OMQ::REP.new
         rep.mechanism = curve_server(server_pub, server_sec, authenticator: Set[client_pub])
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         task.async do
           msg = rep.receive
@@ -125,8 +123,7 @@ describe "CURVE encryption (socket-level)" do
       Async do |task|
         rep = OMQ::REP.new
         rep.mechanism = curve_server(server_pub, server_sec, authenticator: Set[other_pub])
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         req = OMQ::REQ.new
         req.mechanism = curve_client(client_pub, client_sec, server_key: server_pub)
@@ -153,8 +150,7 @@ describe "CURVE encryption (socket-level)" do
           authenticated_keys << key
           true
         })
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         task.async do
           msg = rep.receive
@@ -182,8 +178,7 @@ describe "CURVE encryption (socket-level)" do
       Async do |task|
         rep = OMQ::REP.new
         rep.mechanism = curve_server(server_pub, server_sec, authenticator: ->(_) { false })
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         req = OMQ::REQ.new
         req.mechanism = curve_client(client_pub, client_sec, server_key: server_pub)
@@ -209,8 +204,7 @@ describe "CURVE encryption (socket-level)" do
       Async do |task|
         rep = OMQ::REP.new
         rep.mechanism = curve_server(server_pub, server_sec)
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         task.async do
           2.times do
@@ -248,8 +242,7 @@ describe "CURVE encryption (socket-level)" do
       Async do |task|
         rep = OMQ::REP.new
         rep.mechanism = curve_server(server_pub, server_sec)
-        rep.bind("tcp://127.0.0.1:0")
-        port = rep.last_tcp_port
+        port = rep.bind("tcp://127.0.0.1:0").port
 
         task.async do
           msg = rep.receive
@@ -296,8 +289,7 @@ describe "CURVE encryption (socket-level)" do
         Async do |task|
           rep = OMQ::REP.new
           rep.mechanism = curve_server(server_pub, server_sec, crypto: RbNaCl)
-          rep.bind("tcp://127.0.0.1:0")
-          port = rep.last_tcp_port
+          port = rep.bind("tcp://127.0.0.1:0").port
 
           task.async do
             msg = rep.receive
@@ -324,8 +316,7 @@ describe "CURVE encryption (socket-level)" do
         Async do |task|
           rep = OMQ::REP.new
           rep.mechanism = curve_server(server_pub, server_sec, crypto: Nuckle)
-          rep.bind("tcp://127.0.0.1:0")
-          port = rep.last_tcp_port
+          port = rep.bind("tcp://127.0.0.1:0").port
 
           task.async do
             msg = rep.receive

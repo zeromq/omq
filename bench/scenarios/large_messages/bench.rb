@@ -26,8 +26,8 @@ SIZES.each do |label, size|
   payload = "x" * size
 
   Async do
-    pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-    port = pull.last_tcp_port
+    pull = OMQ::PULL.new
+    port = pull.bind("tcp://127.0.0.1:0").port
     push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
 
     20.times do

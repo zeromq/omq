@@ -7,8 +7,8 @@ require_relative "../bench_helper"
 BenchHelper.run("ROUTER/DEALER", dir: __dir__, peer_counts: [3]) do |transport, ep, peers, payload|
   router = OMQ::ROUTER.new
   BenchHelper.apply_security(router, transport, role: :server)
-  router.bind(ep)
-  ep = BenchHelper.resolve_endpoint(transport, router)
+  uri = router.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, ep, uri)
 
   dealers = peers.times.map do |i|
     d = OMQ::DEALER.new

@@ -6,8 +6,9 @@ require "async"
 endpoint = ARGV[0] || "tcp://*:5555"
 
 Async do
-  rep = OMQ::REP.new(endpoint)
-  puts "Server on #{rep.last_endpoint} ..."
+  rep = OMQ::REP.new
+  uri = rep.bind(endpoint)
+  puts "Server on #{uri} ..."
 
   loop do
     msg = rep.receive

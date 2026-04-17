@@ -63,8 +63,7 @@ describe "disconnect / unbind" do
   it "#unbind stops accepting new connections" do
     Async do
       rep = OMQ::REP.new
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new
       req.connect("tcp://127.0.0.1:#{port}")

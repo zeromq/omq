@@ -10,8 +10,7 @@ describe "Reconnection with Range backoff" do
       req.reconnect_interval = RECONNECT_INTERVAL..1.0
 
       rep  = OMQ::REP.new.tap { |s| s.linger = 0 }
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       # Connect, exchange, then kill the server
       req.connect("tcp://127.0.0.1:#{port}")
@@ -48,8 +47,7 @@ describe "Reconnection with Range backoff" do
       req.reconnect_interval = RECONNECT_INTERVAL
 
       rep  = OMQ::REP.new.tap { |s| s.linger = 0 }
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req.connect("tcp://127.0.0.1:#{port}")
       req.send("first")

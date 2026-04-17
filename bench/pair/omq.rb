@@ -7,8 +7,8 @@ require_relative "../bench_helper"
 BenchHelper.run("PAIR", dir: __dir__, peer_counts: [1]) do |transport, ep, _peers, payload|
   receiver = OMQ::PAIR.new
   BenchHelper.apply_security(receiver, transport, role: :server)
-  receiver.bind(ep)
-  ep = BenchHelper.resolve_endpoint(transport, receiver)
+  uri = receiver.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, ep, uri)
 
   sender = OMQ::PAIR.new
   BenchHelper.apply_security(sender, transport, role: :client)

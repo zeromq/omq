@@ -8,8 +8,8 @@ describe "auto-close" do
   it "closes TCP connections when the Async block exits" do
     connections = nil
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
       push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push)
 
@@ -29,15 +29,15 @@ describe "auto-close" do
   it "closes TCP server sockets when the Async block exits" do
     listeners = nil
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
       push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push)
 
       push << "hello"
       pull.receive
 
-      listeners = pull.instance_variable_get(:@engine).instance_variable_get(:@listeners).dup
+      listeners = pull.engine.listeners.dup
       # no explicit close
     end
 

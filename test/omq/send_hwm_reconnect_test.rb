@@ -10,8 +10,7 @@ describe "PUSH with low send_hwm re-routes on disconnect" do
       push.reconnect_interval  = RECONNECT_INTERVAL
 
       pull1 = OMQ::PULL.new.tap { |s| s.linger = 0 }
-      pull1.bind("tcp://127.0.0.1:0")
-      port = pull1.last_tcp_port
+      port = pull1.bind("tcp://127.0.0.1:0").port
 
       push.connect("tcp://127.0.0.1:#{port}")
       wait_connected(push)

@@ -4,6 +4,17 @@
 
 ### Changed
 
+- **`Socket#bind` / `#connect` now return a `URI`** (the resolved endpoint).
+  `#bind` returns the listener's resolved URI — for `tcp://host:0` this
+  carries the auto-selected port via `uri.port`. `#connect` returns the
+  parsed input URI. The `last_tcp_port` and `last_endpoint` accessors are
+  removed; callers should capture the URI from `#bind` instead. Note: stdlib
+  `URI.parse` is lossy on abstract IPC endpoints (`ipc://@name`) — the `@`
+  is parsed as userinfo and dropped on `to_s`. For abstract IPC, use the
+  input string for connect rather than re-serializing the URI.
+  `Socket#inspect` now shows `bound=[...]` (the listener endpoints) instead
+  of `last_endpoint=...`.
+
 - **Transport interface: `.bind`/`.connect` replaced by `.listener`/`.dialer`
   factory methods** returning stateful `Listener`/`Dialer` objects. The
   engine now stores a per-endpoint `@dialers` map (was a `@dialed` Set)

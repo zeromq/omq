@@ -119,12 +119,13 @@ module BenchHelper
   end
 
   # Returns the resolved endpoint after bind (handles port auto-selection).
+  # +ep+ is the input endpoint, +uri+ is the URI returned by Socket#bind.
   #
-  def resolve_endpoint(transport, socket)
+  def resolve_endpoint(transport, ep, uri)
     case transport
     when "tcp", "curve"
-      "tcp://127.0.0.1:#{socket.last_tcp_port}"
-    else socket.last_endpoint
+      "tcp://127.0.0.1:#{uri.port}"
+    else ep
     end
   end
 

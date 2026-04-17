@@ -16,8 +16,7 @@ describe "mixed transports" do
     Async do
       push = OMQ::PUSH.new
       push.bind("inproc://mixed-push-#{object_id}")
-      push.bind("tcp://127.0.0.1:0")
-      tcp_port = push.last_tcp_port
+      tcp_port = push.bind("tcp://127.0.0.1:0").port
 
       pull_inproc = OMQ::PULL.connect("inproc://mixed-push-#{object_id}")
       push << "inproc-only"
@@ -55,8 +54,7 @@ describe "mixed transports" do
     Async do
       push = OMQ::PUSH.new
       push.bind("inproc://mixed-revert-#{object_id}")
-      push.bind("tcp://127.0.0.1:0")
-      tcp_port = push.last_tcp_port
+      tcp_port = push.bind("tcp://127.0.0.1:0").port
 
       pull_inproc = OMQ::PULL.connect("inproc://mixed-revert-#{object_id}")
       pull_tcp    = OMQ::PULL.connect("tcp://127.0.0.1:#{tcp_port}")
@@ -99,8 +97,8 @@ describe "mixed transports" do
 
   it "REQ/REP over TCP after inproc warmup" do
     Async do
-      rep = OMQ::REP.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      rep = OMQ::REP.new
+      port = rep.bind("tcp://127.0.0.1:0").port
       req = OMQ::REQ.connect("tcp://127.0.0.1:#{port}")
       wait_connected(req)
 

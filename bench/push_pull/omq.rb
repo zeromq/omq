@@ -7,8 +7,8 @@ require_relative "../bench_helper"
 BenchHelper.run("PUSH/PULL", dir: __dir__, peer_counts: [1, 3]) do |transport, ep, peers, payload|
   pull = OMQ::PULL.new
   BenchHelper.apply_security(pull, transport, role: :server)
-  pull.bind(ep)
-  ep = BenchHelper.resolve_endpoint(transport, pull)
+  uri = pull.bind(ep)
+  ep = BenchHelper.resolve_endpoint(transport, ep, uri)
 
   pushes = peers.times.map do
     push = OMQ::PUSH.new

@@ -5,8 +5,8 @@ require_relative "../../test_helper"
 describe "TCP transport" do
   it "PAIR over TCP with ephemeral port" do
     Async do
-      server = OMQ::PAIR.bind("tcp://127.0.0.1:0")
-      port = server.last_tcp_port
+      server = OMQ::PAIR.new
+      port = server.bind("tcp://127.0.0.1:0").port
       refute_nil port
       assert port > 0
 
@@ -27,8 +27,8 @@ describe "TCP transport" do
 
   it "REQ/REP over TCP" do
     Async do
-      rep = OMQ::REP.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      rep = OMQ::REP.new
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.connect("tcp://127.0.0.1:#{port}")
 
@@ -47,8 +47,8 @@ describe "TCP transport" do
 
   it "PUSH/PULL over TCP" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
 
       push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
 
@@ -99,9 +99,10 @@ describe "TCP transport" do
 
   it "binds tcp://*:0 as dual-stack and accepts IPv4 and IPv6 loopback connects" do
     Async do
-      pull = OMQ::PULL.bind("tcp://*:0")
-      port = pull.last_tcp_port
-      assert_match %r{\Atcp://\*:\d+\z}, pull.last_endpoint
+      pull = OMQ::PULL.new
+      uri  = pull.bind("tcp://*:0")
+      port = uri.port
+      assert_match %r{\Atcp://\*:\d+\z}, uri.to_s
 
       push4 = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
       push4.send("via-ipv4")
@@ -119,8 +120,8 @@ describe "TCP transport" do
 
   it "binds tcp://localhost:0 and tcp://:0 to the preferred loopback family" do
     Async do
-      pull = OMQ::PULL.bind("tcp://localhost:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://localhost:0").port
 
       push = OMQ::PUSH.connect("tcp://localhost:#{port}")
       push.send("loopback msg")
@@ -133,8 +134,8 @@ describe "TCP transport" do
 
   it "connect normalizes tcp://localhost and tcp://: to loopback" do
     Async do
-      pull = OMQ::PULL.bind("tcp://*:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://*:0").port
 
       push_localhost = OMQ::PUSH.connect("tcp://localhost:#{port}")
       push_localhost.send("from-localhost")

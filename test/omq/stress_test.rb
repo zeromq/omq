@@ -32,8 +32,8 @@ describe "Stress tests" do
   it "handles 1k messages through REQ/REP over TCP" do
     n = 1_000
     Async do |task|
-      rep = OMQ::REP.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      rep = OMQ::REP.new
+      port = rep.bind("tcp://127.0.0.1:0").port
       req = OMQ::REQ.connect("tcp://127.0.0.1:#{port}")
 
       responder = task.async do
@@ -144,8 +144,8 @@ describe "Stress tests" do
 
   it "handles large messages (1MB)" do
     Async do
-      pull = OMQ::PULL.bind("tcp://127.0.0.1:0")
-      port = pull.last_tcp_port
+      pull = OMQ::PULL.new
+      port = pull.bind("tcp://127.0.0.1:0").port
       push = OMQ::PUSH.connect("tcp://127.0.0.1:#{port}")
 
       big = "x" * 1_000_000

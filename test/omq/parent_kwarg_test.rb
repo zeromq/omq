@@ -8,8 +8,7 @@ describe "Socket#bind / #connect parent: kwarg" do
       user_barrier = Async::Barrier.new
 
       pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
-      pull.bind("tcp://127.0.0.1:0", parent: user_barrier)
-      port = pull.last_tcp_port
+      port = pull.bind("tcp://127.0.0.1:0", parent: user_barrier).port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}", parent: user_barrier)
@@ -38,8 +37,7 @@ describe "Socket#bind / #connect parent: kwarg" do
       user_barrier = Async::Barrier.new
 
       pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
-      pull.bind("tcp://127.0.0.1:0", parent: user_barrier)
-      port = pull.last_tcp_port
+      port = pull.bind("tcp://127.0.0.1:0", parent: user_barrier).port
 
       push = OMQ::PUSH.new.tap { |s| s.linger = 0 }
       push.connect("tcp://127.0.0.1:#{port}", parent: user_barrier)
@@ -66,8 +64,7 @@ describe "Socket#bind / #connect parent: kwarg" do
       second = Async::Barrier.new
 
       pull = OMQ::PULL.new.tap { |s| s.linger = 0 }
-      pull.bind("tcp://127.0.0.1:0", parent: first)
-      port = pull.last_tcp_port
+      port = pull.bind("tcp://127.0.0.1:0", parent: first).port
 
       # Second capture attempt with a different parent — silently ignored.
       push = OMQ::PUSH.new.tap { |s| s.linger = 0 }

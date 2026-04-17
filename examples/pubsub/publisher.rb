@@ -6,8 +6,9 @@ require "async"
 endpoint = ARGV[0] || "tcp://*:5556"
 
 Async do
-  pub = OMQ::PUB.new(endpoint)
-  puts "Publisher on #{pub.last_endpoint} — broadcasting every second ..."
+  pub = OMQ::PUB.new
+  uri = pub.bind(endpoint)
+  puts "Publisher on #{uri} — broadcasting every second ..."
 
   i = 0
   loop do

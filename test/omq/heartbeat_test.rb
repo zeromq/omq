@@ -8,8 +8,7 @@ describe "Heartbeat" do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.heartbeat_interval = 0.05
       rep.heartbeat_ttl      = 0.5
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.heartbeat_interval = 0.05
@@ -47,8 +46,7 @@ describe "Heartbeat" do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.heartbeat_interval = 0.02
       rep.heartbeat_timeout  = 0.06
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")

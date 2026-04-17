@@ -42,12 +42,10 @@ Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 Async do
   push = OMQ::PUSH.new
-  push.bind("tcp://127.0.0.1:0")
-  work_port = push.last_tcp_port
+  work_port = push.bind("tcp://127.0.0.1:0").port
 
   pull = OMQ::PULL.new
-  pull.bind("tcp://127.0.0.1:0")
-  result_port = pull.last_tcp_port
+  result_port = pull.bind("tcp://127.0.0.1:0").port
 
   # Tell workers where to connect
   workers.each do |w|

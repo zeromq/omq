@@ -7,8 +7,7 @@ describe "max_message_size" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 10
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
@@ -36,8 +35,7 @@ describe "max_message_size" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 1024
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
@@ -55,8 +53,7 @@ describe "max_message_size" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 100
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
@@ -73,8 +70,7 @@ describe "max_message_size" do
   it "has no limit by default" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")
@@ -95,8 +91,7 @@ describe "max_message_size" do
     Async do
       rep = OMQ::REP.new.tap { |s| s.linger = 0 }
       rep.max_message_size = 50
-      rep.bind("tcp://127.0.0.1:0")
-      port = rep.last_tcp_port
+      port = rep.bind("tcp://127.0.0.1:0").port
 
       req = OMQ::REQ.new.tap { |s| s.linger = 0 }
       req.connect("tcp://127.0.0.1:#{port}")

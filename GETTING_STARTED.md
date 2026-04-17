@@ -487,8 +487,8 @@ of "my broker doesn't work" bugs.
 Async do
   # TCP with auto-selected port
   server = OMQ::REP.new
-  server.bind('tcp://127.0.0.1:*')
-  port = server.last_tcp_port           # the chosen port
+  uri  = server.bind('tcp://127.0.0.1:*')
+  port = uri.port                       # the chosen port
 
   # IPC with abstract namespace (Linux only)
   rep = OMQ::REP.bind('ipc://@myapp.rpc')
@@ -863,11 +863,11 @@ pub = OMQ::PUB.new('tcp://*:5556')
 # Split creation from binding (for pre-connect options)
 pub = OMQ::PUB.new
 pub.send_hwm = 50_000
-pub.bind('tcp://*:5556')
-pub.bind('ipc://@my-pub')       # multiple endpoints
+uri = pub.bind('tcp://*:5556')   # => URI("tcp://*:5556")
+pub.bind('ipc://@my-pub')        # multiple endpoints
 
-pub.last_endpoint                # => "tcp://0.0.0.0:5556"
-pub.last_tcp_port                # => 5556
+uri.port                         # => 5556
+uri.to_s                         # => "tcp://*:5556"
 pub.close                        # or let GC handle it
 ```
 
