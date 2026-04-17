@@ -23,8 +23,8 @@ describe "Socket#bind / #connect parent: kwarg" do
       # user_barrier.async and also records the task on the socket
       # barrier. So user_barrier.tasks should cover at least the two
       # socket-level barriers' worth of children.
-      refute_empty user_barrier.instance_variable_get(:@tasks),
-                   "user barrier should be tracking OMQ socket tasks"
+      refute user_barrier.empty?,
+             "user barrier should be tracking OMQ socket tasks"
     ensure
       push&.close
       pull&.close
@@ -75,8 +75,8 @@ describe "Socket#bind / #connect parent: kwarg" do
       wait_connected(push)
 
       # `second` never had any tasks put under it.
-      assert_empty second.instance_variable_get(:@tasks),
-                   "second barrier must not have captured any OMQ tasks"
+      assert second.empty?,
+             "second barrier must not have captured any OMQ tasks"
     ensure
       push&.close
       pull&.close

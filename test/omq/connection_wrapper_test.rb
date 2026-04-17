@@ -10,7 +10,7 @@ describe "Engine connection_wrapper" do
       pull = OMQ::PULL.bind("inproc://cw-inproc")
 
       wrapped = []
-      pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+      pull.engine.connection_wrapper = ->(conn) do
         wrapped << conn.class.name
         conn
       end
@@ -33,7 +33,7 @@ describe "Engine connection_wrapper" do
       pull = OMQ::PULL.bind("ipc://@omq-test-cw-ipc")
 
       wrapped = []
-      pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+      pull.engine.connection_wrapper = ->(conn) do
         wrapped << conn.class.name
         conn
       end
@@ -96,7 +96,7 @@ describe "Engine connection_wrapper" do
         end
       end
 
-      push.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+      push.engine.connection_wrapper = ->(conn) do
         upcaser.new(conn)
       end
 
@@ -115,7 +115,7 @@ describe "Engine connection_wrapper" do
     Async do
       pull = OMQ::PULL.bind("inproc://cw-nil")
       # connection_wrapper defaults to nil
-      assert_nil pull.instance_variable_get(:@engine).connection_wrapper
+      assert_nil pull.engine.connection_wrapper
 
       push = OMQ::PUSH.connect("inproc://cw-nil")
       wait_connected(push)
@@ -144,7 +144,7 @@ describe "Engine connection_wrapper" do
         def is_a?(klass) = super || __getobj__.is_a?(klass)
       end
 
-      pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+      pull.engine.connection_wrapper = ->(conn) do
         wrapper.new(conn)
       end
 
@@ -181,7 +181,7 @@ describe "Engine connection_wrapper" do
         end
       end
 
-      pull.instance_variable_get(:@engine).connection_wrapper = ->(conn) do
+      pull.engine.connection_wrapper = ->(conn) do
         deserializer.new(conn)
       end
 

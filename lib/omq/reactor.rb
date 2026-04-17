@@ -25,6 +25,11 @@ module OMQ
 
 
     class << self
+      # @return [Hash{Numeric => Integer}] linger value → active socket count
+      #
+      attr_reader :lingers
+
+
       # Returns the root Async task inside the shared IO thread.
       # Starts the thread exactly once (double-checked lock).
       #

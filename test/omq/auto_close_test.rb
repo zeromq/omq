@@ -16,7 +16,7 @@ describe "auto-close" do
       push << "hello"
       assert_equal ["hello"], pull.receive
 
-      connections = push.instance_variable_get(:@engine).connections.keys
+      connections = push.engine.connections.keys
       # no explicit close — Async block exits, tasks stopped, ensure blocks fire
     end
 

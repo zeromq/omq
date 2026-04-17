@@ -18,8 +18,8 @@ describe "PEER over inproc" do
 
       # a sends a "ping" using its routing_id for b (assigned in connection_added).
       # We expose this via a helper on the routing.
-      a_routing = a.instance_variable_get(:@engine).routing
-      b_id_on_a = a_routing.instance_variable_get(:@connections_by_routing_id).keys.first
+      a_routing = a.engine.routing
+      b_id_on_a = a_routing.connections_by_routing_id.keys.first
 
       a.send_to(b_id_on_a, "ping from a")
       msg = b.receive

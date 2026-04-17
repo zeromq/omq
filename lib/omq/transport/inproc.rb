@@ -31,6 +31,11 @@ module OMQ
 
 
       class << self
+        # @return [Hash{String => Engine}] bound inproc endpoints
+        #
+        attr_reader :registry
+
+
         # Creates a bound inproc listener.
         #
         # @param endpoint [String] e.g. "inproc://my-endpoint"

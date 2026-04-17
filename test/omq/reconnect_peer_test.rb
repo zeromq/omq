@@ -17,8 +17,8 @@ describe "Reconnect after server restart — PEER" do
       b.connect("tcp://127.0.0.1:#{port}")
       wait_connected(a, b)
 
-      routing = a.instance_variable_get(:@engine).routing
-      b_id    = routing.instance_variable_get(:@connections_by_routing_id).keys.first
+      routing = a.engine.routing
+      b_id    = routing.connections_by_routing_id.keys.first
       a.send_to(b_id, "hello")
       msg = b.receive
       assert_equal "hello", msg[1]
@@ -30,8 +30,8 @@ describe "Reconnect after server restart — PEER" do
       a2.bind("tcp://127.0.0.1:#{port}")
       wait_connected(a2, b)
 
-      routing2 = a2.instance_variable_get(:@engine).routing
-      b_id2    = routing2.instance_variable_get(:@connections_by_routing_id).keys.first
+      routing2 = a2.engine.routing
+      b_id2    = routing2.connections_by_routing_id.keys.first
       a2.send_to(b_id2, "reconnected")
       msg = b.receive
       assert_equal "reconnected", msg[1]

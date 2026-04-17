@@ -28,7 +28,7 @@ describe "inproc memory leaks" do
       pull.receive
 
       # Track one of the pipes
-      pipe = push.instance_variable_get(:@engine).connections.keys.first
+      pipe = push.engine.connections.keys.first
       weak = WeakRef.new(pipe)
       pipe = nil
 
@@ -50,7 +50,7 @@ describe "inproc memory leaks" do
       push << "msg"
       pull.receive
 
-      pipe = pull.instance_variable_get(:@engine).connections.first
+      pipe = pull.engine.connections.first
       weak = WeakRef.new(pipe)
       pipe = nil
 
@@ -71,7 +71,7 @@ describe "inproc memory leaks" do
         push.close
       end
 
-      registry = OMQ::Transport::Inproc.instance_variable_get(:@registry)
+      registry = OMQ::Transport::Inproc.registry
       assert_equal 0, registry.size, "leaked #{registry.size} registry entries"
     end
   end
@@ -87,8 +87,8 @@ describe "inproc memory leaks" do
       1000.times { |i| push << "msg-#{i}" }
       1000.times { pull.receive }
 
-      push_barrier = push.instance_variable_get(:@engine).lifecycle.barrier
-      pull_barrier = pull.instance_variable_get(:@engine).lifecycle.barrier
+      push_barrier = push.engine.lifecycle.barrier
+      pull_barrier = pull.engine.lifecycle.barrier
 
       # Tasks should be bounded — not one per message
       assert push_barrier.size < 10, "push barrier has #{push_barrier.size} tasks"

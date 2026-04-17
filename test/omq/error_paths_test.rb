@@ -23,7 +23,7 @@ describe "Error paths" do
         req = OMQ::REQ.connect("inproc://err-pump-recv")
 
         # Inject a crash into REQ's send pump
-        conn = req.instance_variable_get(:@engine).connections.first.first
+        conn = req.engine.connections.first.first
         def conn.write_message(_parts) = raise("boom")
         def conn.send_message(_parts)  = raise("boom")
 
@@ -45,7 +45,7 @@ describe "Error paths" do
         rep = OMQ::REP.bind("inproc://err-pump-brick")
         req = OMQ::REQ.connect("inproc://err-pump-brick")
 
-        conn = req.instance_variable_get(:@engine).connections.first.first
+        conn = req.engine.connections.first.first
         def conn.write_message(_parts) = raise("boom")
         def conn.send_message(_parts)  = raise("boom")
 

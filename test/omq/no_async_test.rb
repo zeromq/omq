@@ -25,7 +25,7 @@ describe "non-Async usage" do
     a.bind("tcp://127.0.0.1:0")
     b.bind("tcp://127.0.0.1:0")
 
-    lingers = OMQ::Reactor.instance_variable_get(:@lingers)
+    lingers = OMQ::Reactor.lingers
     assert_equal 2, lingers[0]
 
     a.close

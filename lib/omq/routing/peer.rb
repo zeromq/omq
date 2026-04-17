@@ -16,6 +16,11 @@ module OMQ
       attr_reader :recv_queue
 
 
+      # @return [Hash{String => Connection}] routing_id → connection
+      #
+      attr_reader :connections_by_routing_id
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
