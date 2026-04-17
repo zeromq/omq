@@ -134,7 +134,10 @@ end
 
 rows.select! { |r| r[:pattern] == options[:pattern] } if options[:pattern]
 
-run_ids = rows.map { |r| r[:run_id] }.uniq.sort.last(options[:runs])
+# Preserve insertion order (= chronological) rather than sorting
+# alphabetically — named run IDs (e.g. "baseline-append") would
+# otherwise sort after ISO timestamps.
+run_ids = rows.map { |r| r[:run_id] }.uniq.last(options[:runs])
 
 if run_ids.size < 2
   abort "Need at least 2 runs to compare. Found #{run_ids.size}."
