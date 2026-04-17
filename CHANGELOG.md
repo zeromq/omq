@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Transport interface: `.bind`/`.connect` replaced by `.listener`/`.dialer`
+  factory methods** returning stateful `Listener`/`Dialer` objects. The
+  engine now stores a per-endpoint `@dialers` map (was a `@dialed` Set)
+  and a `@listeners` hash keyed by endpoint (was an Array). Reconnect
+  calls `dialer.connect` directly — no transport lookup or option replay
+  on every retry. `Transport::Inproc` keeps its synchronous `.connect`
+  fast-path; only TCP/IPC gain `Dialer` classes.
+
+- **`Engine#bind` / `#connect` accept transport-specific kwargs** via
+  `**opts`, forwarded to the transport's `.listener` / `.dialer`. Socket
+  `#bind` / `#connect` pass them through. Enables per-connection
+  transport configuration (e.g., TLS context) without polluting
+  `Options`.
+
+- **`ConnectionLifecycle#ready!` calls `transport_obj.wrap_connection(conn)`
+  if defined** — hook for transports that need to wrap the buffered
+  stream after handshake (e.g., TLS).
+
+### Fixed
+
+- **`bench/report.rb` preserves chronological run order.** Named run IDs
+  (e.g. `baseline-append`) previously sorted alphabetically after ISO
+  timestamps, hiding the most recent run. Now uses insertion order.
+
+- **`zmtp_30_compat_test` waits for XSUB connection** before sending
+  `SUBSCRIBE`, removing a race where the subscribe arrived before the
+  handshake completed.
+
 ## 0.22.1 — 2026-04-16
 
 ### Changed

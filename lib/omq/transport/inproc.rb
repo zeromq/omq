@@ -28,14 +28,14 @@ module OMQ
 
 
       class << self
-        # Binds an engine to an inproc endpoint.
+        # Creates a bound inproc listener.
         #
         # @param endpoint [String] e.g. "inproc://my-endpoint"
         # @param engine [Engine] the owning engine
         # @return [Listener]
         # @raise [ArgumentError] if endpoint is already bound
         #
-        def bind(endpoint, engine)
+        def listener(endpoint, engine, **)
           @mutex.synchronize do
             if @registry.key?(endpoint)
               raise ArgumentError, "endpoint already bound: #{endpoint}"
@@ -57,7 +57,7 @@ module OMQ
         # @param engine [Engine] the connecting engine
         # @return [void]
         #
-        def connect(endpoint, engine)
+        def connect(endpoint, engine, **)
           bound_engine = @mutex.synchronize { @registry[endpoint] }
           bound_engine ||= await_bind(endpoint, engine) or return
           establish_link(engine, bound_engine, endpoint)

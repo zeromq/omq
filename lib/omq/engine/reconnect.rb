@@ -8,25 +8,25 @@ module OMQ
     # or the engine is closed.
     #
     class Reconnect
-      # @param endpoint [String]
+      # @param dialer [Transport::TCP::Dialer, etc.] stateful dialer factory
       # @param options [Options]
       # @param parent_task [Async::Task]
       # @param engine [Engine]
       # @param delay [Numeric, nil] initial delay (defaults to reconnect_interval)
       #
-      def self.schedule(endpoint, options, parent_task, engine, delay: nil)
-        new(engine, endpoint, options).run(parent_task, delay: delay)
+      def self.schedule(dialer, options, parent_task, engine, delay: nil)
+        new(engine, dialer, options).run(parent_task, delay: delay)
       end
 
 
       # @param engine [Engine]
-      # @param endpoint [String]
+      # @param dialer [Transport::TCP::Dialer, etc.] stateful dialer factory
       # @param options [Options]
       #
-      def initialize(engine, endpoint, options)
-        @engine   = engine
-        @endpoint = endpoint
-        @options  = options
+      def initialize(engine, dialer, options)
+        @engine  = engine
+        @dialer  = dialer
+        @options = options
       end
 
 
@@ -37,7 +37,8 @@ module OMQ
       # @return [void]
       #
       def run(parent_task, delay: nil)
-        @engine.tasks << parent_task.async(transient: true, annotation: "reconnect #{@endpoint}") do
+        endpoint = @dialer.endpoint
+        @engine.tasks << parent_task.async(transient: true, annotation: "reconnect #{endpoint}") do
           retry_loop(delay: delay)
         rescue Async::Stop
         rescue => error
@@ -57,12 +58,12 @@ module OMQ
           sleep quantized_wait(delay) if delay > 0
           break if @engine.closed?
           begin
-            @engine.transport_for(@endpoint).connect(@endpoint, @engine)
+            @dialer.connect
             break
           rescue *CONNECTION_LOST, *CONNECTION_FAILED, Protocol::ZMTP::Error
             delay = next_delay(delay, max_delay)
             @engine.emit_monitor_event :connect_retried,
-                                       endpoint: @endpoint, detail: { interval: delay }
+                                       endpoint: @dialer.endpoint, detail: { interval: delay }
           end
         end
       end

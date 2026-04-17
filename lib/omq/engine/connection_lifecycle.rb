@@ -161,7 +161,15 @@ module OMQ
 
 
       def ready!(conn)
-        conn  = @engine.connection_wrapper.call(conn) if @engine.connection_wrapper
+        conn = @engine.connection_wrapper.call(conn) if @engine.connection_wrapper
+
+        if @endpoint
+          transport_obj = @engine.transport_object_for(@endpoint)
+          if transport_obj.respond_to?(:wrap_connection)
+            conn = transport_obj.wrap_connection(conn)
+          end
+        end
+
         @conn = conn
         @engine.connections[@conn] = self
         @engine.emit_monitor_event(:handshake_succeeded, endpoint: @endpoint)

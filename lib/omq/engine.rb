@@ -62,8 +62,8 @@ module OMQ
       @options         = options
       @routing         = nil
       @connections     = {} # connection => ConnectionLifecycle
-      @dialed          = Set.new # endpoints we called connect() on (reconnect intent)
-      @listeners       = []
+      @dialers         = {} # endpoint => Dialer (reconnect intent + connect logic)
+      @listeners       = {} # endpoint => Listener
       @tasks           = []
       @lifecycle       = SocketLifecycle.new
       @last_endpoint   = nil
@@ -109,6 +109,17 @@ module OMQ
     attr_accessor :connection_wrapper
 
 
+    # Returns the transport object (Dialer or Listener) for an endpoint.
+    # Used by {ConnectionLifecycle#ready!} to call +#wrap_connection+.
+    #
+    # @param endpoint [String]
+    # @return [Dialer, Listener, nil]
+    #
+    def transport_object_for(endpoint)
+      @dialers[endpoint] || @listeners[endpoint]
+    end
+
+
     # Spawns an inproc reconnect retry task under the socket's parent task.
     #
     # @param endpoint [String]
@@ -132,15 +143,15 @@ module OMQ
     # @return [void]
     # @raise [ArgumentError] on unsupported transport
     #
-    def bind(endpoint, parent: nil)
+    def bind(endpoint, parent: nil, **opts)
       OMQ.freeze_for_ractors!
       capture_parent_task(parent: parent)
       transport = transport_for(endpoint)
-      listener  = transport.bind(endpoint, self)
+      listener  = transport.listener(endpoint, self, **opts)
 
       start_accept_loops(listener)
 
-      @listeners << listener
+      @listeners[listener.endpoint] = listener
       @last_endpoint = listener.endpoint
       @last_tcp_port = listener.respond_to?(:port) ? listener.port : nil
       emit_monitor_event(:listening, endpoint: listener.endpoint)
@@ -155,18 +166,19 @@ module OMQ
     # @param endpoint [String]
     # @return [void]
     #
-    def connect(endpoint, parent: nil)
+    def connect(endpoint, parent: nil, **opts)
       OMQ.freeze_for_ractors!
       capture_parent_task(parent: parent)
       validate_endpoint!(endpoint)
-      @dialed.add(endpoint)
 
       if endpoint.start_with?("inproc://")
-        # Inproc connect is synchronous and instant
+        # Inproc connect is synchronous and instant — no Dialer
         transport = transport_for(endpoint)
-        transport.connect(endpoint, self)
+        transport.connect(endpoint, self, **opts)
+        @dialers[endpoint] = :inproc  # sentinel for reconnect intent
       else
-        # TCP/IPC connect in background — never blocks the caller
+        transport = transport_for(endpoint)
+        @dialers[endpoint] = transport.dialer(endpoint, self, **opts)
         emit_monitor_event(:connect_delayed, endpoint: endpoint)
         schedule_reconnect(endpoint, delay: 0)
       end
@@ -180,7 +192,7 @@ module OMQ
     # @return [void]
     #
     def disconnect(endpoint)
-      @dialed.delete(endpoint)
+      @dialers.delete(endpoint)
       close_connections_at(endpoint)
     end
 
@@ -192,11 +204,10 @@ module OMQ
     # @return [void]
     #
     def unbind(endpoint)
-      listener = @listeners.find { |l| l.endpoint == endpoint }
+      listener = @listeners.delete(endpoint)
       return unless listener
 
       listener.stop
-      @listeners.delete(listener)
       close_connections_at(endpoint)
     end
 
@@ -311,9 +322,11 @@ module OMQ
     # and the endpoint is still dialed.
     #
     def maybe_reconnect(endpoint)
-      return unless endpoint && @dialed.include?(endpoint)
+      return unless endpoint && @dialers.key?(endpoint)
       return unless @lifecycle.open? && @lifecycle.reconnect_enabled
-      Reconnect.schedule(endpoint, @options, @lifecycle.parent_task, self)
+
+      dialer = @dialers[endpoint]
+      Reconnect.schedule(dialer, @options, @lifecycle.parent_task, self)
     end
 
 
@@ -357,6 +370,7 @@ module OMQ
     def stop
       return unless @lifecycle.alive?
 
+      # TODO: Can't these 2 lines be one call to @lifecycle?
       @lifecycle.start_closing! if @lifecycle.open?
       @lifecycle.finish_closing!
 
@@ -406,7 +420,10 @@ module OMQ
     #
     def spawn_conn_pump_task(conn, annotation:, &block)
       lifecycle = @connections[conn]
-      return spawn_pump_task(annotation: annotation, &block) unless lifecycle
+
+      unless lifecycle
+        return spawn_pump_task(annotation: annotation, &block)
+      end
 
       lifecycle.barrier.async(transient: true, annotation: annotation) do
         yield
@@ -484,7 +501,9 @@ module OMQ
     #
     def emit_monitor_event(type, endpoint: nil, detail: nil)
       return unless @monitor_queue
-      @monitor_queue.push(MonitorEvent.new(type: type, endpoint: endpoint, detail: detail))
+
+      event = MonitorEvent.new type: type, endpoint: endpoint, detail: detail
+      @monitor_queue << event
     rescue Async::Stop, ClosedQueueError
     end
 
@@ -595,7 +614,8 @@ module OMQ
 
 
     def schedule_reconnect(endpoint, delay: nil)
-      Reconnect.schedule(endpoint, @options, @lifecycle.parent_task, self, delay: delay)
+      dialer = @dialers[endpoint]
+      Reconnect.schedule(dialer, @options, @lifecycle.parent_task, self, delay: delay)
     end
 
 
@@ -618,7 +638,7 @@ module OMQ
 
 
     def stop_listeners
-      @listeners.each(&:stop)
+      @listeners.each_value(&:stop)
       @listeners.clear
     end
 

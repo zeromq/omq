@@ -10,13 +10,13 @@ module OMQ
     #
     module TCP
       class << self
-        # Binds a TCP server.
+        # Creates a bound TCP listener.
         #
         # @param endpoint [String] e.g. "tcp://127.0.0.1:5555" or "tcp://*:0"
         # @param engine [Engine]
         # @return [Listener]
         #
-        def bind(endpoint, engine)
+        def listener(endpoint, engine, **)
           host, port  = self.parse_endpoint(endpoint)
           lookup_host = normalize_bind_host(host)
 
@@ -34,6 +34,17 @@ module OMQ
         end
 
 
+        # Creates a TCP dialer for an endpoint.
+        #
+        # @param endpoint [String] e.g. "tcp://127.0.0.1:5555"
+        # @param engine [Engine]
+        # @return [Dialer]
+        #
+        def dialer(endpoint, engine, **)
+          Dialer.new(endpoint, engine)
+        end
+
+
         # Validates that the endpoint's host can be resolved.
         #
         # @param endpoint [String]
@@ -43,21 +54,6 @@ module OMQ
           host, _port = parse_endpoint(endpoint)
           lookup_host = normalize_bind_host(host)
           Addrinfo.getaddrinfo(lookup_host, nil, nil, :STREAM) if lookup_host
-        end
-
-
-        # Connects to a TCP endpoint.
-        #
-        # @param endpoint [String] e.g. "tcp://127.0.0.1:5555"
-        # @param engine [Engine]
-        # @return [void]
-        #
-        def connect(endpoint, engine)
-          host, port = self.parse_endpoint(endpoint)
-          host       = normalize_connect_host(host)
-          sock       = ::Socket.tcp(host, port, connect_timeout: connect_timeout(engine.options))
-          apply_buffer_sizes(sock, engine.options)
-          engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
         end
 
 
@@ -139,6 +135,42 @@ module OMQ
             sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf)
           end
         end
+      end
+
+
+      # A TCP dialer — stateful factory for outgoing connections.
+      #
+      # Created once per {Engine#connect}, stored in +@dialers[endpoint]+.
+      # Reconnect calls {#connect} directly — no transport lookup or opts
+      # replay needed.
+      #
+      class Dialer
+        # @return [String] the endpoint this dialer connects to
+        #
+        attr_reader :endpoint
+
+
+        # @param endpoint [String] e.g. "tcp://127.0.0.1:5555"
+        # @param engine [Engine]
+        #
+        def initialize(endpoint, engine)
+          @endpoint = endpoint
+          @engine   = engine
+        end
+
+
+        # Establishes a TCP connection to the endpoint.
+        #
+        # @return [void]
+        #
+        def connect
+          host, port = TCP.parse_endpoint(@endpoint)
+          host       = TCP.normalize_connect_host(host)
+          sock       = ::Socket.tcp(host, port, connect_timeout: TCP.connect_timeout(@engine.options))
+          TCP.apply_buffer_sizes(sock, @engine.options)
+          @engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: @endpoint)
+        end
+
       end
 
 

@@ -12,13 +12,13 @@ module OMQ
     #
     module IPC
       class << self
-        # Binds an IPC server.
+        # Creates a bound IPC listener.
         #
         # @param endpoint [String] e.g. "ipc:///tmp/my.sock" or "ipc://@abstract"
         # @param engine [Engine]
         # @return [Listener]
         #
-        def bind(endpoint, engine)
+        def listener(endpoint, engine, **)
           path      = parse_path(endpoint)
           sock_path = to_socket_path(path)
 
@@ -31,18 +31,14 @@ module OMQ
         end
 
 
-        # Connects to an IPC endpoint.
+        # Creates an IPC dialer for an endpoint.
         #
         # @param endpoint [String]
         # @param engine [Engine]
-        # @return [void]
+        # @return [Dialer]
         #
-        def connect(endpoint, engine)
-          path = parse_path(endpoint)
-          sock_path = to_socket_path(path)
-          sock = UNIXSocket.new(sock_path)
-          apply_buffer_sizes(sock, engine.options)
-          engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: endpoint)
+        def dialer(endpoint, engine, **)
+          Dialer.new(endpoint, engine)
         end
 
 
@@ -61,9 +57,6 @@ module OMQ
             sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options.rcvbuf)
           end
         end
-
-
-        private
 
 
         # Extracts path from "ipc://path".
@@ -89,6 +82,38 @@ module OMQ
         def abstract?(path)
           path.start_with?("@")
         end
+      end
+
+
+      # An IPC dialer — stateful factory for outgoing connections.
+      #
+      class Dialer
+        # @return [String] the endpoint this dialer connects to
+        #
+        attr_reader :endpoint
+
+
+        # @param endpoint [String]
+        # @param engine [Engine]
+        #
+        def initialize(endpoint, engine)
+          @endpoint = endpoint
+          @engine   = engine
+        end
+
+
+        # Establishes a Unix socket connection to the endpoint.
+        #
+        # @return [void]
+        #
+        def connect
+          path      = IPC.parse_path(@endpoint)
+          sock_path = IPC.to_socket_path(path)
+          sock      = UNIXSocket.new(sock_path)
+          IPC.apply_buffer_sizes(sock, @engine.options)
+          @engine.handle_connected(IO::Stream::Buffered.wrap(sock), endpoint: @endpoint)
+        end
+
       end
 
 

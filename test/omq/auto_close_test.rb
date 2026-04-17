@@ -41,7 +41,7 @@ describe "auto-close" do
       # no explicit close
     end
 
-    listeners.each do |l|
+    listeners.each_value do |l|
       l.servers.each do |server|
         assert server.closed?, "server socket should be closed"
       end

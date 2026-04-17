@@ -111,10 +111,10 @@ module OMQ
     #   calls ignore the kwarg.
     # @return [void]
     #
-    def bind(endpoint, parent: nil)
+    def bind(endpoint, parent: nil, **opts)
       ensure_parent_task(parent: parent)
       Reactor.run do
-        @engine.bind(endpoint) # TODO: use timeout?
+        @engine.bind(endpoint, **opts) # TODO: use timeout?
         @last_tcp_port = @engine.last_tcp_port
       end
     end
@@ -126,9 +126,9 @@ module OMQ
     # @param parent [#async, nil] see {#bind}.
     # @return [void]
     #
-    def connect(endpoint, parent: nil)
+    def connect(endpoint, parent: nil, **opts)
       ensure_parent_task(parent: parent)
-      Reactor.run { @engine.connect(endpoint) } # TODO: use timeout?
+      Reactor.run { @engine.connect(endpoint, **opts) } # TODO: use timeout?
     end
 
 

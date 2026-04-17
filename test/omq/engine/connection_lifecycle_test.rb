@@ -38,6 +38,10 @@ class FakeEngine
   def maybe_reconnect(endpoint)
     @reconnect_calls << endpoint
   end
+
+  def transport_object_for(_endpoint)
+    nil
+  end
 end
 
 class FakePromise
