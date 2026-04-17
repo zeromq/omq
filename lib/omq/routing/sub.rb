@@ -20,7 +20,6 @@ module OMQ
         @connections   = Set.new
         @recv_queue    = Routing.build_queue(engine.options.recv_hwm, :block)
         @subscriptions = Set.new
-        @tasks         = []
       end
 
 
@@ -51,8 +50,7 @@ module OMQ
           send_subscribe(connection, prefix)
         end
 
-        task = @engine.start_recv_pump(connection, @recv_queue)
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue)
       end
 
 
@@ -87,16 +85,6 @@ module OMQ
       def unsubscribe(prefix)
         @subscriptions.delete(prefix)
         @connections.each { |conn| send_cancel(conn, prefix) }
-      end
-
-
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
       end
 
 

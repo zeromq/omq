@@ -38,11 +38,10 @@ module OMQ
       # @param engine [Engine]
       #
       def init_round_robin(engine)
-        @connections     = []
-        @send_queue      = Routing.build_queue(engine.options.send_hwm, :block)
-        @direct_pipe     = nil
-        @conn_send_tasks = {}  # conn => send pump task
-        @in_flight       = 0   # messages dequeued but not yet written
+        @connections = []
+        @send_queue  = Routing.build_queue(engine.options.send_hwm, :block)
+        @direct_pipe = nil
+        @in_flight   = 0   # messages dequeued but not yet written
       end
 
 
@@ -58,16 +57,16 @@ module OMQ
       end
 
 
-      # Removes the connection and stops its send pump. Any message
-      # the pump had already dequeued but not yet written is dropped --
-      # matching libzmq's behavior on `pipe_terminated`. PUSH has no
-      # cross-peer ordering guarantee, so this is safe.
+      # Removes the connection. Any message the pump had already
+      # dequeued but not yet written is dropped — matching libzmq's
+      # behavior on `pipe_terminated`. PUSH has no cross-peer ordering
+      # guarantee, so this is safe. The pump itself is torn down by
+      # the per-connection lifecycle barrier.
       #
       # @param conn [Connection]
       #
       def remove_round_robin_send_connection(conn)
         update_direct_pipe
-        @conn_send_tasks.delete(conn)
       end
 
 
@@ -132,7 +131,7 @@ module OMQ
       # @param conn [Connection]
       #
       def start_conn_send_pump(conn)
-        task = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+        @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           batch = []
 
           loop do
@@ -153,9 +152,6 @@ module OMQ
             Async::Task.current.yield
           end
         end
-
-        @conn_send_tasks[conn] = task
-        @tasks << task
       end
 
 

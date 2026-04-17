@@ -90,6 +90,21 @@
   `Maintenance.start`, and `Reconnect#run` drop their `tasks`
   parameter. Teardown collapses to `@lifecycle.barrier&.stop`.
 
+- **Routing strategies and TCP listener drop their `@tasks` arrays
+  too.** Same `Async::Barrier` rollout applied to every routing
+  strategy and `Transport::TCP::Listener`. Per-connection pumps
+  (send/recv/reaper/group/subscription listener) ride the
+  per-connection lifecycle barrier; Radio's socket-level send pump
+  rides `engine.barrier` via a new `parent:` kwarg on
+  `Engine#spawn_pump_task`. The redundant `@conn_send_tasks` hashes
+  in RoundRobin, FanOut, Rep, Router, Peer, and Server are gone, as
+  are all routing-strategy `#stop` methods and the matching
+  `routing.stop rescue nil` calls in `Engine#close`/`#stop`.
+  `ConnSendPump.start` drops its `tasks` parameter. Channel's send
+  pump moves from loose `spawn_pump_task` to `spawn_conn_pump_task`,
+  so its disconnect rescue is now centralized in `Engine`. Net: 24
+  files, −340/+121.
+
 ### Fixed
 
 - **`bench/report.rb` preserves chronological run order.** Named run IDs

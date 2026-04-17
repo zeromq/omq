@@ -18,12 +18,10 @@ module OMQ
       # @param engine [Engine]
       #
       def initialize(engine)
-        @engine          = engine
-        @connections     = Set.new
-        @recv_queue      = Routing.build_queue(engine.options.recv_hwm, :block)
-        @conn_queues     = {}  # connection => per-connection send queue
-        @conn_send_tasks = {}  # connection => send pump task
-        @tasks           = []
+        @engine      = engine
+        @connections = Set.new
+        @recv_queue  = Routing.build_queue(engine.options.recv_hwm, :block)
+        @conn_queues = {}
       end
 
 
@@ -50,8 +48,7 @@ module OMQ
       def connection_added(connection)
         @connections << connection
 
-        task = @engine.start_recv_pump(connection, @recv_queue)
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue)
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
@@ -64,7 +61,6 @@ module OMQ
       def connection_removed(connection)
         @connections.delete(connection)
         @conn_queues.delete(connection)
-        @conn_send_tasks.delete(connection)&.stop
       end
 
 
@@ -79,16 +75,6 @@ module OMQ
       end
 
 
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
-
-
       # @return [Boolean] true when all per-connection send queues are empty
       #
       def send_queues_drained?
@@ -100,7 +86,7 @@ module OMQ
 
 
       def start_conn_send_pump(conn, q)
-        task = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+        @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           loop do
             parts = q.dequeue
             frame = parts.first&.b
@@ -128,9 +114,6 @@ module OMQ
             end
           end
         end
-
-        @conn_send_tasks[conn] = task
-        @tasks << task
       end
 
     end

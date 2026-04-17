@@ -17,6 +17,11 @@ module OMQ
       ANY_GROUPS = Object.new.tap { |o| o.define_singleton_method(:include?) { |_| true } }.freeze
 
 
+      # @return [Async::LimitedQueue]
+      #
+      attr_reader :send_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -27,15 +32,10 @@ module OMQ
         @on_mute           = engine.options.on_mute
         @send_pump_started = false
         @conflate          = engine.options.conflate
-        @tasks             = []
         @written           = Set.new
         @latest            = {} if @conflate
       end
 
-
-      # @return [Async::LimitedQueue]
-      #
-      attr_reader :send_queue
 
       # RADIO is write-only.
       #
@@ -81,20 +81,15 @@ module OMQ
       end
 
 
-      # Stops all background tasks (send pump, group listeners).
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
-
-
       # True when the send queue is empty.
       #
       def send_queues_drained?
         @send_queue.empty?
       end
 
+
       private
+
 
       def muted?(conn)
         return false if @on_mute == :block
@@ -105,7 +100,7 @@ module OMQ
 
       def start_send_pump
         @send_pump_started = true
-        @tasks << @engine.spawn_pump_task(annotation: "send pump") do
+        @engine.spawn_pump_task(annotation: "send pump", parent: @engine.barrier) do
           batch = []
 
           loop do
@@ -172,7 +167,7 @@ module OMQ
 
 
       def start_group_listener(conn)
-        @tasks << @engine.spawn_pump_task(annotation: "group listener") do
+        @engine.spawn_conn_pump_task(conn, annotation: "group listener") do
           loop do
             frame = conn.read_frame
             next unless frame.command?
@@ -184,10 +179,9 @@ module OMQ
               @groups[conn]&.delete(cmd.data)
             end
           end
-        rescue *CONNECTION_LOST
-          @engine.connection_lost(conn)
         end
       end
+
     end
   end
 end

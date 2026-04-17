@@ -23,9 +23,7 @@ module OMQ
         @recv_queue              = Routing.build_queue(engine.options.recv_hwm, :block)
         @connections_by_identity = {}
         @identity_by_connection  = {}
-        @conn_queues             = {}  # connection => per-connection send queue
-        @conn_send_tasks         = {}  # connection => send pump task
-        @tasks                   = []
+        @conn_queues             = {}
       end
 
 
@@ -55,12 +53,11 @@ module OMQ
         @connections_by_identity[identity] = connection
         @identity_by_connection[connection] = identity
 
-        task = @engine.start_recv_pump(connection, @recv_queue) { |msg| [identity, *msg] }
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue) { |msg| [identity, *msg] }
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
-        @conn_send_tasks[connection] = ConnSendPump.start(@engine, connection, q, @tasks)
+        ConnSendPump.start(@engine, connection, q)
       end
 
 
@@ -70,7 +67,6 @@ module OMQ
         identity = @identity_by_connection.delete(connection)
         @connections_by_identity.delete(identity) if identity
         @conn_queues.delete(connection)
-        @conn_send_tasks.delete(connection)&.stop
       end
 
 
@@ -88,16 +84,6 @@ module OMQ
         conn = @connections_by_identity[identity]
         return unless conn  # silently drop if peer disconnected
         @conn_queues[conn]&.enqueue(parts[1..])
-      end
-
-
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
       end
 
 

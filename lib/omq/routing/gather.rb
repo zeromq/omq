@@ -5,18 +5,17 @@ module OMQ
     # GATHER socket routing: fair-queue receive from SCATTER peers.
     #
     class Gather
+      # @return [Async::LimitedQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
         @engine     = engine
         @recv_queue = Routing.build_queue(engine.options.recv_hwm, :block)
-        @tasks      = []
       end
-
-
-      # @return [Async::LimitedQueue]
-      #
-      attr_reader :recv_queue
 
 
       # Dequeues the next received message. Blocks until one is available.
@@ -40,8 +39,7 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_added(connection)
-        task = @engine.start_recv_pump(connection, @recv_queue)
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue)
       end
 
 
@@ -57,12 +55,6 @@ module OMQ
         raise "GATHER sockets cannot send"
       end
 
-
-      # Stops all background tasks.
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
     end
   end
 end

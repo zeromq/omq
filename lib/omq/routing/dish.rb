@@ -8,6 +8,11 @@ module OMQ
     # Receives two-frame messages (group + body) from RADIO.
     #
     class Dish
+      # @return [Async::LimitedQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -15,13 +20,7 @@ module OMQ
         @connections = []
         @recv_queue  = Routing.build_queue(engine.options.recv_hwm, :block)
         @groups      = Set.new
-        @tasks       = []
       end
-
-
-      # @return [Async::LimitedQueue]
-      #
-      attr_reader :recv_queue
 
 
       # Dequeues the next received message. Blocks until one is available.
@@ -49,8 +48,7 @@ module OMQ
         @groups.each do |group|
           connection.send_command(Protocol::ZMTP::Codec::Command.join(group))
         end
-        task = @engine.start_recv_pump(connection, @recv_queue)
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue)
       end
 
 
@@ -91,12 +89,6 @@ module OMQ
         end
       end
 
-
-      # Stops all background tasks.
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
     end
   end
 end

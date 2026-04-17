@@ -11,7 +11,6 @@ module OMQ
       #
       def initialize(engine)
         @engine = engine
-        @tasks  = []
         init_round_robin(engine)
       end
 
@@ -58,14 +57,8 @@ module OMQ
       end
 
 
-      # Stops all background tasks (send pumps, reapers).
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
-
       private
+
 
       # Detects peer disconnection on write-only sockets by
       # blocking on a receive that only returns on disconnect.
@@ -74,10 +67,11 @@ module OMQ
       #
       def start_reaper(conn)
         return if conn.is_a?(Transport::Inproc::DirectPipe)
-        @tasks << @engine.spawn_conn_pump_task(conn, annotation: "reaper") do
+        @engine.spawn_conn_pump_task(conn, annotation: "reaper") do
           conn.receive_message # blocks until peer disconnects; then exits
         end
       end
+
     end
   end
 end

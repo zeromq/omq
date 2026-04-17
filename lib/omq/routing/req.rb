@@ -21,10 +21,9 @@ module OMQ
       # @param engine [Engine]
       #
       def initialize(engine)
-        @engine          = engine
-        @recv_queue      = Routing.build_queue(engine.options.recv_hwm, :block)
-        @tasks           = []
-        @state           = :ready        # :ready or :waiting_reply
+        @engine     = engine
+        @recv_queue = Routing.build_queue(engine.options.recv_hwm, :block)
+        @state      = :ready        # :ready or :waiting_reply
         init_round_robin(engine)
       end
 
@@ -50,12 +49,11 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_added(connection)
-        task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
+        @engine.start_recv_pump(connection, @recv_queue) do |msg|
           @state = :ready
           msg.first&.empty? ? msg[1..] : msg
         end
 
-        @tasks << task if task
         add_round_robin_send_connection(connection)
       end
 
@@ -74,16 +72,6 @@ module OMQ
         raise SocketError, "REQ socket expects send/recv/send/recv order" unless @state == :ready
         @state = :waiting_reply
         enqueue_round_robin(parts)
-      end
-
-
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
       end
 
 

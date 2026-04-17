@@ -22,8 +22,6 @@ module OMQ
         @connection = nil
         @recv_queue = Routing.build_queue(engine.options.recv_hwm, :block)
         @send_queue = Routing.build_queue(engine.options.send_hwm, :block)
-        @send_pump  = nil
-        @tasks      = []
       end
 
 
@@ -52,8 +50,7 @@ module OMQ
         raise "PAIR allows only one peer" if @connection
         @connection = connection
 
-        task = @engine.start_recv_pump(connection, @recv_queue)
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue)
 
         unless connection.is_a?(Transport::Inproc::DirectPipe)
           start_send_pump(connection)
@@ -64,11 +61,7 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_removed(connection)
-        if @connection == connection
-          @connection = nil
-          @send_pump&.stop
-          @send_pump = nil
-        end
+        @connection = nil if @connection == connection
       end
 
 
@@ -84,16 +77,6 @@ module OMQ
       end
 
 
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
-
-
       # @return [Boolean] true when the shared send queue is empty
       #
       def send_queues_drained?
@@ -105,7 +88,7 @@ module OMQ
 
 
       def start_send_pump(conn)
-        @send_pump = @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+        @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           batch = []
 
           loop do
@@ -124,8 +107,6 @@ module OMQ
             batch.clear
           end
         end
-
-        @tasks << @send_pump
       end
 
     end

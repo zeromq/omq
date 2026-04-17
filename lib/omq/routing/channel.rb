@@ -5,22 +5,20 @@ module OMQ
     # CHANNEL socket routing: exclusive 1-to-1 bidirectional.
     #
     class Channel
-      # @param engine [Engine]
-      #
-      def initialize(engine)
-        @engine         = engine
-        @connection     = nil
-        @recv_queue     = Routing.build_queue(engine.options.recv_hwm, :block)
-        @send_queue     = nil
-        @staging_queue  = Routing.build_queue(engine.options.send_hwm, :block)
-        @send_pump      = nil
-        @tasks          = []
-      end
-
-
       # @return [Async::LimitedQueue]
       #
       attr_reader :recv_queue
+
+
+      # @param engine [Engine]
+      #
+      def initialize(engine)
+        @engine        = engine
+        @connection    = nil
+        @recv_queue    = Routing.build_queue(engine.options.recv_hwm, :block)
+        @send_queue    = nil
+        @staging_queue = Routing.build_queue(engine.options.send_hwm, :block)
+      end
 
 
       # Dequeues the next received message. Blocks until one is available.
@@ -48,8 +46,7 @@ module OMQ
         raise "CHANNEL allows only one peer" if @connection
         @connection = connection
 
-        task = @engine.start_recv_pump(connection, @recv_queue)
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue)
 
         unless connection.is_a?(Transport::Inproc::DirectPipe)
           @send_queue = Routing.build_queue(@engine.options.send_hwm, :block)
@@ -67,8 +64,6 @@ module OMQ
         if @connection == connection
           @connection = nil
           @send_queue = nil
-          @send_pump&.stop
-          @send_pump = nil
         end
       end
 
@@ -87,39 +82,29 @@ module OMQ
       end
 
 
-      # Stops all background tasks (send pumps).
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
-
-
       # True when the staging and send queues are empty.
       #
       def send_queues_drained?
         @staging_queue.empty? && (@send_queue.nil? || @send_queue.empty?)
       end
 
+
       private
 
+
       def start_send_pump(conn)
-        @send_pump = @engine.spawn_pump_task(annotation: "send pump") do
+        @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           batch = []
 
           loop do
             Routing.dequeue_batch(@send_queue, batch)
-            begin
-              batch.each { |parts| conn.write_message(parts) }
-              conn.flush
-            rescue Protocol::ZMTP::Error, *CONNECTION_LOST
-              @engine.connection_lost(conn)
-              break
-            end
+            batch.each { |parts| conn.write_message(parts) }
+            conn.flush
             batch.clear
           end
         end
-        @tasks << @send_pump
       end
+
     end
   end
 end

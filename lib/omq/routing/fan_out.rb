@@ -41,7 +41,6 @@ module OMQ
         @subscriptions      = {} # connection => Set of prefixes
         @subscribe_all      = Set.new # connections subscribed to "" (match-all fast path)
         @conn_queues        = {} # connection => per-connection send queue
-        @conn_send_tasks    = {} # connection => send pump task
         @conflate           = engine.options.conflate
         @subscriber_joined  = Async::Promise.new
         @latest             = {} if @conflate
@@ -96,7 +95,8 @@ module OMQ
       end
 
 
-      # Stops the per-connection send pump and removes the queue.
+      # Removes the per-connection send queue. The pump itself is torn
+      # down by the per-connection lifecycle barrier.
       # Call from #connection_removed.
       #
       # @param conn [Connection]
@@ -104,7 +104,6 @@ module OMQ
       def remove_fan_out_send_connection(conn)
         @subscribe_all.delete(conn)
         @conn_queues.delete(conn)
-        @conn_send_tasks.delete(conn)&.stop
       end
 
 
@@ -130,7 +129,7 @@ module OMQ
 
 
       def start_subscription_listener(conn)
-        @tasks << @engine.spawn_conn_pump_task(conn, annotation: "subscription listener") do
+        @engine.spawn_conn_pump_task(conn, annotation: "subscription listener") do
           loop do
             frame = conn.read_frame
 
@@ -160,13 +159,10 @@ module OMQ
         use_wire = conn.respond_to?(:write_wire) && !conn.encrypted?
 
         if @conflate
-          task = start_conn_send_pump_conflate(conn, q)
+          start_conn_send_pump_conflate(conn, q)
         else
-          task = start_conn_send_pump_normal(conn, q, use_wire)
+          start_conn_send_pump_normal(conn, q, use_wire)
         end
-
-        @conn_send_tasks[conn] = task
-        @tasks << task
       end
 
 

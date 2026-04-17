@@ -203,7 +203,7 @@ module OMQ
           @servers  = servers
           @port     = port
           @engine   = engine
-          @tasks    = []
+          @barrier  = nil
         end
 
 
@@ -214,9 +214,11 @@ module OMQ
         # @yieldparam io [IO::Stream::Buffered]
         #
         def start_accept_loops(parent_task)
-          @tasks = @servers.map do |server|
+          @barrier = Async::Barrier.new(parent: parent_task)
+
+          @servers.each do |server|
             annotation = "tcp accept #{server.local_address.inspect_sockaddr}"
-            parent_task.async(transient: true, annotation:) do
+            @barrier.async(transient: true, annotation:) do
               loop do
                 client, _addr = server.accept
                 TCP.apply_buffer_sizes(client, @engine.options)
@@ -241,7 +243,7 @@ module OMQ
         # @return [void]
         #
         def stop
-          @tasks.each(&:stop)
+          @barrier&.stop
           @servers.each { |s| s.close rescue nil }
         end
 

@@ -38,30 +38,6 @@ module OMQ
     attr_reader :options
 
 
-    # @return [Routing] routing strategy (created lazily on first access)
-    #
-    def routing
-      @routing ||= Routing.for(@socket_type).new(self)
-    end
-
-
-    # @param socket_type [Symbol] e.g. :REQ, :REP, :PAIR
-    # @param options [Options]
-    #
-    def initialize(socket_type, options)
-      @socket_type     = socket_type
-      @options         = options
-      @routing         = nil
-      @connections     = {} # connection => ConnectionLifecycle
-      @dialers         = {} # endpoint => Dialer (reconnect intent + connect logic)
-      @listeners       = {} # endpoint => Listener
-      @lifecycle       = SocketLifecycle.new
-      @fatal_error     = nil
-      @monitor_queue   = nil
-      @verbose_monitor = false
-    end
-
-
     # @return [Hash{String => Listener}] active listeners keyed by resolved endpoint
     #
     attr_reader :listeners
@@ -92,6 +68,30 @@ module OMQ
     # @return [Boolean] when true, every monitor event is also printed
     #   to stderr for debugging. Set via {Socket#monitor}.
     attr_accessor :verbose_monitor
+
+
+    # @return [Routing] routing strategy (created lazily on first access)
+    #
+    def routing
+      @routing ||= Routing.for(@socket_type).new(self)
+    end
+
+
+    # @param socket_type [Symbol] e.g. :REQ, :REP, :PAIR
+    # @param options [Options]
+    #
+    def initialize(socket_type, options)
+      @socket_type     = socket_type
+      @options         = options
+      @routing         = nil
+      @connections     = {} # connection => ConnectionLifecycle
+      @dialers         = {} # endpoint => Dialer (reconnect intent + connect logic)
+      @listeners       = {} # endpoint => Listener
+      @lifecycle       = SocketLifecycle.new
+      @fatal_error     = nil
+      @monitor_queue   = nil
+      @verbose_monitor = false
+    end
 
 
     # Delegated to {SocketLifecycle}.
@@ -399,7 +399,6 @@ module OMQ
 
       stop_listeners
       tear_down_barrier
-      routing.stop rescue nil
       emit_monitor_event(:closed)
       close_monitor_queue
     end
@@ -422,7 +421,6 @@ module OMQ
 
       stop_listeners
       tear_down_barrier
-      routing.stop rescue nil
       emit_monitor_event(:closed)
       close_monitor_queue
     end
@@ -435,11 +433,16 @@ module OMQ
     # see the real error instead of deadlocking.
     #
     # @param annotation [String] task annotation for debugging
+    # @param parent [Async::Task, Async::Barrier] parent for the spawned
+    #   task. Defaults to the current task. Routing strategies that own
+    #   loose pump tasks (Radio, Channel) pass their own +Async::Barrier+
+    #   so a single +barrier.stop+ tears the lot down at strategy
+    #   shutdown without per-task bookkeeping.
     # @yield the pump loop body
     # @return [Async::Task]
     #
-    def spawn_pump_task(annotation:, &block)
-      Async::Task.current.async(transient: true, annotation: annotation) do
+    def spawn_pump_task(annotation:, parent: Async::Task.current, &block)
+      parent.async(transient: true, annotation: annotation) do
         yield
       rescue Async::Stop, Async::Cancel, Protocol::ZMTP::Error, *CONNECTION_LOST
         # normal shutdown / expected disconnect

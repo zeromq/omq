@@ -11,6 +11,11 @@ module OMQ
     # routes to the identified connection.
     #
     class Peer
+      # @return [Async::LimitedQueue]
+      #
+      attr_reader :recv_queue
+
+
       # @param engine [Engine]
       #
       def initialize(engine)
@@ -19,14 +24,7 @@ module OMQ
         @connections_by_routing_id  = {}
         @routing_id_by_connection   = {}
         @conn_queues                = {}
-        @conn_send_tasks            = {}
-        @tasks                      = []
       end
-
-
-      # @return [Async::LimitedQueue]
-      #
-      attr_reader :recv_queue
 
 
       # Dequeues the next received message. Blocks until one is available.
@@ -54,12 +52,11 @@ module OMQ
         @connections_by_routing_id[routing_id] = connection
         @routing_id_by_connection[connection]  = routing_id
 
-        task = @engine.start_recv_pump(connection, @recv_queue) { |msg| [routing_id, *msg] }
-        @tasks << task if task
+        @engine.start_recv_pump(connection, @recv_queue) { |msg| [routing_id, *msg] }
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
-        @conn_send_tasks[connection] = ConnSendPump.start(@engine, connection, q, @tasks)
+        ConnSendPump.start(@engine, connection, q)
       end
 
 
@@ -69,7 +66,6 @@ module OMQ
         routing_id = @routing_id_by_connection.delete(connection)
         @connections_by_routing_id.delete(routing_id) if routing_id
         @conn_queues.delete(connection)
-        @conn_send_tasks.delete(connection)&.stop
       end
 
 
@@ -83,18 +79,12 @@ module OMQ
       end
 
 
-      # Stops all background tasks (send pumps).
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
-      end
-
-
       # True when all per-connection send queues are empty.
       #
       def send_queues_drained?
         @conn_queues.values.all?(&:empty?)
       end
+
     end
   end
 end

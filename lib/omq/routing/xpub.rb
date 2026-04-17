@@ -24,7 +24,6 @@ module OMQ
       def initialize(engine)
         @engine     = engine
         @recv_queue = Routing.build_queue(engine.options.recv_hwm, :block)
-        @tasks      = []
 
         init_fan_out(engine)
       end
@@ -65,16 +64,6 @@ module OMQ
       #
       def enqueue(parts)
         fan_out_enqueue(parts)
-      end
-
-
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
       end
 
 

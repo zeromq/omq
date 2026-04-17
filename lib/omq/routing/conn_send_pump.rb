@@ -8,16 +8,16 @@ module OMQ
     # include the RoundRobin mixin.
     #
     module ConnSendPump
-      # Spawns the pump task and registers it in +tasks+.
+      # Spawns the pump task on the connection's lifecycle barrier so it
+      # is torn down with the rest of the connection's pumps.
       #
       # @param engine [Engine]
       # @param conn [Connection]
       # @param q [Async::LimitedQueue]
-      # @param tasks [Array]
       # @return [Async::Task]
       #
-      def self.start(engine, conn, q, tasks)
-        task = engine.spawn_conn_pump_task(conn, annotation: "send pump") do
+      def self.start(engine, conn, q)
+        engine.spawn_conn_pump_task(conn, annotation: "send pump") do
           batch = []
 
           loop do
@@ -38,9 +38,6 @@ module OMQ
             batch.clear
           end
         end
-
-        tasks << task
-        task
       end
 
     end

@@ -23,9 +23,7 @@ module OMQ
         @engine          = engine
         @recv_queue      = Routing.build_queue(engine.options.recv_hwm, :block)
         @pending_replies = []
-        @conn_queues     = {}  # connection => per-connection send queue
-        @conn_send_tasks = {}  # connection => send pump task
-        @tasks           = []
+        @conn_queues     = {}
       end
 
 
@@ -50,7 +48,7 @@ module OMQ
       # @param connection [Connection]
       #
       def connection_added(connection)
-        task = @engine.start_recv_pump(connection, @recv_queue) do |msg|
+        @engine.start_recv_pump(connection, @recv_queue) do |msg|
           delimiter = msg.index { |p| p.empty? } || msg.size
           envelope  = msg[0, delimiter]
           body      = msg[(delimiter + 1)..] || []
@@ -58,11 +56,10 @@ module OMQ
           @pending_replies << [connection, envelope]
           body
         end
-        @tasks << task if task
 
         q = Routing.build_queue(@engine.options.send_hwm, :block)
         @conn_queues[connection] = q
-        @conn_send_tasks[connection] = ConnSendPump.start(@engine, connection, q, @tasks)
+        ConnSendPump.start(@engine, connection, q)
       end
 
 
@@ -71,7 +68,6 @@ module OMQ
       def connection_removed(connection)
         @pending_replies.reject! { |r| r[0] == connection }
         @conn_queues.delete(connection)
-        @conn_send_tasks.delete(connection)&.stop
       end
 
 
@@ -89,16 +85,6 @@ module OMQ
         msg << EMPTY_FRAME
         msg.concat(parts)
         @conn_queues[conn]&.enqueue(msg)
-      end
-
-
-      # Stops all background tasks.
-      #
-      # @return [void]
-      #
-      def stop
-        @tasks.each(&:stop)
-        @tasks.clear
       end
 
 
