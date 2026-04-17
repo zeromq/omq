@@ -42,6 +42,12 @@
   `Engine#stop`'s crash path, collapsing two `@lifecycle.*` calls into
   one.
 
+- **Module-level constants consolidated into `lib/omq/constants.rb`.**
+  `MonitorEvent`, `DEBUG`, `SocketDeadError`, `CONNECTION_LOST`,
+  `CONNECTION_FAILED`, and `OMQ.freeze_for_ractors!` now live in one
+  file. `lib/omq/monitor_event.rb` is deleted; `lib/omq.rb` just
+  requires `omq/constants`.
+
 ### Removed
 
 - **`Engine#tasks` array** (and every `@tasks << ...` append site)
