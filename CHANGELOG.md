@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.1 — 2026-04-18
+
+### Fixed
+
+- **SCATTER double-tracked each peer.** `Routing::Scatter#connection_added`
+  appended to `@connections` and then called `add_round_robin_send_connection`,
+  which appends again — so every connected peer had two entries in the list.
+  `#connection_removed` deleted only one on disconnect, leaving a stale entry
+  behind. Fixed by dropping the duplicate append.
+
+
 ## 0.23.0 — 2026-04-17
 
 ### Added
