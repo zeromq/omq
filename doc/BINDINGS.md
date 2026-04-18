@@ -24,7 +24,7 @@ between runs.
 
 | Binding | Language / Runtime | How it reaches the wire |
 |---|---|---|
-| **OMQ** 0.21.0 | MRI Ruby 4.0.2 + YJIT | pure Ruby, Async fibers, no native dep |
+| **OMQ** 0.23.1 | MRI Ruby 4.0.2 + YJIT | pure Ruby, Async fibers, no native dep |
 | **ffi-rzmq** 2.0.7 | MRI Ruby 4.0.2 + YJIT | FFI → libzmq 4.3.5 |
 | **CZTop** 2.0.2 | MRI Ruby 4.0.2 + YJIT | FFI → CZMQ → libzmq 4.3.5 |
 | **pyzmq** 26.4.0 | CPython 3.13.5 | Cython → libzmq 4.3.5 |
@@ -35,22 +35,22 @@ between runs.
 | Binding | 128 B msg/s | 128 B MB/s | 1024 B msg/s | 1024 B MB/s |
 |---|---:|---:|---:|---:|
 | JeroMQ (JRuby)        | **959,677** | 122.8 |   410,420 | 420.3 |
-| OMQ (MRI, pure Ruby)  |   350,564   |  44.9 |   217,282 | 222.5 |
+| OMQ (MRI, pure Ruby)  |   332,030   |  42.5 |   224,148 | 229.5 |
 | pyzmq (CPython)       |   326,067   |  41.7 |   287,211 | 294.1 |
 | CZTop (MRI)           |   268,342   |  34.3 |   225,171 | 230.6 |
 | ffi-rzmq (MRI)        |    39,840   |   5.1 |    32,854 |  33.6 |
 
 ### Observations
 
-- **JeroMQ runs away with throughput.** ~2.7× OMQ on small messages, ~1.9× on
+- **JeroMQ runs away with throughput.** ~2.9× OMQ on small messages, ~1.8× on
   1 KB. The JVM JIT on a tight `send(byte[], 0)` loop against a pure-Java
   transport is hard to beat, and JeroMQ is mature (derived from the same
   codebase pedigree as libzmq itself).
-- **OMQ ties pyzmq on small messages** (326k vs 351k) — a pure-Ruby fiber
+- **OMQ edges pyzmq on small messages** (332k vs 326k) — a pure-Ruby fiber
   pipeline keeps up with Cython-wrapped libzmq when per-message overhead
   dominates. pyzmq pulls ahead at 1 KB because libzmq's C framing is still
   faster per byte than Ruby.
-- **CZTop is close to OMQ at 1 KB** (230 vs 222 MB/s) — at that size both
+- **CZTop matches OMQ at 1 KB** (231 vs 230 MB/s) — at that size both
   are bandwidth-bound on loopback, and the FFI-per-call overhead
   disappears against the memcpy cost.
 - **ffi-rzmq is ~10× slower than everything else.** Not libzmq's fault —
@@ -62,7 +62,7 @@ between runs.
 
 | Binding | 128 B rtt/s | 128 B µs/rtt | 1024 B rtt/s | 1024 B µs/rtt |
 |---|---:|---:|---:|---:|
-| OMQ (MRI, pure Ruby) | **14,819** | **67.5** | **13,382** | **74.7** |
+| OMQ (MRI, pure Ruby) | **14,167** | **70.6** | **12,902** | **77.5** |
 | JeroMQ (JRuby)       | 14,948     |  66.9     | 13,118     | 76.2      |
 | pyzmq (CPython)      | 14,232     |  70.3     | 13,925     | 71.8      |
 | ffi-rzmq (MRI)       | 11,729     |  85.3     | 10,895     | 91.8      |
@@ -82,8 +82,9 @@ between runs.
 ## Headline takeaways
 
 1. **JeroMQ wins throughput**, by a wide margin on small messages.
-2. **OMQ is the fastest Ruby option on both benches** — beats ffi-rzmq and
-   CZTop on throughput *and* REQ/REP, despite being pure Ruby.
+2. **OMQ is the fastest Ruby option overall** — beats ffi-rzmq everywhere,
+   beats CZTop on small-message throughput and on REQ/REP, ties CZTop at
+   1 KB throughput. All despite being pure Ruby.
 3. **On REQ/REP latency, runtime choice barely matters** — OMQ, JeroMQ and
    pyzmq all cluster around 65–75 µs. At that scale the bottleneck is TCP
    loopback, not the binding.
