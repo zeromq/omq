@@ -192,7 +192,7 @@ And it cost:
 - Effective buffering of `send_hwm * (N_peers + 1)`, contradicting the
   option's name
 - A second concurrency hazard around the connect/disconnect race
-- A separate code path for inproc DirectPipe alongside staging and per-conn
+- A separate code path for inproc Pipe alongside staging and per-conn
   queues
 
 The simpler model -- one shared queue, N work-stealing pumps -- gives:
