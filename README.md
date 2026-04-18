@@ -162,6 +162,12 @@ All sockets are thread-safe. Default HWM is 1000 messages per socket.
 frames cause the connection to be dropped before the body is read from the
 wire. Classes live under `OMQ::` (alias: `ØMQ`).
 
+**Received messages are frozen** across all transports (inproc, ipc, tcp).
+The array returned by `#receive` and every part inside it is frozen —
+mutating a received part raises `FrozenError` rather than silently
+corrupting a shared reference on the inproc fast path. `dup` a part if
+you need to mutate it.
+
 #### Standard (multipart messages)
 
 | Pattern | Send | Receive | When HWM full |

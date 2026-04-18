@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Uniform frozen + BINARY contract on both sides of the wire —
+  restoring pre-0.24 behavior.** 0.24 dropped freezing from the
+  send/receive paths to chase throughput numbers, which left inproc
+  with an unsafe shared-reference contract (sender and receiver share
+  the same array and strings) and made the contract differ by
+  transport. Safety is back, minus the `.b` copy that was the
+  actually-expensive part of the old path. Invariants:
+
+  - `Writable#send` freezes every part (and the parts array, if one
+    was passed). Unfrozen non-BINARY parts are re-tagged to
+    `Encoding::BINARY` in place — a flag flip, no allocation.
+  - Receivers always get frozen `BINARY`-tagged parts. TCP/IPC get
+    this via byteslice on the wire + recv-pump freeze. Inproc gets
+    it via `Pipe#send_message`, which only allocates (one `.b` copy
+    per part) in the pathological case of a frozen non-BINARY part
+    — the typical `# frozen_string_literal: true` UTF-8 literal.
+
+  Mutation bugs surface as `FrozenError` instead of silently
+  corrupting a shared reference on inproc. Cost on inproc is ~20-30%
+  throughput; TCP/IPC unaffected.
+
+- **String-like part coercion via `#to_str`.** Non-String parts are
+  coerced via `#to_str` (not `#to_s`) — an object must be explicitly
+  string-like to serialize. Passing `42`, `:foo`, or `nil` raises
+  `NoMethodError` instead of silently accepting a `#to_s`
+  representation or producing a zero-byte frame from a `nil`. Use
+  `""` to send an empty frame.
+
+
 ## 0.24.0 — 2026-04-18
 
 ### Changed

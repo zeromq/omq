@@ -94,6 +94,8 @@ module OMQ
 
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
+              msg.each { it.freeze }
+              msg.freeze
               msg = transform.call(msg)
 
               # Emit the verbose trace BEFORE enqueueing so the monitor
@@ -147,6 +149,8 @@ module OMQ
 
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
+              msg.each { it.freeze }
+              msg.freeze
               engine.emit_verbose_msg_received(conn, msg)
               recv_queue.enqueue(msg)
 

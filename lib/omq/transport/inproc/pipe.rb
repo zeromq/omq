@@ -101,6 +101,15 @@ module OMQ
         def send_message(parts)
           raise IOError, "closed" if @closed
 
+          # Writable#send guarantees frozen parts, but a frozen non-BINARY
+          # part (e.g. a `# frozen_string_literal: true` literal) can't be
+          # re-tagged in place. Inproc receivers see the parts directly, so
+          # upgrade that one case to fresh BINARY copies to keep the
+          # receive contract uniform with TCP/IPC.
+          if parts.any? { |p| p.encoding != Encoding::BINARY }
+            parts = parts.map { |p| p.encoding == Encoding::BINARY ? p : p.b.freeze }.freeze
+          end
+
           if @direct_recv_queue
             @direct_recv_queue.enqueue(apply_transform(parts))
           elsif @send_queue

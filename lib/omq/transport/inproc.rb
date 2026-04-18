@@ -11,8 +11,8 @@ module OMQ
     # Both peers are Ruby backend sockets in the same process (native
     # ZMQ's inproc registry is separate and unreachable). Messages are
     # transferred as Ruby arrays — no ZMTP framing, no byte
-    # serialization. String parts are frozen by Writable#send to
-    # prevent shared mutable state without copying.
+    # serialization. Parts are already frozen by Writable#send, so the
+    # receiver sees the same immutable contract as ZMTP transports.
     #
     module Inproc
       Engine.transports["inproc"] = self
