@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.24.0 — 2026-04-18
+
+### Changed
+
+- **Caller owns message parts.** `Writable#send` no longer deep-freezes or
+  binary-coerces the caller's input. The contract is now libzmq-style:
+  don't mutate parts after sending. `#receive` likewise returns mutable
+  arrays of mutable strings. This removes a full-payload allocation per
+  message (`.b.freeze`) on the send path and a per-frame freeze on the
+  receive path.
+
+- **No more implicit `#to_s` / nil coercion.** Passing a non-string part
+  (e.g. Integer, Symbol, nil) will raise `NoMethodError` at the wire layer
+  instead of being silently converted. The `EMPTY_PART` constant is gone.
+
+- **Reactor fast path for `#send` / `#receive`.** When the socket was
+  bound/connected from an Async fiber, hot-path I/O skips `Reactor.run`
+  entirely and calls the engine directly (with an `Async::Task#with_timeout`
+  wrapper only when a timeout is configured). The shared IO thread is used
+  only when the socket was created from a non-Async thread.
+
+### Performance
+
+Combined effect of caller-owns-data + Reactor fast path on inproc:
+
+- PUSH/PULL inproc 1-peer: **+105% to +128%** msg/s across payload sizes
+- PUSH/PULL inproc 3-peer: **+63% to +111%** msg/s
+- PUSH/PULL ipc: +5% to +17%
+- TCP numbers unchanged (OS/syscall-dominated)
+
+### Removed
+
+- `Writable#freeze_message` and `#frozen_binary` private helpers.
+- `Writable::EMPTY_PART` constant.
+
+
 ## 0.23.1 — 2026-04-18
 
 ### Fixed

@@ -14,7 +14,11 @@ module OMQ
     # @raise [IO::TimeoutError] if read_timeout exceeded
     #
     def receive
-      Reactor.run timeout: @options.read_timeout do |task|
+      if @engine.on_io_thread?
+        Reactor.run(timeout: @options.read_timeout) { @engine.dequeue_recv }
+      elsif (timeout = @options.read_timeout)
+        Async::Task.current.with_timeout(timeout, IO::TimeoutError) { @engine.dequeue_recv }
+      else
         @engine.dequeue_recv
       end
     end

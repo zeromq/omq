@@ -37,7 +37,7 @@ describe OMQ::Transport::Inproc do
       end
     end
 
-    it "copies data to avoid shared state" do
+    it "delivers message parts across the pipe" do
       Async do
         a_to_b = Async::Queue.new
         b_to_a = Async::Queue.new
@@ -55,12 +55,10 @@ describe OMQ::Transport::Inproc do
         )
 
         Async do
-          original = "mutable".b.freeze
-          side_a.send_message([original])
+          side_a.send_message(["hello"])
 
           received = side_b.receive_message
-          assert_equal ["mutable"], received
-          assert received.first.frozen?, "received part should be frozen"
+          assert_equal ["hello"], received
         end.wait
       end
     end

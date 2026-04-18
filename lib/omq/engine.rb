@@ -100,6 +100,7 @@ module OMQ
     def parent_task       = @lifecycle.parent_task
     def barrier           = @lifecycle.barrier
     def closed?           = @lifecycle.closed?
+    def on_io_thread?     = @lifecycle.on_io_thread
 
 
     # Enables or disables auto-reconnect for dropped connections.

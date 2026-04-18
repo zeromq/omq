@@ -200,7 +200,7 @@ module OMQ
             next unless parts
             group, body = parts
             next unless @groups.include?(group.b)
-            return [group.b.freeze, body.b.freeze]
+            return [group, body]
           rescue IO::WaitReadable
             @socket.wait_readable
             retry

@@ -9,19 +9,25 @@ module OMQ
     include QueueWritable
 
 
-    EMPTY_PART = "".b.freeze
-
-
     # Sends a message.
+    #
+    # Caller owns the message parts. Don't mutate them after sending — especially
+    # with inproc transport or PUB fan-out, where a single reference can be shared
+    # across peers and read later by the send pump.
     #
     # @param message [String, Array<String>] message parts
     # @return [self]
     # @raise [IO::TimeoutError] if write_timeout exceeded
     #
     def send(message)
-      parts = freeze_message(message)
+      parts = message.is_a?(Array) ? message : [message]
+      raise ArgumentError, "message has no parts" if parts.empty?
 
-      Reactor.run timeout: @options.write_timeout do |task|
+      if @engine.on_io_thread?
+        Reactor.run(timeout: @options.write_timeout) { @engine.enqueue_send(parts) }
+      elsif (timeout = @options.write_timeout)
+        Async::Task.current.with_timeout(timeout, IO::TimeoutError) { @engine.enqueue_send(parts) }
+      else
         @engine.enqueue_send(parts)
       end
 
@@ -46,43 +52,6 @@ module OMQ
     #
     def wait_writable(timeout = @options.write_timeout)
       true
-    end
-
-
-    private
-
-
-    # Converts a message into a frozen array of frozen binary strings.
-    #
-    # @param message [String, Array<String>]
-    # @return [Array<String>] frozen array of frozen binary strings
-    #
-    def freeze_message(message)
-      parts = message.is_a?(Array) ? message : [message]
-      raise ArgumentError, "message has no parts" if parts.empty?
-
-      all_ready = parts.all? { |p| p.is_a?(String) && p.frozen? && p.encoding == Encoding::BINARY }
-
-      # Already a frozen array of frozen binary strings → return as-is.
-      return parts if all_ready && parts.frozen?
-
-      # Items are ready; just freeze the outer array.
-      return parts.freeze if all_ready
-
-      # Items need conversion. Mutate in place when we can.
-      if parts.frozen?
-        parts.map { |p| frozen_binary(p) }.freeze
-      else
-        parts.map! { |p| frozen_binary(p) }.freeze
-      end
-    end
-
-
-    def frozen_binary(obj)
-      return EMPTY_PART if obj.nil?
-      s = obj.to_s
-      return s if s.frozen? && s.encoding == Encoding::BINARY
-      s.b.freeze
     end
 
   end

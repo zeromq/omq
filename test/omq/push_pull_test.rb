@@ -130,19 +130,6 @@ describe "PUSH/PULL over inproc" do
     end
   end
 
-  it "coerces non-string parts via #to_s" do
-    Async do
-      pull = OMQ::PULL.bind("inproc://pushpull-tos")
-      push = OMQ::PUSH.connect("inproc://pushpull-tos")
-
-      push.send([123, :symbol, nil, Pathname.new("/tmp")])
-      msg = pull.receive
-      assert_equal ["123", "symbol", "", "/tmp"], msg
-    ensure
-      push&.close
-      pull&.close
-    end
-  end
 end
 
 

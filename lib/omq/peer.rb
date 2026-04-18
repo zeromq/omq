@@ -38,7 +38,7 @@ module OMQ
     # @return [self]
     #
     def send_to(routing_id, message)
-      parts = [routing_id.b.freeze, message.b.freeze]
+      parts = [routing_id, message]
       Reactor.run(timeout: @options.write_timeout) { @engine.enqueue_send(parts) }
       self
     end

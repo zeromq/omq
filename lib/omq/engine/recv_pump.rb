@@ -94,7 +94,7 @@ module OMQ
 
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
-              msg = transform.call(msg).freeze
+              msg = transform.call(msg)
 
               # Emit the verbose trace BEFORE enqueueing so the monitor
               # fiber is woken before the application fiber -- the

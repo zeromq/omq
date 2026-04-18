@@ -42,7 +42,7 @@ module OMQ
     # @return [self]
     #
     def publish(group, body)
-      parts = [group.b.freeze, body.b.freeze]
+      parts = [group, body]
       Reactor.run timeout: @options.write_timeout do
         @engine.enqueue_send(parts)
       end

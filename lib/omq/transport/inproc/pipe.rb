@@ -208,7 +208,7 @@ module OMQ
 
         def apply_transform(parts)
           if @direct_recv_transform
-            @direct_recv_transform.call(parts).freeze
+            @direct_recv_transform.call(parts)
           else
             parts
           end
