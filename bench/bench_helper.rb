@@ -18,6 +18,7 @@ require 'console'
 require 'rbnacl'
 require 'json'
 require 'protocol/zmtp/mechanism/curve'
+
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
 module BenchHelper
@@ -28,7 +29,7 @@ module BenchHelper
   # Transient jitter (GC, scheduler preemption, YJIT tier-up, kernel
   # batching gaps) only ever *slows* a run down, so "fastest" is the
   # closest approximation to peak sustainable throughput.
-  ROUNDS         = 3
+  ROUNDS         = 1
   ROUND_DURATION = Float(ENV.fetch("OMQ_BENCH_TARGET", 1.0))
 
   # Calibration warmup window — long enough that a single scheduler
@@ -37,12 +38,12 @@ module BenchHelper
 
   # Lower bound on warmup iterations (so noisy short bursts don't fool
   # the rate estimate).
-  WARMUP_MIN_ITERS = 200
+  WARMUP_MIN_ITERS = 1_000
 
   # Iterations of the untimed prime burst that runs before calibration.
   # Soaks up YJIT compilation, fiber stack allocation, kernel buffer
   # ramp-up, etc., so the timed warmup measures steady-state throughput.
-  PRIME_ITERS = 1000
+  PRIME_ITERS = 5000
 
   RESULTS_PATH = File.join(__dir__, "results.jsonl").freeze
 
@@ -83,13 +84,17 @@ module BenchHelper
         header = "#{transport} (#{peers} peer#{'s' if peers > 1})"
         puts "--- #{header} ---"
         completed = 0
+
         SIZES.each do |size|
           seq += 1
+
           Async do |task|
             task.with_timeout(RUN_TIMEOUT) do
               OMQ::Transport::Inproc.reset! if transport == "inproc"
+
               ep = endpoint(transport, seq)
               r  = block.call(transport, ep, peers, "x" * size)
+
               append_result(pattern, transport, peers, size, r[:n], r[:elapsed], r[:mbps], r[:msgs_s])
               completed += 1
             end
@@ -97,9 +102,11 @@ module BenchHelper
             abort "BENCH TIMEOUT: #{header} #{size}B exceeded #{RUN_TIMEOUT}s"
           end
         end
+
         if completed == 0
           abort "BENCH FAILED: #{header} produced no results"
         end
+
         puts
       end
     end
@@ -194,10 +201,19 @@ module BenchHelper
 
   def measure(receiver, senders, payload)
     burst = ->(k) {
-      per = [k / senders.size, 1].max
+      per     = [k / senders.size, 1].max
       barrier = Async::Barrier.new
-      senders.each { |s| barrier.async { per.times { s << payload } } }
-      (per * senders.size).times { receiver.receive }
+
+      senders.each do |sender|
+        barrier.async do
+          per.times { sender << payload.dup }
+        end
+      end
+
+      (per * senders.size).times do
+        receiver.receive
+      end
+
       barrier.wait
     }
 
@@ -205,7 +221,7 @@ module BenchHelper
   end
 
   def measure_roundtrip(requester, _responder_task, payload)
-    burst = ->(k) { k.times { requester << payload; requester.receive } }
+    burst = ->(k) { k.times { requester << payload.dup; requester.receive } }
     measure_best_of(payload, &burst)
   end
 
