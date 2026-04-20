@@ -80,6 +80,12 @@ module OMQ
       # cross-Ractor transport). Kept separate from {#start_direct} so
       # YJIT sees a monomorphic transform.call site.
       #
+      # A transform that returns +nil+ drops the message — the recv pump
+      # still counts it toward fairness (so dup-floods can't starve
+      # siblings) but it is neither emitted nor enqueued to the
+      # application. omq-qos uses this at QoS >= 2 for dedup-set hits:
+      # the transform ACKs the sender and returns nil.
+      #
       # @param parent [Async::Task, Async::Barrier]
       # @param transform [Proc]
       # @return [Async::Task]
@@ -96,18 +102,9 @@ module OMQ
               msg = conn.receive_message
               msg.each { it.freeze }
               msg.freeze
-              msg = transform.call(msg)
 
-              # Emit the verbose trace BEFORE enqueueing so the monitor
-              # fiber is woken before the application fiber -- the
-              # async scheduler is FIFO on the ready list, so this
-              # preserves log-before-stdout ordering for -vvv traces.
-              engine.emit_verbose_msg_received(conn, msg)
-              recv_queue.enqueue(msg)
-
-              count += 1
-
-              # hot path
+              # hot path bytes — count before transform so dropped
+              # messages still contribute to the fairness cap.
               if count_bytes
                 if msg.size == 1
                   bytes += msg.first.bytesize
@@ -119,6 +116,17 @@ module OMQ
                   end
                 end
               end
+
+              count += 1
+              transformed = transform.call(msg)
+              next unless transformed
+
+              # Emit the verbose trace BEFORE enqueueing so the monitor
+              # fiber is woken before the application fiber -- the
+              # async scheduler is FIFO on the ready list, so this
+              # preserves log-before-stdout ordering for -vvv traces.
+              engine.emit_verbose_msg_received(conn, transformed)
+              recv_queue.enqueue(transformed)
             end
 
             task.yield

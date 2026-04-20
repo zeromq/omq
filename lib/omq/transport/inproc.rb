@@ -132,8 +132,20 @@ module OMQ
         #
         def needs_commands?(ce, se, ct, st)
           return true if COMMAND_TYPES.include?(ct) || COMMAND_TYPES.include?(st)
-          return true if ce.options.qos >= 1 || se.options.qos >= 1
+          return true if qos_enabled?(ce.options) || qos_enabled?(se.options)
           false
+        end
+
+
+        # QoS integration: core +Options#qos+ defaults to Integer +0+.
+        # When the omq-qos extension is loaded, +#qos+ holds either
+        # +nil+ (QoS 0) or an +OMQ::QoS+ instance (levels 1–3). Treat
+        # both Integer 0 and nil as disabled.
+        def qos_enabled?(options)
+          q = options.qos
+          return false if q.nil?
+          return q != 0 if q.is_a?(Integer)
+          true
         end
 
 

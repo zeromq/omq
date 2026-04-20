@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.25.0 — 2026-04-20
+
+### Added
+
+- **Recv-pump transforms can drop messages.** A `transform` block passed
+  to `Engine#start_recv_pump` may now return `nil` to discard the
+  message instead of enqueueing it to the application's recv queue.
+  The pump still counts the dropped message toward its per-connection
+  fairness caps (64 msgs / 1 MiB), so a duplicate flood can't starve
+  siblings. omq-qos 0.3.0 uses this at QoS >= 2 for dedup-set hits:
+  the transform ACKs the sender and returns `nil`.
 
 ### Changed
 
@@ -31,6 +41,13 @@
   `NoMethodError` instead of silently accepting a `#to_s`
   representation or producing a zero-byte frame from a `nil`. Use
   `""` to send an empty frame.
+
+- **Inproc `needs_commands?` accepts nilable `options.qos`.** Core
+  `Options#qos` is still an Integer (default `0`), but omq-qos 0.3
+  stores either `nil` (QoS 0) or an `OMQ::QoS` instance (levels 1–3)
+  in that slot. The inproc transport's command-queue decision now
+  treats both Integer `0` and `nil` as disabled; any non-zero
+  Integer or non-nil object forces the command-queue path.
 
 
 ## 0.24.0 — 2026-04-18
