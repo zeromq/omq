@@ -100,7 +100,7 @@ module OMQ
 
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
-              msg.each { it.freeze }
+              msg.each { |part| part.freeze }
               msg.freeze
 
               # hot path bytes — count before transform so dropped
@@ -157,7 +157,7 @@ module OMQ
 
             while count < FAIRNESS_MESSAGES && bytes < FAIRNESS_BYTES
               msg = conn.receive_message
-              msg.each { it.freeze }
+              msg.each { |part| part.freeze }
               msg.freeze
               engine.emit_verbose_msg_received(conn, msg)
               recv_queue.enqueue(msg)

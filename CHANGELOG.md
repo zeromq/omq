@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.26.2 — 2026-04-20
+
+### Fixed
+
+- **Ruby 3.3 compatibility.** Replaced bare `it` block references
+  with explicit block parameters in `engine/recv_pump.rb` and
+  `writable.rb`. Ruby 3.3 warned that `it` would change meaning in
+  3.4; the explicit params work on both.
+
 ## 0.26.1 — 2026-04-20
 
 ### Fixed
