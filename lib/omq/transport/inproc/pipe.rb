@@ -106,8 +106,12 @@ module OMQ
           # re-tagged in place. Inproc receivers see the parts directly, so
           # upgrade that one case to fresh BINARY copies to keep the
           # receive contract uniform with TCP/IPC.
-          if parts.any? { |p| p.encoding != Encoding::BINARY }
-            parts = parts.map { |p| p.encoding == Encoding::BINARY ? p : p.b.freeze }.freeze
+          #
+          # Non-String parts pass through untouched — plugins like
+          # omq-ractor's ShareableConnection carry arbitrary Ruby objects
+          # over inproc.
+          if parts.any? { |p| p.is_a?(String) && p.encoding != Encoding::BINARY }
+            parts = parts.map { |p| !p.is_a?(String) || p.encoding == Encoding::BINARY ? p : p.b.freeze }.freeze
           end
 
           if @direct_recv_queue

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.26.1 — 2026-04-20
+
+### Fixed
+
+- **Inproc Pipe: tolerate non-String parts.** The BINARY-encoding
+  upgrade introduced in 0.25 called `.encoding` on every frame,
+  crashing when plugins (e.g. omq-ractor's `ShareableConnection`)
+  carried arbitrary Ruby objects through inproc. Non-String parts
+  now pass through untouched; String parts still get the
+  frozen-string-literal → BINARY upgrade.
+
 ## 0.26.0 — 2026-04-20
 
 ### Added
