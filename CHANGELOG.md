@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.27.0 — 2026-04-20
+
+### Added
+
+- **Transport-supplied ZMTP Connection class.** Transport modules may
+  now define `.connection_class` to substitute their own
+  `Protocol::ZMTP::Connection`-shaped class. `ConnectionLifecycle`
+  reads it (with a `respond_to?` fallback to
+  `Protocol::ZMTP::Connection`) so existing transports — built-in or
+  third-party — keep working unchanged. Enables plugin transports
+  whose wire shape differs from ZMTP/3.1 (e.g. ZeroMQ-over-WebSocket
+  per RFC 45) to plug in without forking the engine.
+
 ## 0.26.2 — 2026-04-20
 
 ### Fixed

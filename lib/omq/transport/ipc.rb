@@ -15,6 +15,15 @@ module OMQ
 
 
       class << self
+        # ZMTP connection class used for IPC-accepted/dialed peers.
+        #
+        # @return [Class]
+        #
+        def connection_class
+          Protocol::ZMTP::Connection
+        end
+
+
         # Creates a bound IPC listener.
         #
         # @param endpoint [String] e.g. "ipc:///tmp/my.sock" or "ipc://@abstract"

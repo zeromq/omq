@@ -66,13 +66,19 @@ module OMQ
       # @param engine [Engine]
       # @param endpoint [String, nil]
       # @param done [Async::Promise, nil] resolved when connection is lost
+      # @param transport [Module, nil] transport module that produced +io+;
+      #   queried for {.connection_class} so plugins (e.g. WebSocket) can
+      #   substitute their own ZMTP-shaped connection class. Falls back to
+      #   {Protocol::ZMTP::Connection} when nil or when the transport
+      #   doesn't define +connection_class+.
       #
-      def initialize(engine, endpoint: nil, done: nil)
-        @engine   = engine
-        @endpoint = endpoint
-        @done     = done
-        @state    = :new
-        @conn     = nil
+      def initialize(engine, endpoint: nil, done: nil, transport: nil)
+        @engine    = engine
+        @endpoint  = endpoint
+        @done      = done
+        @transport = transport
+        @state     = :new
+        @conn      = nil
 
         # Nest the per-connection barrier under the socket-level barrier
         # so every pump spawned via +@barrier.async+ is also tracked by
@@ -90,7 +96,8 @@ module OMQ
       #
       def handshake!(io, as_server:)
         transition!(:handshaking)
-        conn = Protocol::ZMTP::Connection.new io,
+        conn_class = @transport.respond_to?(:connection_class) ? @transport.connection_class : Protocol::ZMTP::Connection
+        conn = conn_class.new io,
           socket_type:      @engine.socket_type.to_s,
           identity:         @engine.options.identity,
           as_server:        as_server,

@@ -3,6 +3,11 @@
 require_relative "../../test_helper"
 
 describe "TCP transport" do
+  it "advertises Protocol::ZMTP::Connection as its connection_class" do
+    assert_equal Protocol::ZMTP::Connection, OMQ::Transport::TCP.connection_class
+  end
+
+
   it "PAIR over TCP with ephemeral port" do
     Async do
       server = OMQ::PAIR.new

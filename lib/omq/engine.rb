@@ -635,7 +635,8 @@ module OMQ
     def spawn_connection(io, as_server:, endpoint: nil)
       @lifecycle.barrier&.async(transient: true, annotation: "conn #{endpoint}") do
         done      = Async::Promise.new
-        lifecycle = ConnectionLifecycle.new(self, endpoint: endpoint, done: done)
+        transport = endpoint ? transport_for(endpoint) : nil
+        lifecycle = ConnectionLifecycle.new(self, endpoint: endpoint, done: done, transport: transport)
         lifecycle.handshake!(io, as_server: as_server)
         done.wait
       rescue Async::Stop, Async::Cancel

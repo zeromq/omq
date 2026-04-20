@@ -13,6 +13,15 @@ module OMQ
 
 
       class << self
+        # ZMTP connection class used for TCP-accepted/dialed peers.
+        #
+        # @return [Class]
+        #
+        def connection_class
+          Protocol::ZMTP::Connection
+        end
+
+
         # Creates a bound TCP listener.
         #
         # @param endpoint [String] e.g. "tcp://127.0.0.1:5555" or "tcp://*:0"
