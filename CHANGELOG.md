@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.26.0 — 2026-04-20
+
+### Added
+
+- **FFI backend absorbed in-tree.** The libzmq-backed `OMQ::FFI::Engine`
+  (previously shipped as the separate `omq-ffi` gem) now lives in
+  `lib/omq/ffi/`. Load with `require "omq/ffi"` and select per socket
+  via `OMQ::PUSH.new(backend: :ffi)`. `lib/omq/socket.rb` also
+  lazy-requires `omq/ffi` on first `:ffi` use, so the explicit require
+  is optional.
+- **Auto-running FFI interop tests.** `test/omq/ffi_test.rb` (FFI
+  backend) and `test/omq/interop_test.rb` (FFI ↔ pure Ruby wire
+  compatibility) now run as part of `rake test` whenever the `ffi` gem
+  and system libzmq are both available. They self-skip otherwise —
+  detection runs once in `test/test_helper.rb` as `OMQ_FFI_AVAILABLE`.
+
+### Notes
+
+- `ffi` remains optional and is NOT a runtime dependency of `omq`.
+  Install it explicitly (`gem install ffi` + system libzmq 4.x) to use
+  the `:ffi` backend. The omq-ffi gem is superseded; existing pins to
+  `omq-ffi ~> 0.3` keep working via its own dependency on `omq ~> 0.23`.
+
 ## 0.25.0 — 2026-04-20
 
 ### Added
@@ -1094,9 +1117,10 @@ Combined effect of caller-owns-data + Reactor fast path on inproc:
 ### Added
 
 - **`backend:` kwarg** — all socket types accept `backend: :ffi` to use
-  the libzmq FFI backend (via the [omq-ffi](https://github.com/paddor/omq-ffi)
-  gem). Default is `:ruby` (pure Ruby ZMTP). Enables interop testing and
-  access to libzmq-specific features without changing the socket API.
+  the libzmq FFI backend (then shipped separately as the `omq-ffi` gem;
+  absorbed in-tree in 0.26.0). Default is `:ruby` (pure Ruby ZMTP).
+  Enables interop testing and access to libzmq-specific features without
+  changing the socket API.
 - **TLS transport (`tls+tcp://`)** — TLS v1.3 on top of TCP using Ruby's
   stdlib `openssl`. Set `socket.tls_context` to an `OpenSSL::SSL::SSLContext`
   before bind/connect. Per-socket (not per-endpoint), frozen on first use.

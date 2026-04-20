@@ -36,7 +36,7 @@ module OMQ
 
 
     # @return [Engine] the socket's engine. Exposed for peer tooling
-    #   (omq-cli, omq-ffi, omq-ractor) that needs to reach into the
+    #   (omq-cli, omq-ractor) that needs to reach into the
     #   socket's internals — not part of the stable user API.
     #
     attr_reader :engine
@@ -318,6 +318,7 @@ module OMQ
       when nil, :ruby
         Engine.new(socket_type, @options)
       when :ffi
+        require "omq/ffi" unless defined?(FFI::Engine)
         FFI::Engine.new(socket_type, @options)
       else
         raise ArgumentError, "unknown backend: #{backend}"

@@ -213,12 +213,23 @@ echo "hello" | omq req -c tcp://localhost:5555
 
 See the [omq-cli README](https://github.com/paddor/omq-cli) for full documentation.
 
+## Optional libzmq backend
+
+OMQ ships with an optional libzmq FFI backend. Same socket API, but
+backed by libzmq instead of the pure Ruby ZMTP stack. Useful when you
+need libzmq-specific features or for verifying wire compatibility.
+
+```ruby
+require "omq/ffi"
+push = OMQ::PUSH.new(backend: :ffi)
+```
+
+Requires the `ffi` gem and a system libzmq 4.x. `ffi` is not a runtime
+dependency of `omq` — install it explicitly (`gem install ffi`) if you
+want the `:ffi` backend.
+
 ## Companion Gems
 
-- **[omq-ffi](https://github.com/paddor/omq-ffi)** — libzmq FFI backend. Same
-  OMQ socket API, but backed by libzmq instead of the pure Ruby ZMTP stack.
-  Useful for interop testing and when you need libzmq-specific features.
-  Requires libzmq installed.
 - **[omq-ractor](https://github.com/paddor/omq-ractor)** — bridge OMQ sockets
   into Ruby Ractors for true parallel processing across cores. I/O stays on the
   main Ractor, worker Ractors do pure computation.
@@ -250,7 +261,6 @@ the stack.
 git clone https://github.com/paddor/omq.git
 git clone https://github.com/paddor/protocol-zmtp.git
 git clone https://github.com/paddor/omq-zstd.git
-git clone https://github.com/paddor/omq-ffi.git
 git clone https://github.com/paddor/omq-ractor.git
 git clone https://github.com/paddor/nuckle.git
 
