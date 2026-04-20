@@ -14,7 +14,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       push.send("hello ffi")
       msg = pull.receive
@@ -32,7 +32,7 @@ describe "FFI backend" do
 
       req = OMQ::REQ.new(backend: :ffi)
       req.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       req.send("request")
       assert_equal ["request"], rep.receive
@@ -52,7 +52,7 @@ describe "FFI backend" do
 
       client = OMQ::PAIR.new(backend: :ffi)
       client.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       client.send("hello")
       assert_equal ["hello"], server.receive
@@ -72,7 +72,7 @@ describe "FFI backend" do
 
       sub = OMQ::SUB.new(subscribe: "weather.", backend: :ffi)
       sub.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.1
+      sleep 0.03
 
       pub.send("weather.rain")
       pub.send("sports.goal")   # should be filtered out
@@ -93,7 +93,7 @@ describe "FFI backend" do
 
       sub = OMQ::SUB.new(subscribe: "", backend: :ffi)
       sub.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.1
+      sleep 0.03
 
       pub.send("any topic")
       assert_equal ["any topic"], sub.receive
@@ -110,7 +110,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       push.send(["part1", "part2", "part3"])
       assert_equal ["part1", "part2", "part3"], pull.receive
@@ -127,7 +127,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       push.send(["identity", "", "body"])
       msg = pull.receive
@@ -148,7 +148,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       binary = (0..255).map(&:chr).join.b
       push.send(binary)
@@ -167,7 +167,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       big = "X" * 65_536
       push.send(big)
@@ -187,7 +187,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       n = 5000
       100.times do
@@ -213,7 +213,7 @@ describe "FFI backend" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect(addr)
-      sleep 0.05
+      sleep 0.01
 
       push.send("ipc msg")
       assert_equal ["ipc msg"], pull.receive
@@ -231,7 +231,7 @@ describe "FFI backend" do
       dealer = OMQ::DEALER.new(backend: :ffi)
       dealer.identity = "worker-1"
       dealer.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       dealer.send("hello from dealer")
       msg = router.receive
@@ -251,7 +251,7 @@ describe "FFI backend" do
 
       req = OMQ::REQ.new(backend: :ffi)
       req.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       20.times do |i|
         req.send("request-#{i}")

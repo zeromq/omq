@@ -33,15 +33,18 @@ describe "SCATTER/GATHER over inproc" do
       n.times { |i| scatter.send("msg#{i}") }
 
       received = []
-      g1.read_timeout = 0.5
-      g2.read_timeout = 0.5
+      barrier  = Async::Barrier.new
       [g1, g2].each do |g|
-        loop do
-          received << g.receive.first
-        rescue IO::TimeoutError
-          break
+        g.read_timeout = 0.05
+        barrier.async do
+          loop do
+            received << g.receive.first
+          rescue IO::TimeoutError
+            break
+          end
         end
       end
+      barrier.wait
 
       assert_equal n, received.size
       assert_equal n, received.uniq.size

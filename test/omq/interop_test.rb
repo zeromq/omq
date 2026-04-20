@@ -12,7 +12,7 @@ describe "FFI ↔ pure Ruby interop" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       push.send("cross-backend")
       assert_equal ["cross-backend"], pull.receive
@@ -31,7 +31,7 @@ describe "FFI ↔ pure Ruby interop" do
 
       push = OMQ::PUSH.new(backend: :ffi, linger: 5)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       push.send("flushed-on-close")
       push.close  # close immediately, no yield in between
@@ -66,7 +66,7 @@ describe "FFI ↔ pure Ruby interop" do
 
       req = OMQ::REQ.new(backend: :ffi)
       req.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       req.send("ping")
       assert_equal ["ping"], rep.receive
@@ -105,7 +105,7 @@ describe "FFI ↔ pure Ruby interop" do
 
       push = OMQ::PUSH.new(backend: :ffi)
       push.connect("tcp://127.0.0.1:#{port}")
-      sleep 0.05
+      sleep 0.01
 
       push.send(["id", "", "payload"])
       assert_equal ["id", "", "payload"], pull.receive
