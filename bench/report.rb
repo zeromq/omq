@@ -39,7 +39,15 @@ rows = File.readlines(RESULTS_PATH).map { |line| JSON.parse(line, symbolize_name
 if options[:update_readme]
   README_PATH = File.join(__dir__, "README.md")
   TRANSPORTS  = %w[inproc ipc tcp].freeze
-  SIZE_LABELS = { 128 => "128 B", 512 => "512 B", 2048 => "2 KiB", 8192 => "8 KiB", 32_768 => "32 KiB" }.freeze
+  SIZE_LABELS = {
+    128     => "128 B",
+    512     => "512 B",
+    2048    => "2 KiB",
+    8192    => "8 KiB",
+    32_768  => "32 KiB",
+    131_072 => "128 KiB",
+    524_288 => "512 KiB",
+  }.freeze
 
   abort "No runs found in #{RESULTS_PATH}" if rows.empty?
 
