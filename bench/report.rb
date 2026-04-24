@@ -62,12 +62,19 @@ if options[:update_readme]
     end
   end
 
+  # Trailing * flags a nominal figure: payloads are shared (not `.dup`'d),
+  # so the sender and receiver operate on the same String object. For
+  # inproc that means no memory copy happens at all — the product
+  # (msg/s × size) overstates actual memory bandwidth. For IPC/TCP the
+  # kernel still copies the bytes, but we apply the same asterisk for
+  # consistency since the benchmark never attributes bytes to per-message
+  # allocator work.
   fmt_mbps = lambda do |v|
     next nil unless v
-    if    v >= 1000 then "%.2f GB/s" % (v / 1000.0)
-    elsif v >= 100  then "%.0f MB/s" % v
-    elsif v >= 10   then "%.1f MB/s" % v
-    else                 "%.2f MB/s" % v
+    if    v >= 1000 then "%.2f GB/s*" % (v / 1000.0)
+    elsif v >= 100  then "%.0f MB/s*" % v
+    elsif v >= 10   then "%.1f MB/s*" % v
+    else                 "%.2f MB/s*" % v
     end
   end
 

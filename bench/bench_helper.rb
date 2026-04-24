@@ -206,7 +206,7 @@ module BenchHelper
 
       senders.each do |sender|
         barrier.async do
-          per.times { sender << payload.dup }
+          per.times { sender << payload }
         end
       end
 
@@ -221,7 +221,7 @@ module BenchHelper
   end
 
   def measure_roundtrip(requester, _responder_task, payload)
-    burst = ->(k) { k.times { requester << payload.dup; requester.receive } }
+    burst = ->(k) { k.times { requester << payload; requester.receive } }
     measure_best_of(payload, &burst)
   end
 
