@@ -234,13 +234,32 @@ want the `:ffi` backend.
   into Ruby Ractors for true parallel processing across cores. I/O stays on the
   main Ractor, worker Ractors do pure computation.
 
+### Compressed transports
+
+Drop-in TCP replacements that compress every message part on the wire. Both
+peers must use the same scheme — a `tcp://` peer cannot talk to a
+`zstd+tcp://` peer. The ZMTP handshake itself runs over plain TCP; only
+post-handshake message parts are compressed.
+
+- **[omq-lz4](https://github.com/paddor/omq-lz4)** — `lz4+tcp://`.
+  LZ4 per-part compression. ~4–8× faster encode than zstd, ~16 KiB per
+  connection. Use for CPU- or memory-scarce deployments.
+- **[omq-zstd](https://github.com/paddor/omq-zstd)** — `zstd+tcp://`.
+  Zstandard per-part compression. Best ratio; ~256 KiB encoder state per
+  connection. Use when bandwidth matters more than CPU.
+
 ### Protocol extensions (RFCs)
 
 Optional plug-ins that extend the ZMTP wire protocol. Each is a separate gem;
 load the ones you need.
 
-- **[omq-zstd](https://github.com/paddor/omq-zstd)** — transparent
-  Zstandard compression on the wire, negotiated per peer via READY properties.
+- **[omq-qos](https://github.com/paddor/omq-qos)** — MQTT-style at-least-once
+  delivery. Receivers send an ACK command frame keyed by xxHash digest;
+  unacked messages re-enqueue to the next peer on disconnect. PUSH/PULL,
+  SCATTER/GATHER, REQ/REP only — fan-out patterns are out of scope.
+- **[omq-blake3zmq](https://github.com/paddor/omq-blake3zmq)** — experimental
+  security mechanism replacing CurveZMQ with X25519 + ChaCha20-BLAKE3 AEAD
+  and BLAKE3 transcript hashing. Not audited; use CurveZMQ for production.
 
 ## Development
 
