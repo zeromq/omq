@@ -46,6 +46,7 @@ walkthrough of every major pattern with working code.
   messages drain when peers arrive
 
 For architecture internals, see [DESIGN.md](doc/DESIGN.md).
+If you're interested in the steps taken to reach the current performance, read [PERFORMANCE.md](doc/PERFORMANCE.md).
 
 ## Install
 
