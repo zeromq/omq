@@ -177,12 +177,13 @@ module OMQ
       #
       def start_conn_send_pump_normal(conn, q, use_wire)
         @engine.spawn_conn_pump_task(conn, annotation: "send pump") do
-          batch = []
+          batch     = []
+          aux_batch = []
 
           loop do
             Routing.dequeue_batch(q, batch)
 
-            if write_matching_batch(conn, batch, use_wire)
+            if write_matching_batch(conn, batch, use_wire, aux_batch)
               conn.flush
               batch.each { |parts| @engine.emit_verbose_msg_sent(conn, parts) }
             end
@@ -197,22 +198,50 @@ module OMQ
       #
       # @return [Boolean] true iff at least one message was written
       #
-      def write_matching_batch(conn, batch, use_wire)
-        sent = false
+      def write_matching_batch(conn, batch, use_wire, aux_batch)
+        if use_wire
+          write_matching_batch_wire(conn, batch, aux_batch)
+        else
+          write_matching_batch_framed(conn, batch, aux_batch)
+        end
+      end
 
+
+      def write_matching_batch_wire(conn, batch, wire_batch)
         batch.each do |parts|
           next unless subscribed?(conn, parts.first || EMPTY_BINARY)
-
-          if use_wire
-            conn.write_wire(Protocol::ZMTP::Codec::Frame.encode_message(parts))
-          else
-            conn.write_message(parts)
-          end
-
-          sent = true
+          wire_batch << Protocol::ZMTP::Codec::Frame.encode_message(parts)
         end
 
-        sent
+        return false if wire_batch.empty?
+
+        if wire_batch.size == 1
+          conn.write_wire(wire_batch.first)
+        else
+          conn.write_wire_batch(wire_batch)
+        end
+
+        wire_batch.clear
+        true
+      end
+
+
+      def write_matching_batch_framed(conn, batch, msg_batch)
+        batch.each do |parts|
+          next unless subscribed?(conn, parts.first || EMPTY_BINARY)
+          msg_batch << parts
+        end
+
+        return false if msg_batch.empty?
+
+        if msg_batch.size == 1
+          conn.write_message(msg_batch.first)
+        else
+          conn.write_messages(msg_batch)
+        end
+
+        msg_batch.clear
+        true
       end
 
 
